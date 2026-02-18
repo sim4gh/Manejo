@@ -5,6 +5,7 @@ namespace Gley.TrafficSystem.User
 	public enum VehicleTypes
 	{
 		Car,
+		Bus,
 	}
 }
 #endif

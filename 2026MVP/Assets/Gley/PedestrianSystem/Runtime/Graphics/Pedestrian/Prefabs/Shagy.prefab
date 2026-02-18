@@ -173,6 +173,7 @@ GameObject:
   - component: {fileID: 7055216554572640870}
   - component: {fileID: 4740687121455986546}
   - component: {fileID: 8193780449339750773}
+  - component: {fileID: 4576915493366603044}
   m_Layer: 13
   m_Name: Shagy
   m_TagString: Untagged
@@ -266,6 +267,18 @@ MonoBehaviour:
   _maxWalkSpeed: 0.6
   _type: 0
   _triggerLength: 2
+--- !u!114 &4576915493366603044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8618971948799721921}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1fe17c0c39f578348b0ef39dc0a93557, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BusKiller
 --- !u!1 &8795939976796438518
 GameObject:
   m_ObjectHideFlags: 0

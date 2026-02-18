@@ -4777,9 +4777,37 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 1294132247361456721, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -2.61
+      objectReference: {fileID: 0}
+    - target: {fileID: 1360187858970627508, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: -0.64
+      objectReference: {fileID: 0}
     - target: {fileID: 2109068470883076612, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
       propertyPath: maxPossibleSpeed
       value: 20
+      objectReference: {fileID: 0}
+    - target: {fileID: 2715354843716155690, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Size.x
+      value: 2.0690627
+      objectReference: {fileID: 0}
+    - target: {fileID: 2715354843716155690, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Size.y
+      value: 1.4718717
+      objectReference: {fileID: 0}
+    - target: {fileID: 2715354843716155690, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Size.z
+      value: 6.144651
+      objectReference: {fileID: 0}
+    - target: {fileID: 2715354843716155690, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Center.z
+      value: 3.0723255
+      objectReference: {fileID: 0}
+    - target: {fileID: 4219108861142712559, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.66
       objectReference: {fileID: 0}
     - target: {fileID: 4224442779959006480, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
       propertyPath: 'm_Materials.Array.data[1]'
@@ -4849,6 +4877,18 @@ PrefabInstance:
       propertyPath: m_Name
       value: Ambulancia
       objectReference: {fileID: 0}
+    - target: {fileID: 5225435122292038526, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Size.z
+      value: 4.441448
+      objectReference: {fileID: 0}
+    - target: {fileID: 5225435122292038526, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Center.y
+      value: 0.8000001
+      objectReference: {fileID: 0}
+    - target: {fileID: 5225435122292038526, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_Center.z
+      value: -0.33151072
+      objectReference: {fileID: 0}
     - target: {fileID: 5515285911565082468, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
       propertyPath: rearLights
       value: 
@@ -4880,6 +4920,10 @@ PrefabInstance:
     - target: {fileID: 6802999312400672857, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
       propertyPath: m_IsActive
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8206346454513998320, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.853
       objectReference: {fileID: 0}
     - target: {fileID: 8566938385359055262, guid: 436a70b435c93d74e9d4b0f983c528ea, type: 3}
       propertyPath: m_IsActive

@@ -1310,7 +1310,7 @@ GameObject:
   - component: {fileID: 3896064849546888513}
   m_Layer: 12
   m_Name: Player 1
-  m_TagString: Untagged
+  m_TagString: automovil
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -1393,6 +1393,9 @@ MonoBehaviour:
   centerOfMass: {fileID: 1553703476313103171}
   maxMotorTorque: 600
   maxSteeringAngle: 30
+  steeringWheel: {fileID: 0}
+  steeringWheelMaxRotation: 450
+  steeringWheelSmoothTime: 0.08
 --- !u!114 &6237111474700511230
 MonoBehaviour:
   m_ObjectHideFlags: 0

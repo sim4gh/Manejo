@@ -35,10 +35,11 @@ MonoBehaviour:
     StopWaypointsColor: {r: 1, g: 0, b: 0, a: 1}
     ExitWaypointsColor: {r: 0, g: 1, b: 1, a: 1}
   AgentRoutes:
-    Id: 00000000
+    Id: 0000000001000000
     RoutesColor:
-    - {r: 1, g: 1, b: 1, a: 1}
-    Active: 01
+    - {r: 0, g: 0.09534234, b: 0.8773585, a: 1}
+    - {r: 0.9339623, g: 0.004405493, b: 0.004405493, a: 1}
+    Active: 0101
   PathFindingRoutes:
     Id: ffffffff
     RoutesColor:

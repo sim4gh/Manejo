@@ -35,7 +35,7 @@ MonoBehaviour:
     StopWaypointsColor: {r: 1, g: 0, b: 0, a: 1}
     ExitWaypointsColor: {r: 0, g: 1, b: 1, a: 1}
   AgentRoutes:
-    Id: ffffffff
+    Id: 00000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
     Active: 01
@@ -45,10 +45,11 @@ MonoBehaviour:
     - {r: 1, g: 1, b: 1, a: 1}
     Active: 01
   PriorityRoutes:
-    Id: ffffffff
+    Id: 0100000002000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
-    Active: 01
+    - {r: 1, g: 1, b: 1, a: 1}
+    Active: 0101
   ShowConnections: 0
   ShowPriority: 0
   ShowVehicles: 0
