@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &723916402679789749
+--- !u!1 &1998152597766470579
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,8 +8,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 8579735733859596848}
-  - component: {fileID: 2252679054002034663}
+  - component: {fileID: 5785274695401314279}
+  - component: {fileID: 5110882987349099250}
   m_Layer: 13
   m_Name: FrontTrigger
   m_TagString: Untagged
@@ -17,13 +17,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &8579735733859596848
+--- !u!4 &5785274695401314279
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 723916402679789749}
+  m_GameObject: {fileID: 1998152597766470579}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.92588836, z: 0}
@@ -32,13 +32,13 @@ Transform:
   m_Children: []
   m_Father: {fileID: 7296976327038299933}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &2252679054002034663
+--- !u!65 &5110882987349099250
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 723916402679789749}
+  m_GameObject: {fileID: 1998152597766470579}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -196,7 +196,7 @@ Transform:
   m_Children:
   - {fileID: 2095247496689791815}
   - {fileID: 3887861239665706802}
-  - {fileID: 8579735733859596848}
+  - {fileID: 5785274695401314279}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!95 &7055216554572640870
@@ -261,7 +261,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _visibilityScript: {fileID: 7571910576816489068}
-  _ragDollPrefab: {fileID: 1638773915072925648, guid: dfe2d81e16078254a86a74183334cc74, type: 3}
+  _ragDollPrefab: {fileID: 6805894566928699373, guid: 06d040dff93031d42bc3018fb33365da, type: 3}
   _hasRagdoll: 1
   _minWalkSpeed: 0.4
   _maxWalkSpeed: 0.6
