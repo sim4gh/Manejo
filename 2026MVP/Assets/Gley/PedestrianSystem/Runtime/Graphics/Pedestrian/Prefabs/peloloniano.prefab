@@ -141,7 +141,7 @@ CapsuleCollider:
   m_Height: 1.7
   m_Direction: 1
   m_Center: {x: 0, y: 1, z: 0}
---- !u!1 &6641028270617345129
+--- !u!1 &9214181103360629975
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -149,8 +149,8 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 8809050909708266370}
-  - component: {fileID: 6352036141468750382}
+  - component: {fileID: 7177116886944286464}
+  - component: {fileID: 6366088958353346581}
   m_Layer: 13
   m_Name: FrontTrigger
   m_TagString: Untagged
@@ -158,13 +158,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &8809050909708266370
+--- !u!4 &7177116886944286464
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6641028270617345129}
+  m_GameObject: {fileID: 9214181103360629975}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0.92588836, z: 0}
@@ -173,13 +173,13 @@ Transform:
   m_Children: []
   m_Father: {fileID: 2013065479638932218}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!65 &6352036141468750382
+--- !u!65 &6366088958353346581
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6641028270617345129}
+  m_GameObject: {fileID: 9214181103360629975}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -426,7 +426,7 @@ PrefabInstance:
       addedObject: {fileID: 5767731879218249873}
     - targetCorrespondingSourceObject: {fileID: -8679921383154817045, guid: 3e4fe89e50112e0458c8f1604605fa3d, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 8809050909708266370}
+      addedObject: {fileID: 7177116886944286464}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3e4fe89e50112e0458c8f1604605fa3d, type: 3}
       insertIndex: -1
@@ -511,7 +511,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _visibilityScript: {fileID: 9032052395605977179}
-  _ragDollPrefab: {fileID: 1909001698619046016, guid: af5becc184319f24c940ffd039dce308, type: 3}
+  _ragDollPrefab: {fileID: 9041436854343779368, guid: d6e6763a006334a42932edf9dd60a4d7, type: 3}
   _hasRagdoll: 1
   _minWalkSpeed: 0.4
   _maxWalkSpeed: 0.6
