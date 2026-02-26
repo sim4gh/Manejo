@@ -6,6 +6,7 @@ namespace Gley.TrafficSystem.User
 	{
 		Car,
 		Bus,
+		NoPasar,
 	}
 }
 #endif
