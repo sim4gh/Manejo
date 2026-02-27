@@ -5,12 +5,15 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/MainMenu.unity
     guid: b2968151364f743cb837a6cedf012a26
-  - enabled: 1
+  - enabled: 0
     path: Assets/Gley/UrbanExample/Samples/UrbanExample.unity
     guid: 74fdf42887fb42346a2cefcb81391208
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Shaderillo.unity
+    guid: ca58f8ace7b6ce6428e00f4b32064b7e
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
   m_UseUCBPForAssetBundles: 0
