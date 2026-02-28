@@ -8,6 +8,7 @@ public class peatones : MonoBehaviour
     public Transform puntoDestino;
     public float velocidad = 5f;
     public Rigidbody rb;
+    public bool salgoColision = false;
 
     [Header("Animaci�n")]
     public Animator caminar;
@@ -16,7 +17,7 @@ public class peatones : MonoBehaviour
     public GameObject peaton;
     public Collider principal;
 
-    public bool pego = false;
+    public bool puedoAvanzar = false;
 
     private Vector3 posicionInicial;
     private Quaternion rotacionInicial;
@@ -36,13 +37,13 @@ public class peatones : MonoBehaviour
         GuardarTransformacionesIniciales();
         DesactivarRagdoll();
 
-        pego = false;
-        caminar.Play("Running");
+        puedoAvanzar = false;
+        caminar.Play("Sad Idle");
     }
 
     void FixedUpdate()
     {
-        if (!pego)
+        if (puedoAvanzar)
         {
             Vector3 mov = Vector3.MoveTowards(
                 rb.position,
@@ -59,9 +60,9 @@ public class peatones : MonoBehaviour
         if (collision.gameObject.CompareTag("automovil") ||
             collision.gameObject.CompareTag("Player"))
         {
-            if (!pego)
+            if (puedoAvanzar)
             {
-                pego = true;
+                puedoAvanzar = false;
                 ActivarRagdoll();
                 StartCoroutine(RutinaColision());
             }
@@ -85,20 +86,28 @@ public class peatones : MonoBehaviour
         peaton.SetActive(false);
 
         yield return new WaitForSeconds(3f);
-
         ResetearPeaton();
+
+        if (!salgoColision)
+        {
+           
+            caminar.Play("Running");
+            puedoAvanzar = true;
+        }
     }
 
     IEnumerator RutinaPunto()
     {
-        pego = true;
+        puedoAvanzar = false;
 
         caminar.enabled = false;
         peaton.SetActive(false);
 
         yield return new WaitForSeconds(2f);
-
         ResetearPeaton();
+        caminar.Play("Running");
+        puedoAvanzar = true;
+
     }
 
     public void ResetearPeaton()
@@ -113,9 +122,9 @@ public class peatones : MonoBehaviour
 
         peaton.SetActive(true);
         caminar.enabled = true;
-        caminar.Play("Running");
+        
 
-        pego = false;
+        
     }
 
     void ActivarRagdoll()
@@ -134,7 +143,7 @@ public class peatones : MonoBehaviour
         rb.isKinematic = true;
     }
 
-    void DesactivarRagdoll()
+    public void DesactivarRagdoll()
     {
         for (int i = 0; i < colliders.Length; i++)
             colliders[i].enabled = false;
