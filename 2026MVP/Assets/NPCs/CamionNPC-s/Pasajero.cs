@@ -21,16 +21,18 @@ public class Pasajero : MonoBehaviour
     public List<Asiento> _Asientos;
     public Rigidbody rb;
     public float velocidad = 2;
-    public float _LaDistanciaAl_Asiento = 0;
     public GameObject PuntosRecorrido;
     public Animator animaciones;
     public Asiento Asiento;
+    public bool _ViAsiento = false;
+    public int indiceActual = 0;
 
     public void Start()
     {
         _Estados = Estados.Parado;
         rb.MovePosition(Vector3.MoveTowards(rb.position, puntos[0].position, velocidad * Time.fixedDeltaTime));
-        animaciones.Play("Female_Armature|Female_Armature|Female_Armature|TSP_Male_Pose_Sitting_01|Female");
+        animaciones.Play("Walk");
+
 
     }
 
@@ -38,45 +40,78 @@ public class Pasajero : MonoBehaviour
 
     void FixedUpdate()
     {
-        animaciones.Play("Walk");
         BuscoAsiento();
        
     }
 
 
 
-
     public void BuscoAsiento()
     {
-        
         _Estados = Estados.BuscandoAsiento;
-        for (int i = 0; i < puntos.Count; i++)
+
+        //switch (Asiento._Orientation)
+        //{
+        //    case AsientoOrientacion.Derecho:
+        //        rb.rotation = Quaternion.Euler(0f, 0f, 0f);
+
+        //        break;
+        //    case AsientoOrientacion.Izquierdo:
+        //        break;
+        //    case AsientoOrientacion.Atras:
+        //        break;
+        //    default:
+        //        break;
+        //}
+
+        if (!_ViAsiento)
         {
-            rb.MovePosition(Vector3.MoveTowards(rb.position, puntos[i].position, velocidad * Time.fixedDeltaTime));
+
+            Transform destino = puntos[indiceActual];
+
+            float distancia = Vector3.Distance(rb.position, destino.position);
+
+            if (distancia > 0.2f)
+            {
+                rb.MovePosition(Vector3.MoveTowards(rb.position, destino.position, velocidad * Time.fixedDeltaTime));
+
+                if (rb.position != _Asientos[0].transform.position)
+                {
+                    transform.LookAt(destino);
+
+                }
+               
+            }
+            else
+            {
+                indiceActual++; 
+            }
         }
+        else
+        {
+           
+
+            Transform asientoDestino = _Asientos[0].transform;
+
+            rb.MovePosition(Vector3.MoveTowards(rb.position, asientoDestino.position, velocidad * Time.fixedDeltaTime));
+            Quaternion angulo = Quaternion.Euler(0, 90, 0);
+            rb.rotation = angulo;
+            Invoke(nameof(Sentado), 1f);
+        }
+    }
+
+    public void Sentado()
+    {
+        animaciones.Play("Female_Armature|Female_Armature|Female_Armature|TSP_Male_Pose_Sitting_01|Female");
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Asientos"))
         {
-            switch (Asiento._Orientation)
-            {
-                case AsientoOrientacion.Derecho:
-                    rb.rotation = Quaternion.Euler(0,90,0); 
-                    break;
-                case AsientoOrientacion.Izquierdo:
-                    break;
-                case AsientoOrientacion.Atras:
-                    break;
-                default:
-                    break;
-            }
-            if(Asiento._Orientation==AsientoOrientacion.Izquierdo)
-              {
-
-              }
-            rb.MovePosition(Vector3.MoveTowards(rb.position, _Asientos[0].transform.position, velocidad * Time.fixedDeltaTime));
+            _ViAsiento = true;
+            
+           
 
         }
     }
