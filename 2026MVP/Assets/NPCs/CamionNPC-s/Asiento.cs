@@ -1,19 +1,30 @@
 using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 
-public enum AsientoOrientacion
-{
-    Derecho,
-    Izquierdo,
-    Atras
-}
+
 public class Asiento : MonoBehaviour
 {
-    public bool disponible = false;
-    public AsientoOrientacion  _Orientation;
-    public void Start()
+
+    public string tipoAsiento;
+    public int lugaresDisponibles = 2;
+    private void OnTriggerEnter(Collider other)
     {
-        disponible = true;
+        if (lugaresDisponibles <= 0) return;
+
+        if (other.GetComponentInParent<Pasajero>() != null)
+        {
+            lugaresDisponibles--;
+            GetComponent<Collider>().enabled = false;
+
+            Invoke(nameof(ActivarCollider), 1f);
+        }
     }
+
+    private void ActivarCollider()
+    {
+        GetComponent<Collider>().enabled = true;
+    }
+
+
 
 }

@@ -1,35 +1,35 @@
-using System.Collections.Generic;
 using NUnit.Framework;
+using System.Collections.Generic;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.UIElements;
 
 
 
-public enum Estados
-{
-    Parado,
-    BuscandoAsiento,
-    Sentado,
-    Bajando
-}
+
 
 
 public class Pasajero : MonoBehaviour
 {
-    public Estados _Estados;
+    [Header("Listas de puntos")]
     public List<Transform> puntos;
     public List<Asiento> _Asientos;
-    public Rigidbody rb;
-    public float velocidad = 2;
+
+    [Header("Variables de Asiento y referencias")]
+    public string AsientoOrientacion;
     public GameObject PuntosRecorrido;
-    public Animator animaciones;
     public Asiento Asiento;
     public bool _ViAsiento = false;
+    public int Num_Asiento = 0;
+
+    [Header("Animacion y variables de personaje")]
+    public Animator animaciones;
     public int indiceActual = 0;
+    public Rigidbody rb;
+    public float velocidad = 2;
 
     public void Start()
     {
-        _Estados = Estados.Parado;
         rb.MovePosition(Vector3.MoveTowards(rb.position, puntos[0].position, velocidad * Time.fixedDeltaTime));
         animaciones.Play("Walk");
 
@@ -48,21 +48,6 @@ public class Pasajero : MonoBehaviour
 
     public void BuscoAsiento()
     {
-        _Estados = Estados.BuscandoAsiento;
-
-        //switch (Asiento._Orientation)
-        //{
-        //    case AsientoOrientacion.Derecho:
-        //        rb.rotation = Quaternion.Euler(0f, 0f, 0f);
-
-        //        break;
-        //    case AsientoOrientacion.Izquierdo:
-        //        break;
-        //    case AsientoOrientacion.Atras:
-        //        break;
-        //    default:
-        //        break;
-        //}
 
         if (!_ViAsiento)
         {
@@ -75,7 +60,7 @@ public class Pasajero : MonoBehaviour
             {
                 rb.MovePosition(Vector3.MoveTowards(rb.position, destino.position, velocidad * Time.fixedDeltaTime));
 
-                if (rb.position != _Asientos[0].transform.position)
+                if (rb.position != _Asientos[Num_Asiento].transform.position)
                 {
                     transform.LookAt(destino);
 
@@ -89,13 +74,25 @@ public class Pasajero : MonoBehaviour
         }
         else
         {
-           
+            switch (AsientoOrientacion)
+            {
+                case "MirandoAtras":
+                    rb.rotation = Quaternion.Euler(0, 270, 0);
+                    break;
 
-            Transform asientoDestino = _Asientos[0].transform;
+                case "MirandoDeFrente":
+                    rb.rotation = Quaternion.Euler(0, 90, 0);
 
+                    break;
+
+                default:
+                    break;
+            }
+
+            Transform asientoDestino = _Asientos[Num_Asiento].transform;
+          
             rb.MovePosition(Vector3.MoveTowards(rb.position, asientoDestino.position, velocidad * Time.fixedDeltaTime));
-            Quaternion angulo = Quaternion.Euler(0, 90, 0);
-            rb.rotation = angulo;
+         
             Invoke(nameof(Sentado), 1f);
         }
     }
@@ -109,16 +106,11 @@ public class Pasajero : MonoBehaviour
     {
         if (other.CompareTag("Asientos"))
         {
+            AsientoOrientacion = Asiento.tipoAsiento;
             _ViAsiento = true;
-            
-           
-
         }
     }
 
    
-    //public void EsperoParada()
-    //{
-
-    //}
+ 
 }
