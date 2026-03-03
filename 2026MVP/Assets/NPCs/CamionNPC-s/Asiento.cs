@@ -7,22 +7,28 @@ public class Asiento : MonoBehaviour
 
     public string tipoAsiento;
     public int lugaresDisponibles = 2;
+    public bool _UnoMenos = false;
     private void OnTriggerEnter(Collider other)
     {
         if (lugaresDisponibles <= 0) return;
 
-        if (other.GetComponentInParent<Pasajero>() != null)
+        if (other.GetComponentInParent<Pasajero>())
         {
-            lugaresDisponibles--;
-            GetComponent<Collider>().enabled = false;
+            if (!_UnoMenos)
+            {
+                _UnoMenos = true;
+                lugaresDisponibles--;
+                Invoke(nameof(Activarbooleano), 2f);
+            }
 
-            Invoke(nameof(ActivarCollider), 1f);
+
+
         }
     }
 
-    private void ActivarCollider()
+    private void Activarbooleano()
     {
-        GetComponent<Collider>().enabled = true;
+        _UnoMenos = false;
     }
 
 

@@ -3,10 +3,20 @@ using UnityEngine;
 
 public class BusAsientosManager : MonoBehaviour
 {
-    void Start()
-    {
-       
-    }
 
-   
+    private void Update()
+    {
+         ChecoAsiento();
+    }
+    public void ChecoAsiento()
+    {
+        foreach (Transform asientosDisponibles in transform)
+        {
+            Asiento asiento = asientosDisponibles.GetComponent<Asiento>();
+            if (asiento.lugaresDisponibles <=0)
+            {
+                asiento.gameObject.SetActive(false);
+            }
+        }
+    }
 }

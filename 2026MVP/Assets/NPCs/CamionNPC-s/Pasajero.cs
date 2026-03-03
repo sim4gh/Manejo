@@ -1,13 +1,5 @@
-using NUnit.Framework;
-using System.Collections.Generic;
-using Unity.VisualScripting;
+﻿using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.UIElements;
-
-
-
-
-
 
 public class Pasajero : MonoBehaviour
 {
@@ -21,55 +13,56 @@ public class Pasajero : MonoBehaviour
     public Asiento Asiento;
     public bool _ViAsiento = false;
     public int Num_Asiento = 0;
+    public GameObject _BusTransform;
 
     [Header("Animacion y variables de personaje")]
     public Animator animaciones;
     public int indiceActual = 0;
-    public Rigidbody rb;
     public float velocidad = 2;
+    public bool _Sentado = false;
 
-    public void Start()
+    void Start()
     {
-        rb.MovePosition(Vector3.MoveTowards(rb.position, puntos[0].position, velocidad * Time.fixedDeltaTime));
+        //transform.position = Vector3.MoveTowards(
+        //    transform.position,
+        //    puntos[0].position,
+        //    velocidad * Time.fixedDeltaTime
+        //);
+
         animaciones.Play("Walk");
-
-
     }
-
-
 
     void FixedUpdate()
     {
-        BuscoAsiento();
-       
+        //BuscoAsiento();
     }
-
-
 
     public void BuscoAsiento()
     {
+        if (_Sentado) return;
 
         if (!_ViAsiento)
         {
-
             Transform destino = puntos[indiceActual];
 
-            float distancia = Vector3.Distance(rb.position, destino.position);
+            float distancia = Vector3.Distance(transform.position, destino.position);
 
             if (distancia > 0.2f)
             {
-                rb.MovePosition(Vector3.MoveTowards(rb.position, destino.position, velocidad * Time.fixedDeltaTime));
+                transform.position = Vector3.MoveTowards(
+                    transform.position,
+                    destino.position,
+                    velocidad * Time.fixedDeltaTime
+                );
 
-                if (rb.position != _Asientos[Num_Asiento].transform.position)
+                if (transform.position != _Asientos[Num_Asiento].transform.position)
                 {
                     transform.LookAt(destino);
-
                 }
-               
             }
             else
             {
-                indiceActual++; 
+                indiceActual++;
             }
         }
         else
@@ -77,40 +70,43 @@ public class Pasajero : MonoBehaviour
             switch (AsientoOrientacion)
             {
                 case "MirandoAtras":
-                    rb.rotation = Quaternion.Euler(0, 270, 0);
+                    transform.rotation = Quaternion.Euler(0, 270, 0);
                     break;
 
                 case "MirandoDeFrente":
-                    rb.rotation = Quaternion.Euler(0, 90, 0);
-
-                    break;
-
-                default:
+                    transform.rotation = Quaternion.Euler(0, 90, 0);
                     break;
             }
 
             Transform asientoDestino = _Asientos[Num_Asiento].transform;
-          
-            rb.MovePosition(Vector3.MoveTowards(rb.position, asientoDestino.position, velocidad * Time.fixedDeltaTime));
-         
-            Invoke(nameof(Sentado), 1f);
+
+            transform.position = Vector3.MoveTowards(
+                transform.position,
+                asientoDestino.position,
+                velocidad * Time.fixedDeltaTime
+            );
+
+            if (transform.position == asientoDestino.position)
+            {
+                Sentado();
+            }
         }
     }
 
     public void Sentado()
     {
         animaciones.Play("Female_Armature|Female_Armature|Female_Armature|TSP_Male_Pose_Sitting_01|Female");
+        transform.SetParent(_BusTransform.transform);
+        _Sentado = true; 
     }
 
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("Asientos"))
         {
-            AsientoOrientacion = Asiento.tipoAsiento;
+            AsientoOrientacion = other.GetComponent<Asiento>().tipoAsiento;
             _ViAsiento = true;
+            GetComponent<Collider>().enabled = false;
         }
     }
-
-   
- 
 }

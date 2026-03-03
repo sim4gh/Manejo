@@ -7,7 +7,15 @@ public class ParadaManager : MonoBehaviour
     public List<Pasajero> pasajero;
     public int peatones = 5;
 
+    public void Start()
+    {
 
+        foreach (Transform pasajeros in transform)
+        {
+            Pasajero pasaje = pasajeros.GetComponent<Pasajero>();
+            pasajero.Add(pasaje);
+        }
+    }
     public void OnTriggerStay(Collider other)
     {
         if (other.CompareTag("puerta"))
@@ -21,7 +29,7 @@ public class ParadaManager : MonoBehaviour
         for (int i = 0; i < pasajero.Count; i++)
         {
 
-            yield return new WaitForSeconds(3);
+            yield return new WaitForSeconds(5);
             pasajero[i].BuscoAsiento();
 
         }
