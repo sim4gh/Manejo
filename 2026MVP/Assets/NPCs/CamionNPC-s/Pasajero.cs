@@ -23,19 +23,10 @@ public class Pasajero : MonoBehaviour
 
     void Start()
     {
-        //transform.position = Vector3.MoveTowards(
-        //    transform.position,
-        //    puntos[0].position,
-        //    velocidad * Time.fixedDeltaTime
-        //);
-
         animaciones.Play("Idle");
     }
 
-    void FixedUpdate()
-    {
-        //BuscoAsiento();
-    }
+
 
     public void BuscoAsiento()
     {
@@ -47,24 +38,28 @@ public class Pasajero : MonoBehaviour
             Transform destino = puntos[indiceActual];
 
             float distancia = Vector3.Distance(transform.position, destino.position);
-
-            if (distancia > 0.2f)
-            {
-                transform.position = Vector3.MoveTowards(
-                    transform.position,
-                    destino.position,
-                    velocidad * Time.fixedDeltaTime
-                );
-
-                if (transform.position != _Asientos[Num_Asiento].transform.position)
+            
+         
+            
+                if (distancia > 0.2f)
                 {
-                    transform.LookAt(destino);
+                    transform.position = Vector3.MoveTowards(
+                        transform.position,
+                        destino.position,
+                        velocidad * Time.fixedDeltaTime
+                    );
+
+                    if (transform.position != _Asientos[Num_Asiento].transform.position)
+                    {
+                        transform.LookAt(destino);
+                    }
                 }
-            }
-            else
-            {
-                indiceActual++;
-            }
+                else
+                {
+                    indiceActual++;
+                }
+            
+     
         }
         else
         {
