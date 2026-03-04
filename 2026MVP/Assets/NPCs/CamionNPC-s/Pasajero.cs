@@ -29,7 +29,7 @@ public class Pasajero : MonoBehaviour
         //    velocidad * Time.fixedDeltaTime
         //);
 
-        animaciones.Play("Walk");
+        animaciones.Play("Idle");
     }
 
     void FixedUpdate()
@@ -43,6 +43,7 @@ public class Pasajero : MonoBehaviour
 
         if (!_ViAsiento)
         {
+            animaciones.Play("Walk");
             Transform destino = puntos[indiceActual];
 
             float distancia = Vector3.Distance(transform.position, destino.position);
@@ -95,7 +96,7 @@ public class Pasajero : MonoBehaviour
 
     public void Sentado()
     {
-        animaciones.Play("Female_Armature|Female_Armature|Female_Armature|TSP_Male_Pose_Sitting_01|Female");
+        animaciones.Play("Sentado");
         transform.SetParent(_BusTransform.transform);
         _Sentado = true; 
     }
