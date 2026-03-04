@@ -68,7 +68,7 @@ MonoBehaviour:
   LaneWidth: 4
   MoveTool: 1
   speedRoutes:
-    Id: 14000000180000001c0000001e000000230000002800000030000000320000005a000000
+    Id: 14000000180000001a0000001c0000001e000000230000002800000030000000320000005a000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
@@ -79,10 +79,11 @@ MonoBehaviour:
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
-    Active: 010101010101010101
+    - {r: 1, g: 1, b: 1, a: 1}
+    Active: 01010101010101010101
   showOtherLanes: 0
   showSpeed: 0
-  viewRoadLaneChanges: 0
+  viewRoadLaneChanges: 1
   leftSideTraffic: 0
   maxSpeed: 26
   nrOfLanes: 1

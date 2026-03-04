@@ -751,7 +751,7 @@ MonoBehaviour:
   forwardLeaningFactor: 0.5
   vehicleType: 3
   minPossibleSpeed: 20
-  maxPossibleSpeed: 90
+  maxPossibleSpeed: 30
   accelerationTime: 10
   brakeTime: 10
   steeringTime: 1.5
@@ -1569,8 +1569,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.25, y: 0.48219395, z: 1.6527387}
-  m_Center: {x: 0, y: 0.45581526, z: -0.06993598}
+  m_Size: {x: 0.25, y: 0.1692912, z: 1.6527387}
+  m_Center: {x: 0, y: 0.61226666, z: -0.06993598}
 --- !u!1 &1691001010030099440
 GameObject:
   m_ObjectHideFlags: 0
