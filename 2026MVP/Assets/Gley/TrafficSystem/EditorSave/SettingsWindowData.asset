@@ -35,12 +35,13 @@ MonoBehaviour:
     StopWaypointsColor: {r: 1, g: 0, b: 0, a: 1}
     ExitWaypointsColor: {r: 0, g: 1, b: 1, a: 1}
   AgentRoutes:
-    Id: 000000000100000002000000
+    Id: 00000000010000000200000003000000
     RoutesColor:
     - {r: 0, g: 0.09534234, b: 0.8773585, a: 1}
     - {r: 0.9339623, g: 0.004405493, b: 0.004405493, a: 1}
     - {r: 0.9339623, g: 0.013216423, b: 0.7007745, a: 1}
-    Active: 010101
+    - {r: 0.9433962, g: 0.76316696, b: 0, a: 1}
+    Active: 01010101
   PathFindingRoutes:
     Id: 000000000500000014000000
     RoutesColor:
@@ -59,26 +60,34 @@ MonoBehaviour:
   ShowPriority: 0
   ShowVehicles: 0
   ViewOtherRoads: 0
-  ViewRoadLanes: 0
-  ViewRoadWaypoints: 0
-  ViewLabels: 0
+  ViewRoadLanes: 1
+  ViewRoadWaypoints: 1
+  ViewLabels: 1
   PathFindingEnabled: 1
   WaypointDistance: 4
   LaneWidth: 4
   MoveTool: 1
   speedRoutes:
-    Id: ffffffff
+    Id: 14000000180000001c0000001e000000230000002800000030000000320000005a000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
-    Active: 01
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    Active: 010101010101010101
   showOtherLanes: 0
   showSpeed: 0
   viewRoadLaneChanges: 0
   leftSideTraffic: 0
-  maxSpeed: 50
-  nrOfLanes: 2
+  maxSpeed: 26
+  nrOfLanes: 1
   otherLaneLinkDistance: 1
-  globalCarList: 
+  globalCarList: 03000000
   showAllIntersections: 0
   showExitWaypoints: 1
   showPedestrianWaypoints: 1

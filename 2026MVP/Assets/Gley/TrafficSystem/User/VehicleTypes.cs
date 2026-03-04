@@ -7,6 +7,7 @@ namespace Gley.TrafficSystem.User
 		Car,
 		Bus,
 		NoPasar,
+		Bici,
 	}
 }
 #endif
