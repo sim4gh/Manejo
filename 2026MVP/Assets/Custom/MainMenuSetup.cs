@@ -148,7 +148,6 @@ public class MainMenuSetup : MonoBehaviour
 
         // Calculate positions manually (top to bottom)
         float currentY = 0;
-        float contentHeight = 470; // 550 - 80 padding
 
         // Title at top
         GameObject title = CreateTextElement("Title", content.transform, "Simulador de Manejo", 38, FontStyles.Bold);
