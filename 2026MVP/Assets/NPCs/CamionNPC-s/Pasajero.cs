@@ -18,6 +18,8 @@ public class Pasajero : MonoBehaviour
     [Header("Animacion y variables de personaje")]
     public Animator animaciones;
     public int indiceActual = 0;
+    public float rotacionAl_AsientoDelantero = 0;
+    public float rotacionAl_AsientoTrasero = 0;
     public float velocidad = 2;
     public bool _Sentado = false;
 
@@ -66,11 +68,11 @@ public class Pasajero : MonoBehaviour
             switch (AsientoOrientacion)
             {
                 case "MirandoAtras":
-                    transform.rotation = Quaternion.Euler(0, 270, 0);
+                    transform.rotation = Quaternion.Euler(0, rotacionAl_AsientoTrasero, 0);
                     break;
 
                 case "MirandoDeFrente":
-                    transform.rotation = Quaternion.Euler(0, 90, 0);
+                    transform.rotation = Quaternion.Euler(0, rotacionAl_AsientoDelantero, 0);
                     break;
             }
 

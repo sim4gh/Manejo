@@ -5,7 +5,7 @@ using UnityEngine;
 public class ParadaManager : MonoBehaviour
 {
     public List<Pasajero> pasajero;
-    public int peatones = 5;
+    
 
     public void Start()
     {
