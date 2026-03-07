@@ -64,14 +64,14 @@ MonoBehaviour:
   ViewRoadWaypoints: 1
   ViewLabels: 1
   PathFindingEnabled: 1
-  WaypointDistance: 4
-  LaneWidth: 13
+  WaypointDistance: 5.5
+  LaneWidth: 4
   MoveTool: 1
   speedRoutes:
     Id: 1200000014000000180000001c0000001e00000023000000280000003000000032000000500000005a000000
     RoutesColor:
     - {r: 0.8461076, g: 1, b: 0, a: 1}
-    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 0.788378, g: 0.0046724924, b: 0.990566, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
@@ -87,8 +87,8 @@ MonoBehaviour:
   viewRoadLaneChanges: 1
   leftSideTraffic: 0
   maxSpeed: 80
-  nrOfLanes: 2
-  otherLaneLinkDistance: 1
+  nrOfLanes: 4
+  otherLaneLinkDistance: 2
   globalCarList: 00000000
   showAllIntersections: 0
   showExitWaypoints: 1
