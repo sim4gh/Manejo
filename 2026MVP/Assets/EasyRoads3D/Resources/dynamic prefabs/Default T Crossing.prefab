@@ -32,7 +32,7 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 321.1243, y: 0, z: 50.36823}
   m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children:
   - {fileID: 4256913224326046}
   m_Father: {fileID: 0}
@@ -107,30 +107,30 @@ MonoBehaviour:
   - 0.5
   - 0.9166667
   - 1
-  OCOOCOCOCO: 
-  OQQOOCDCDD: 
-  OOOOCCQDQO: 
-  OQCQQCCQCQ: 
-  OQDCDDDODD: 
-  OCDDODQQDC: 
-  OQCQOQCDCO: 
-  OOCQQDDOOC: 
-  OCOOCOCOCOStart: 
-  OQQOOCDCDDStart: 
-  OOOOCCQDQOStart: 
-  OQCQQCCQCQStart: 
-  OQDCDDDODDStart: 
-  OCDDODQQDCStart: 
-  OQCQOQCDCOStart: 
-  OOCQQDDOOCStart: 
-  frontLeftRoadInts: 070000000e000000
-  frontRightRoadInts: 1f0000001a000000
-  backLeftRoadInts: 2400000029000000
-  backRightRoadInts: 3e00000037000000
-  leftLeftRoadInts: 
-  leftRightRoadInts: 
-  rightLeftRoadInts: 4300000048000000
-  rightRightRoadInts: 5700000052000000
+  ODQQDDOQQQ: 
+  OODDDCOODD: 
+  ODCCQDCDCD: 
+  ODQDCQODDQ: 
+  OOQCCQCOQQ: 
+  OODCOCQOCC: 
+  OCCDQOODQD: 
+  OCQQDODCQO: 
+  ODQQDDOQQQStart: 
+  OODDDCOODDStart: 
+  ODCCQDCDCDStart: 
+  ODQDCQODDQStart: 
+  OOQCCQCOQQStart: 
+  OODCOCQOCCStart: 
+  OCCDQOODQDStart: 
+  OCQQDODCQOStart: 
+  frontLeftRoadInts: 050000000a000000
+  frontRightRoadInts: 1f00000018000000
+  backLeftRoadInts: 260000002d000000
+  backRightRoadInts: 3e00000039000000
+  leftLeftRoadInts: 4300000048000000
+  leftRightRoadInts: 5700000052000000
+  rightLeftRoadInts: 
+  rightRightRoadInts: 
   sidewalkCorners: []
   sidewalkWidths: []
   curbHeights: []
@@ -141,10 +141,10 @@ MonoBehaviour:
   outerCurbs: 
   lockUVs: 
   materials: []
-  leftStartSidewalkCornerInt: 7
-  rightStartSidewalkCornerInt: 2
-  leftEndSidewalkCornerInt: 2
-  rightEndSidewalkCornerInt: 7
+  leftStartSidewalkCornerInt: 2
+  rightStartSidewalkCornerInt: 7
+  leftEndSidewalkCornerInt: 7
+  rightEndSidewalkCornerInt: 2
   leftLeftSidewalkCornerInt: 2
   rightLeftSidewalkCornerInt: 2
   leftRightSidewalkCornerInt: 2
@@ -163,7 +163,7 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 0}
   - {x: 0, y: 0, z: 0}
   sidewalkControlStatus: 
-  copySettingsFlag: 0
+  copySettingsFlag: 1
   generalSettingsFlag: 1
   connectionSettingsFlag: 1
   cornerSettingsFlag: 1
@@ -182,8 +182,8 @@ MonoBehaviour:
   tCrossing: 1
   tStraightBending: 1
   oldTCrossing: 1
-  tCrossingLeftRight: 1
-  oldtCrossingLeftRight: 1
+  tCrossingLeftRight: 0
+  oldtCrossingLeftRight: 0
   geometryType: 0
   resolution: 1
   includeSidewalks: 0
@@ -195,25 +195,25 @@ MonoBehaviour:
   roadTypesDynamic:
   - roadTypeName: Default Road
     id: 1
-    timestamp: 1520960221.8587415
-    roadWidth: 6
+    timestamp: 1773092761.0659528
+    roadWidth: 19.58
     advancedWidthSettings: 0
     faceDistance: 2
     angleTreshold: 45
     uvTiling: 1
     uv4Type: 0
     type: 0
-    detailDistance: 0
+    detailDistance: 50
     planarUVs: 0
     outerIndent: 0
     roadShapeDataActive: 0
     roadShapeData:
       nodes:
-      - {x: -3, y: 0}
-      - {x: 3, y: 0}
+      - {x: -9.79, y: 0}
+      - {x: 9.79, y: 0}
       hardEdge: 0000
-      priorityNodeIndexLeft: 0
-      priorityNodeIndexRight: 1
+      priorityNodeIndexLeft: -1
+      priorityNodeIndexRight: -1
       nodesV3: []
       lanes: []
       leftLanes: -1
@@ -232,27 +232,31 @@ MonoBehaviour:
       isSymmetrical: 0
       isset: 1
     excludeFromTrafficAI: 0
-    minSpeed: 0
-    maxSpeed: 0
-    speedLimit: 0
-    speedLimitConnections: 0
+    minSpeed: 45
+    maxSpeed: 55
+    speedLimit: 50
+    speedLimitConnections: 50
     roadShape:
-    - {x: -3, y: 0}
-    - {x: 3, y: 0}
+    - {x: -9.79, y: 0}
+    - {x: 9.79, y: 0}
     roadShapeExt: []
-    roadShapeExt2: []
-    doConnectionTri: 
+    roadShapeExt2:
+    - {x: -9.79, y: 0}
+    - {x: 9.79, y: 0}
+    doConnectionTri: 0101
     doConnectionTriExt: 
     roadShapeUVs:
     - 0
     - 1
     roadShapeExtUVs: []
-    roadShapeExtUVs2: []
+    roadShapeExtUVs2:
+    - 0
+    - 1
     roadShapeUVs2:
     - 0
     - 1
     preserveUVs: 0
-    hardEdge: 
+    hardEdge: 0000
     roadShapeVecsString: 
     defaultSidewalk: 0
     sidewalks: 0
@@ -269,17 +273,22 @@ MonoBehaviour:
     roadMaterials: []
     roadPhysicsMaterial: {fileID: 0}
     roadPhysicsMaterials: []
-    connectionMaterial: {fileID: 2100000, guid: 3c555588afad81d428ad1704d5d015a7,
-      type: 2}
+    connectionMaterial: {fileID: 2100000, guid: 3c555588afad81d428ad1704d5d015a7, type: 2}
     isSideObject: 0
     isCustomRoad: 0
     subSegments: 1
     soData: []
     soDataExt: []
-    soDataLog: []
+    soDataLog:
+    - id: 1772636881.4417155
+      active: 0
+    - id: 1772770224.5408516
+      active: 0
+    - id: 1772770268.424758
+      active: 0
     layer: 0
     isStatic: 0
-    tag: 
+    tag: Untagged
     renderingLayerMask: 0
     splatMapActive: 0
     splatIndex: 0
@@ -287,10 +296,10 @@ MonoBehaviour:
     smoothLevel: 0
     splatOpacity: 0
     followTerrainContours: 0
-    terrainContoursOffset: 0
+    terrainContoursOffset: 5
     terrainDeformation: 1
-    defaultIndent: 0
-    defaultSurrounding: 0
+    defaultIndent: 2
+    defaultSurrounding: 5
     maxRoadheight: 0
     maxTerrainHeightOffset: 0
     minTerrainHeightDistance: 0
@@ -331,12 +340,17 @@ MonoBehaviour:
     cornerRadiusSecondaryCurvature: 0
     cornerSementsSecondaryRoad: 0
     mainRoadsOnly: 0
-    isRoadShape: 0
+    isRoadShape: 1
     controlType: 0
     vertexColor: {r: 0, g: 0, b: 0, a: 0}
     trafficPosts: []
     activeTrafficPostIndex: 0
     showTrafficPosts: 0
+    centerObject: {fileID: 0}
+    centerObjectActive: 0
+    islandObject: {fileID: 0}
+    islandObjectActive: 0
+    materialCreatorIsSet: 0
     materialCreator: 0
     synchRoadWidth: 0
     totalLanes: 0
@@ -373,12 +387,15 @@ MonoBehaviour:
     baseTextureSize: 0
     baseTexture2: {fileID: 0}
     normalMap: {fileID: 0}
+    pbrNoiseSourceTexture: {fileID: 0}
     pbrTexture: {fileID: 0}
+    pbrNoiseTexture: {fileID: 0}
     pbrLaneStrength: 0
     pbrCurveStrength: 0
     noiseTexture: {fileID: 0}
     noiseTexture2: {fileID: 0}
     linesTexture: {fileID: 0}
+    connectionLinesTexture: {fileID: 0}
     linesTextureSize: 0
     linesNormalMapBlend: 0
     normalMapScale: 0
@@ -397,10 +414,488 @@ MonoBehaviour:
     mirrorLaneNoiseOnShoulder: 0
     noiseMaps: []
     noiseMap: {fileID: 0}
-    noiseBaseMapTiling: 0
+    noiseBaseMapTiling: 1
     noiseMapTiling: 0
     bakeLinePBR: 0
     shoulderOffset: 0
+    defaultLanesMetSM: 0
+    defaultShoulderMetSM: 0
+    unwrapUVs: 0
+    connectionShoulderMarkings: 0
+  - roadTypeName: Road Type 3
+    id: 1772677358.311958
+    timestamp: 1772677358.311958
+    roadWidth: 6
+    advancedWidthSettings: 0
+    faceDistance: 2
+    angleTreshold: 45
+    uvTiling: 1
+    uv4Type: 0
+    type: 1
+    detailDistance: 50
+    planarUVs: 0
+    outerIndent: 0.5
+    roadShapeDataActive: 0
+    roadShapeData:
+      nodes:
+      - {x: -3, y: 0}
+      - {x: 3, y: 0}
+      hardEdge: 0000
+      priorityNodeIndexLeft: 0
+      priorityNodeIndexRight: 1
+      nodesV3: []
+      lanes:
+      - position: -0.5
+        direction: 0
+        turnDirection: 0
+        TurnOptions: 6
+        laneIndex: 0
+      - position: 0.5
+        direction: 1
+        turnDirection: 0
+        TurnOptions: 6
+        laneIndex: 0
+      leftLanes: -1
+      rightLanes: -1
+      symmetrical: 1
+      leftSidewalkOffset: 0
+      rightSidewalkOffset: 0
+      outerLaneMarkingLeftIndex: -1
+      includeOuterlaneLeftInShape: 0
+      includeOuterlaneRightInShape: 0
+      outerLaneMarkingRightIndex: -1
+      outerOuterLaneMarkingLeftIndex: -1
+      outerOuterLaneMarkingRightIndex: -1
+      selectedNode: 0
+      selectedLaneNode: 0
+      isSymmetrical: 0
+      isset: 1
+    excludeFromTrafficAI: 0
+    minSpeed: 45
+    maxSpeed: 55
+    speedLimit: 50
+    speedLimitConnections: 50
+    roadShape:
+    - {x: -3, y: 0}
+    - {x: 3, y: 0}
+    roadShapeExt: []
+    roadShapeExt2: []
+    doConnectionTri: 
+    doConnectionTriExt: 
+    roadShapeUVs:
+    - 0
+    - 1
+    roadShapeExtUVs: []
+    roadShapeExtUVs2: []
+    roadShapeUVs2:
+    - 0
+    - 1
+    preserveUVs: 0
+    hardEdge: 
+    roadShapeVecsString: 
+    defaultSidewalk: 0
+    sidewalks: 0
+    sidewalkHeight: 0.2
+    sidewalkWidth: 2
+    crosswalks: 0
+    crosswalkIntervals: 100
+    crosswalksIntersections: 0
+    crosswalkPrefab: {fileID: 0}
+    crosswalkHeightOffset: 0.01
+    crosswalkType: 0
+    crosswalkDecal: {fileID: 0}
+    roadMaterial: {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
+    roadMaterials: []
+    roadPhysicsMaterial: {fileID: 0}
+    roadPhysicsMaterials: []
+    connectionMaterial: {fileID: 0}
+    isSideObject: 0
+    isCustomRoad: 0
+    subSegments: 1
+    soData: []
+    soDataExt: []
+    soDataLog:
+    - id: 1772636881.4417155
+      active: 0
+    layer: 0
+    isStatic: 1
+    tag: Untagged
+    renderingLayerMask: 0
+    splatMapActive: 0
+    splatIndex: 0
+    expandLevel: 0
+    smoothLevel: 1
+    splatOpacity: 1
+    followTerrainContours: 0
+    terrainContoursOffset: 5
+    terrainDeformation: 1
+    defaultIndent: 2
+    defaultSurrounding: 2
+    maxRoadheight: 0
+    maxTerrainHeightOffset: 0
+    minTerrainHeightDistance: 5
+    maxTerrainHeightDistance: 15
+    castShadow: 0
+    randomnessFlag: 0
+    randomYPosition: 0
+    randomMinYPosition: -0.02
+    randomMaxYPosition: 0.02
+    minRandomYPositionDistance: 15
+    maxRandomYPositionDistance: 35
+    randomMinRotation: -1
+    randomMaxRotation: 1
+    minRandomRotationDistance: 15
+    maxRandomRotationDistance: 30
+    vegetationStudioMaskLineActive: 1
+    vegetationStudioGrassPerimeter: 2
+    vegetationStudioPlantPerimeter: 3
+    vegetationStudioTreePerimeter: 4
+    vegetationStudioObjectPerimeter: 3
+    vegetationStudioLargeObjectPerimeter: 4
+    vegetationStudioBiomeMaskActive: 0
+    vegetationStudioBiomeMaskDistance: 0
+    vegetationStudioBiomeMaskBlendDistance: 0
+    vegetationStudioBiomeMaskNoiseScale: 0
+    decalPresets: []
+    decalClassPresets: []
+    defaultRamp: 0
+    extrusionType: 0
+    extrusionDistance: 10
+    fixedDistance: 5
+    connectionAngle: 25
+    connectionRadius: 10
+    oneWay: 0
+    cornerRadiusMainRoad: 3
+    cornerSementsMainRoad: 6
+    cornerRadiusSecondaryRoad: 3
+    cornerRadiusSecondaryCurvature: 0.5
+    cornerSementsSecondaryRoad: 6
+    mainRoadsOnly: 0
+    isRoadShape: 1
+    controlType: 0
+    vertexColor: {r: 1, g: 1, b: 1, a: 1}
+    trafficPosts: []
+    activeTrafficPostIndex: -1
+    showTrafficPosts: 0
+    centerObject: {fileID: 0}
+    centerObjectActive: 0
+    islandObject: {fileID: 0}
+    islandObjectActive: 0
+    materialCreatorIsSet: 0
+    materialCreator: 0
+    synchRoadWidth: 1
+    totalLanes: 2
+    laneWidth: 3.5
+    shoulderWidthLeft: 1
+    shoulderWidthRight: 1
+    leftLineMarkingWidth: 0.15
+    rightLineMarkingWidth: 0.15
+    leftLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    rightLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    leftLineMarkingStyle: 0
+    rightLineMarkingStyle: 0
+    leftLineMarkingSize: 2
+    rightLineMarkingSize: 2
+    leftLineMarkingInterval: 2
+    rightLineMarkingInterval: 2
+    laneMarkingStyle: 1
+    LaneMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    laneMarkingWidth: 0.15
+    laneMarkingSize: 2
+    laneMarkingInterval: 2
+    medianIsland: 0
+    medianWidth: 0.5
+    medianLineMarkingStyle: 1
+    medianLineMarkingWidth: 0.15
+    medianLineMarkingSize: 2
+    medianLineMarkingInterval: 2
+    medianLineMarkingSpace: 0.15
+    medianLeftLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    medianRightLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    materialType: 0
+    baseTexture: {fileID: 0}
+    baseTextureMask: {fileID: 0}
+    baseTextureSize: 5
+    baseTexture2: {fileID: 0}
+    normalMap: {fileID: 0}
+    pbrNoiseSourceTexture: {fileID: 0}
+    pbrTexture: {fileID: 0}
+    pbrNoiseTexture: {fileID: 0}
+    pbrLaneStrength: 0
+    pbrCurveStrength: 0
+    noiseTexture: {fileID: 0}
+    noiseTexture2: {fileID: 0}
+    linesTexture: {fileID: 0}
+    connectionLinesTexture: {fileID: 0}
+    linesTextureSize: 1
+    linesNormalMapBlend: 0.5
+    normalMapScale: 1
+    metallicScale: 0
+    smoothnessScale: 1
+    aoScale: 1
+    lineMaskQuality: 2
+    dynMapsUpdated: 0
+    roadEdgeMapping: 0
+    baseUVs:
+    - 0
+    - 1
+    leftEdgeUVs:
+    - 0.5
+    - 0.75
+    leftEdgeWidth: 1
+    rightEdgeUVs:
+    - 0.75
+    - 1
+    rightEdgeWidth: 1
+    laneNoiseControl: 0
+    mirrorLaneNoiseOnShoulder: 0
+    noiseMaps: []
+    noiseMap: {fileID: 0}
+    noiseBaseMapTiling: 1
+    noiseMapTiling: 1
+    bakeLinePBR: 1
+    shoulderOffset: 0
+    defaultLanesMetSM: 0.4
+    defaultShoulderMetSM: 0.4
+    unwrapUVs: 0
+    connectionShoulderMarkings: 1
+  - roadTypeName: Road Type 4
+    id: 1772677411.3248224
+    timestamp: 1772677411.3248224
+    roadWidth: 6
+    advancedWidthSettings: 0
+    faceDistance: 2
+    angleTreshold: 45
+    uvTiling: 1
+    uv4Type: 0
+    type: 1
+    detailDistance: 50
+    planarUVs: 0
+    outerIndent: 0.5
+    roadShapeDataActive: 0
+    roadShapeData:
+      nodes:
+      - {x: -3, y: 0}
+      - {x: 3, y: 0}
+      hardEdge: 0000
+      priorityNodeIndexLeft: 0
+      priorityNodeIndexRight: 1
+      nodesV3: []
+      lanes:
+      - position: -0.5
+        direction: 0
+        turnDirection: 0
+        TurnOptions: 6
+        laneIndex: 0
+      - position: 0.5
+        direction: 1
+        turnDirection: 0
+        TurnOptions: 6
+        laneIndex: 0
+      leftLanes: -1
+      rightLanes: -1
+      symmetrical: 1
+      leftSidewalkOffset: 0
+      rightSidewalkOffset: 0
+      outerLaneMarkingLeftIndex: -1
+      includeOuterlaneLeftInShape: 0
+      includeOuterlaneRightInShape: 0
+      outerLaneMarkingRightIndex: -1
+      outerOuterLaneMarkingLeftIndex: -1
+      outerOuterLaneMarkingRightIndex: -1
+      selectedNode: 0
+      selectedLaneNode: 0
+      isSymmetrical: 0
+      isset: 1
+    excludeFromTrafficAI: 0
+    minSpeed: 45
+    maxSpeed: 55
+    speedLimit: 50
+    speedLimitConnections: 50
+    roadShape:
+    - {x: -3, y: 0}
+    - {x: 3, y: 0}
+    roadShapeExt: []
+    roadShapeExt2: []
+    doConnectionTri: 
+    doConnectionTriExt: 
+    roadShapeUVs:
+    - 0
+    - 1
+    roadShapeExtUVs: []
+    roadShapeExtUVs2: []
+    roadShapeUVs2:
+    - 0
+    - 1
+    preserveUVs: 0
+    hardEdge: 
+    roadShapeVecsString: 
+    defaultSidewalk: 0
+    sidewalks: 0
+    sidewalkHeight: 0.2
+    sidewalkWidth: 2
+    crosswalks: 0
+    crosswalkIntervals: 100
+    crosswalksIntersections: 0
+    crosswalkPrefab: {fileID: 0}
+    crosswalkHeightOffset: 0.01
+    crosswalkType: 0
+    crosswalkDecal: {fileID: 0}
+    roadMaterial: {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
+    roadMaterials: []
+    roadPhysicsMaterial: {fileID: 0}
+    roadPhysicsMaterials: []
+    connectionMaterial: {fileID: 0}
+    isSideObject: 0
+    isCustomRoad: 0
+    subSegments: 1
+    soData: []
+    soDataExt: []
+    soDataLog:
+    - id: 1772636881.4417155
+      active: 0
+    layer: 0
+    isStatic: 1
+    tag: Untagged
+    renderingLayerMask: 0
+    splatMapActive: 0
+    splatIndex: 0
+    expandLevel: 0
+    smoothLevel: 1
+    splatOpacity: 1
+    followTerrainContours: 0
+    terrainContoursOffset: 5
+    terrainDeformation: 1
+    defaultIndent: 2
+    defaultSurrounding: 2
+    maxRoadheight: 0
+    maxTerrainHeightOffset: 0
+    minTerrainHeightDistance: 5
+    maxTerrainHeightDistance: 15
+    castShadow: 0
+    randomnessFlag: 0
+    randomYPosition: 0
+    randomMinYPosition: -0.02
+    randomMaxYPosition: 0.02
+    minRandomYPositionDistance: 15
+    maxRandomYPositionDistance: 35
+    randomMinRotation: -1
+    randomMaxRotation: 1
+    minRandomRotationDistance: 15
+    maxRandomRotationDistance: 30
+    vegetationStudioMaskLineActive: 1
+    vegetationStudioGrassPerimeter: 2
+    vegetationStudioPlantPerimeter: 3
+    vegetationStudioTreePerimeter: 4
+    vegetationStudioObjectPerimeter: 3
+    vegetationStudioLargeObjectPerimeter: 4
+    vegetationStudioBiomeMaskActive: 0
+    vegetationStudioBiomeMaskDistance: 0
+    vegetationStudioBiomeMaskBlendDistance: 0
+    vegetationStudioBiomeMaskNoiseScale: 0
+    decalPresets: []
+    decalClassPresets: []
+    defaultRamp: 0
+    extrusionType: 0
+    extrusionDistance: 10
+    fixedDistance: 5
+    connectionAngle: 25
+    connectionRadius: 10
+    oneWay: 0
+    cornerRadiusMainRoad: 3
+    cornerSementsMainRoad: 6
+    cornerRadiusSecondaryRoad: 3
+    cornerRadiusSecondaryCurvature: 0.5
+    cornerSementsSecondaryRoad: 6
+    mainRoadsOnly: 0
+    isRoadShape: 1
+    controlType: 0
+    vertexColor: {r: 1, g: 1, b: 1, a: 1}
+    trafficPosts: []
+    activeTrafficPostIndex: -1
+    showTrafficPosts: 0
+    centerObject: {fileID: 0}
+    centerObjectActive: 0
+    islandObject: {fileID: 0}
+    islandObjectActive: 0
+    materialCreatorIsSet: 0
+    materialCreator: 0
+    synchRoadWidth: 1
+    totalLanes: 2
+    laneWidth: 3.5
+    shoulderWidthLeft: 1
+    shoulderWidthRight: 1
+    leftLineMarkingWidth: 0.15
+    rightLineMarkingWidth: 0.15
+    leftLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    rightLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    leftLineMarkingStyle: 0
+    rightLineMarkingStyle: 0
+    leftLineMarkingSize: 2
+    rightLineMarkingSize: 2
+    leftLineMarkingInterval: 2
+    rightLineMarkingInterval: 2
+    laneMarkingStyle: 1
+    LaneMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    laneMarkingWidth: 0.15
+    laneMarkingSize: 2
+    laneMarkingInterval: 2
+    medianIsland: 0
+    medianWidth: 0.5
+    medianLineMarkingStyle: 1
+    medianLineMarkingWidth: 0.15
+    medianLineMarkingSize: 2
+    medianLineMarkingInterval: 2
+    medianLineMarkingSpace: 0.15
+    medianLeftLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    medianRightLineMarkingColor: {r: 1, g: 1, b: 1, a: 1}
+    materialType: 0
+    baseTexture: {fileID: 0}
+    baseTextureMask: {fileID: 0}
+    baseTextureSize: 5
+    baseTexture2: {fileID: 0}
+    normalMap: {fileID: 0}
+    pbrNoiseSourceTexture: {fileID: 0}
+    pbrTexture: {fileID: 0}
+    pbrNoiseTexture: {fileID: 0}
+    pbrLaneStrength: 0
+    pbrCurveStrength: 0
+    noiseTexture: {fileID: 0}
+    noiseTexture2: {fileID: 0}
+    linesTexture: {fileID: 0}
+    connectionLinesTexture: {fileID: 0}
+    linesTextureSize: 1
+    linesNormalMapBlend: 0.5
+    normalMapScale: 1
+    metallicScale: 0
+    smoothnessScale: 1
+    aoScale: 1
+    lineMaskQuality: 2
+    dynMapsUpdated: 0
+    roadEdgeMapping: 0
+    baseUVs:
+    - 0
+    - 1
+    leftEdgeUVs:
+    - 0.5
+    - 0.75
+    leftEdgeWidth: 1
+    rightEdgeUVs:
+    - 0.75
+    - 1
+    rightEdgeWidth: 1
+    laneNoiseControl: 0
+    mirrorLaneNoiseOnShoulder: 0
+    noiseMaps: []
+    noiseMap: {fileID: 0}
+    noiseBaseMapTiling: 1
+    noiseMapTiling: 1
+    bakeLinePBR: 1
+    shoulderOffset: 0
+    defaultLanesMetSM: 0.4
+    defaultShoulderMetSM: 0.4
+    unwrapUVs: 0
+    connectionShoulderMarkings: 1
   frontRoadTypeInt: 1
   frontRoadTypeID: 1
   frontRoadWidth: 6
@@ -432,11 +927,11 @@ MonoBehaviour:
   cornerPresetName: 
   selectedSidewalkPreset: 0
   sidewalkPresetName: 
-  OOOOOOOOCDCorner: 0
-  leftBottom: {x: -3, y: 0.5, z: 0}
-  rightBottom: {x: 3.2928934, y: 0.5, z: -3.2928932}
-  leftTop: {x: 0, y: 0, z: 0}
-  rightTop: {x: 3.2928934, y: 0.5, z: 3.2928932}
+  OODODOOQCOCorner: 0
+  leftBottom: {x: -3.2928934, y: 0.5, z: -3.2928932}
+  rightBottom: {x: 3, y: 0.5, z: 0}
+  leftTop: {x: -3.2928934, y: 0.5, z: 3.2928932}
+  rightTop: {x: 0, y: 0, z: 0}
   frontCenter: {x: 0, y: 0, z: -5.5}
   backCenter: {x: 0, y: 0, z: 5.5}
   leftCenter: {x: -5.5, y: 0, z: 0}
@@ -482,8 +977,8 @@ MonoBehaviour:
     sidewalkRightUVY: []
     sidewalkRightMaterialInts: 
     connectionVecs: []
-    connectionVecInts: 010000001b000000
-    fullConnectionVecInts: 010000001b000000
+    connectionVecInts: 0100000019000000
+    fullConnectionVecInts: 0100000019000000
     sidewalkLeftConnectionVecInts: 
     sidewalkRightConnectionVecInts: 
     doConnectionTri: 
@@ -516,8 +1011,20 @@ MonoBehaviour:
     rightSurroundingV3: {x: 10.252136, y: 0, z: -10.252129}
     leftRoadpoint: {x: -3, y: 0, z: -5.5}
     rightRoadpoint: {x: 3, y: 0, z: -5.5}
-    leftRoundingPoints: []
-    rightRoundingPoints: []
+    leftRoundingPoints:
+    - {x: -3, y: 0, z: -5.5}
+    - {x: -3, y: 0, z: -4.5}
+    - {x: -3, y: 0, z: -4}
+    - {x: -3.0761204, y: 0, z: -3.6173165}
+    - {x: -3.2928934, y: 0, z: -3.2928932}
+    rightRoundingPoints:
+    - {x: 3, y: 0, z: -5.5}
+    - {x: 3, y: 0, z: -5}
+    - {x: 3, y: 0, z: -4}
+    - {x: 3, y: 0, z: -3}
+    - {x: 3, y: 0, z: -2}
+    - {x: 3, y: 0, z: -1}
+    - {x: 3, y: 0, z: 0}
     leftRoundingPointsGlobal: []
     rightRoundingPointsGlobal: []
     leftInnerIndentPoints: []
@@ -672,6 +1179,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -708,12 +1220,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -736,6 +1251,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeTimestamp: 0
     leftCorner: {x: 0, y: 0, z: 0}
     rightCorner: {x: 0, y: 0, z: 0}
@@ -910,6 +1429,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -946,12 +1470,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -974,6 +1501,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeID: 0
     roadTypeAI:
       roadTypeName: 
@@ -1111,6 +1642,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -1147,12 +1683,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -1175,6 +1714,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeAIid: 0
     aIInit: 0
     roadTypeIndex: 0
@@ -1315,6 +1858,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -1351,12 +1899,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -1379,6 +1930,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeInstances: 0
     priorityLevel: 0
     priorityRoad: 0
@@ -1443,6 +1998,7 @@ MonoBehaviour:
     priorityRightPoints: []
     priorityPointsMain: []
     priorityPointsMainUVs: []
+    priorityPointsMainUVs4: []
     priorityPointsMainColors: []
     rampStartStartRoundingIndex: 0
     rampStartEndRoundingIndex: 0
@@ -1536,6 +2092,10 @@ MonoBehaviour:
       texSizeRatio: 1
       castShadow: 1
       isStatic: 1
+      crosswalkSign: {fileID: 0}
+      crosswalkSignXOffset: 0
+      crosswalkSignZOffset: 0
+      rotateLeftSigns: 1
     rightSidewalk:
       name: 
       id: 0
@@ -1615,10 +2175,18 @@ MonoBehaviour:
       texSizeRatio: 1
       castShadow: 1
       isStatic: 1
+      crosswalkSign: {fileID: 0}
+      crosswalkSignXOffset: 0
+      crosswalkSignZOffset: 0
+      rotateLeftSigns: 1
     leftSidewalkActive: 0
     leftCrosswalkActive: 0
+    leftCrosswalkHandle: {x: 0, y: 0, z: 0}
     rightSidewalkActive: 0
     rightCrosswalkActive: 0
+    rightCrosswalkHandle: {x: 0, y: 0, z: 0}
+    updateLeftSidewalk: 1
+    updateRightSidewalk: 1
     maxCrosswalkSize: 0
     crosswalkRoundingVecLeftAdded: 0
     crosswalkRoundingVecRightAdded: 0
@@ -1628,6 +2196,7 @@ MonoBehaviour:
     firstRightRoundingVec: {x: 0, y: 0, z: 0}
     crosswalkAddedDistance: 0
     crosswalkObject: {fileID: 0}
+    diagonalCrosswalkObject: {fileID: 0}
     crosswalkLeftPosition: {x: 0, y: 0, z: 0}
     crosswalkRightPosition: {x: 0, y: 0, z: 0}
     leftSidewalkid: 0
@@ -1695,6 +2264,12 @@ MonoBehaviour:
     showTrafficPosts: 0
     activeTrafficPostIndex: -1
     bridgeSection: 0
+    laneDetailVecsLeftAdded: 0
+    laneDetailVecsRightAdded: 0
+    islandObject: {fileID: 0}
+    islandObjectInstance: {fileID: 0}
+    islandObjectActive: 0
+    middlePoint: {x: 0, y: 0, z: 0}
   secondPriorityConnection:
     name: 
     road: {fileID: 0}
@@ -1836,6 +2411,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -1872,12 +2452,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -1900,6 +2483,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeID: 0
     roadTypeAI:
       roadTypeName: 
@@ -2037,6 +2624,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -2073,12 +2665,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -2101,6 +2696,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeAIid: 0
     aIInit: 0
     roadTypeIndex: 0
@@ -2241,6 +2840,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -2277,12 +2881,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -2305,6 +2912,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeInstances: 0
     priorityLevel: 0
     priorityRoad: 0
@@ -2369,6 +2980,7 @@ MonoBehaviour:
     priorityRightPoints: []
     priorityPointsMain: []
     priorityPointsMainUVs: []
+    priorityPointsMainUVs4: []
     priorityPointsMainColors: []
     rampStartStartRoundingIndex: 0
     rampStartEndRoundingIndex: 0
@@ -2462,6 +3074,10 @@ MonoBehaviour:
       texSizeRatio: 1
       castShadow: 1
       isStatic: 1
+      crosswalkSign: {fileID: 0}
+      crosswalkSignXOffset: 0
+      crosswalkSignZOffset: 0
+      rotateLeftSigns: 1
     rightSidewalk:
       name: 
       id: 0
@@ -2541,10 +3157,18 @@ MonoBehaviour:
       texSizeRatio: 1
       castShadow: 1
       isStatic: 1
+      crosswalkSign: {fileID: 0}
+      crosswalkSignXOffset: 0
+      crosswalkSignZOffset: 0
+      rotateLeftSigns: 1
     leftSidewalkActive: 0
     leftCrosswalkActive: 0
+    leftCrosswalkHandle: {x: 0, y: 0, z: 0}
     rightSidewalkActive: 0
     rightCrosswalkActive: 0
+    rightCrosswalkHandle: {x: 0, y: 0, z: 0}
+    updateLeftSidewalk: 1
+    updateRightSidewalk: 1
     maxCrosswalkSize: 0
     crosswalkRoundingVecLeftAdded: 0
     crosswalkRoundingVecRightAdded: 0
@@ -2554,6 +3178,7 @@ MonoBehaviour:
     firstRightRoundingVec: {x: 0, y: 0, z: 0}
     crosswalkAddedDistance: 0
     crosswalkObject: {fileID: 0}
+    diagonalCrosswalkObject: {fileID: 0}
     crosswalkLeftPosition: {x: 0, y: 0, z: 0}
     crosswalkRightPosition: {x: 0, y: 0, z: 0}
     leftSidewalkid: 0
@@ -2621,6 +3246,12 @@ MonoBehaviour:
     showTrafficPosts: 0
     activeTrafficPostIndex: -1
     bridgeSection: 0
+    laneDetailVecsLeftAdded: 0
+    laneDetailVecsRightAdded: 0
+    islandObject: {fileID: 0}
+    islandObjectInstance: {fileID: 0}
+    islandObjectActive: 0
+    middlePoint: {x: 0, y: 0, z: 0}
   adjustMainRadiusFlag: 0
   disableAdjustMainRadiusFlag: 0
   showScaleSliderAtPrimary: 0
@@ -2682,8 +3313,8 @@ MonoBehaviour:
     sidewalkRightUVY: []
     sidewalkRightMaterialInts: 
     connectionVecs: []
-    connectionVecInts: 010000001b000000
-    fullConnectionVecInts: 010000001b000000
+    connectionVecInts: 0100000019000000
+    fullConnectionVecInts: 0100000019000000
     sidewalkLeftConnectionVecInts: 
     sidewalkRightConnectionVecInts: 
     doConnectionTri: 
@@ -2716,8 +3347,20 @@ MonoBehaviour:
     rightSurroundingV3: {x: 10.252136, y: 0, z: -10.252129}
     leftRoadpoint: {x: -3, y: 0, z: -5.5}
     rightRoadpoint: {x: 3, y: 0, z: -5.5}
-    leftRoundingPoints: []
-    rightRoundingPoints: []
+    leftRoundingPoints:
+    - {x: -3, y: 0, z: -5.5}
+    - {x: -3, y: 0, z: -4.5}
+    - {x: -3, y: 0, z: -4}
+    - {x: -3.0761204, y: 0, z: -3.6173165}
+    - {x: -3.2928934, y: 0, z: -3.2928932}
+    rightRoundingPoints:
+    - {x: 3, y: 0, z: -5.5}
+    - {x: 3, y: 0, z: -5}
+    - {x: 3, y: 0, z: -4}
+    - {x: 3, y: 0, z: -3}
+    - {x: 3, y: 0, z: -2}
+    - {x: 3, y: 0, z: -1}
+    - {x: 3, y: 0, z: 0}
     leftRoundingPointsGlobal: []
     rightRoundingPointsGlobal: []
     leftInnerIndentPoints: []
@@ -2872,6 +3515,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -2908,12 +3556,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -2936,6 +3587,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeTimestamp: 0
     leftCorner: {x: 0, y: 0, z: 0}
     rightCorner: {x: 0, y: 0, z: 0}
@@ -2995,8 +3650,8 @@ MonoBehaviour:
     sidewalkRightUVY: []
     sidewalkRightMaterialInts: 
     connectionVecs: []
-    connectionVecInts: 2000000038000000
-    fullConnectionVecInts: 2000000038000000
+    connectionVecInts: 200000003a000000
+    fullConnectionVecInts: 200000003a000000
     sidewalkLeftConnectionVecInts: 
     sidewalkRightConnectionVecInts: 
     doConnectionTri: 
@@ -3029,8 +3684,20 @@ MonoBehaviour:
     rightSurroundingV3: {x: -10.252136, y: 0, z: 10.252129}
     leftRoadpoint: {x: 3, y: 0, z: 5.5}
     rightRoadpoint: {x: -3, y: 0, z: 5.5}
-    leftRoundingPoints: []
-    rightRoundingPoints: []
+    leftRoundingPoints:
+    - {x: 3, y: 0, z: 5.5}
+    - {x: 3, y: 0, z: 5}
+    - {x: 3, y: 0, z: 4}
+    - {x: 3, y: 0, z: 3}
+    - {x: 3, y: 0, z: 2}
+    - {x: 3, y: 0, z: 1}
+    - {x: 3, y: 0, z: 0}
+    rightRoundingPoints:
+    - {x: -3, y: 0, z: 5.5}
+    - {x: -3, y: 0, z: 4.5}
+    - {x: -3, y: 0, z: 4}
+    - {x: -3.0761204, y: 0, z: 3.6173165}
+    - {x: -3.2928934, y: 0, z: 3.2928932}
     leftRoundingPointsGlobal: []
     rightRoundingPointsGlobal: []
     leftInnerIndentPoints: []
@@ -3185,6 +3852,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -3221,12 +3893,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -3249,6 +3924,356 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
+    roadTypeTimestamp: 0
+    leftCorner: {x: 0, y: 0, z: 0}
+    rightCorner: {x: 0, y: 0, z: 0}
+    direction: {x: 0, y: 0, z: 0}
+    centerCornerDirectionLeft: {x: 0, y: 0, z: 0}
+    centerCornerDirectionRight: {x: 0, y: 0, z: 0}
+    leftAngle: 0
+    rightAngle: 0
+    triangulateLeft: 1
+    triangulateRight: 1
+    laneData:
+      points: []
+      connectors: []
+      laneType:
+        position: 0
+        direction: 0
+        turnDirection: 0
+        TurnOptions: 0
+        laneIndex: 0
+      laneIndex: 0
+      direction: 0
+  - connectionHandleObject: {fileID: 0}
+    isHandleActive: 1
+    connectionPosition: 0
+    centerPoint: {x: -5.5, y: 0, z: 0}
+    tmpCenterPoint: {x: -5.5, y: 0, z: 0}
+    stageCenterPoint: {x: 0, y: 0, z: 0}
+    tmpStageCenterPoint: {x: 0, y: 0, z: 0}
+    blendData: []
+    controlPointV3: {x: 0, y: 0, z: 0}
+    controlPoint: {x: 0, y: 0}
+    endSplinePoint: {x: 0, y: 0, z: 0}
+    endControlPoint: {x: 0, y: 0, z: 0}
+    blendDistance: 0
+    extendBounds: 0
+    blendCornerPoints: []
+    blendCornerPointInts: 
+    blendCornerPointWeights: []
+    blendCornerPointsTransformed: []
+    blendRatio: 1
+    curveStrength: 0
+    roadShapeVecs:
+    - {x: -3, y: 0}
+    - {x: 3, y: 0}
+    roadShapeVecsString: -3, 0;3, 0;3, 0.3;3.3, 0.3;4.3, 0.3;4.5, 0.3;
+    roadShapeMatchCount: 6
+    roadShapeUVY:
+    - 0
+    - 1
+    roadShapeUVY2: []
+    hardEdge: 
+    roadShapeMaterialInts: 00000000000000000100000001000000010000000100000001000000
+    sidewalkLeftVecs: []
+    sidewalkLeftUVY: []
+    sidewalkLeftMaterialInts: 
+    sidewalkRightVecs:
+    - {x: 3, y: 0}
+    - {x: 3, y: 0.25}
+    - {x: 3.25, y: 0.25}
+    - {x: 4.25, y: 0.25}
+    - {x: 4.5, y: 0.25}
+    sidewalkRightUVY:
+    - 0
+    - 0.14285715
+    - 0.2857143
+    - 0.85714287
+    - 1
+    sidewalkRightMaterialInts: 
+    connectionVecs: []
+    connectionVecInts: 3f00000053000000
+    fullConnectionVecInts: 3f00000053000000
+    sidewalkLeftConnectionVecInts: 
+    sidewalkRightConnectionVecInts: 
+    doConnectionTri: 
+    outerVecInts: 
+    outerVecs: []
+    rotationPriority: 0
+    centerPointAngle: 1000
+    connectedRoad: {fileID: 0}
+    connectedMarker: -1
+    connectedRoadGO: {fileID: 0}
+    connectedRoadID: 0
+    connectedRoadControlPoint: {x: 0, y: 0, z: 0}
+    includeLeftSidewalk: 0
+    includeRightSidewalk: 1
+    roadMaterial: {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
+    roadMaterials:
+    - {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
+    - {fileID: 2100000, guid: d74dc327ca3fad8408eeeaf8ad54a110, type: 2}
+    centerPointPercentage: 0.4
+    leftIndent: 4
+    rightIndent: 2
+    leftSurrounding: 12
+    rightSurrounding: 10
+    leftRoadIndent: 0
+    rightRoadIndent: 0
+    leftRoadSurrounding: 0
+    rightRoadSurrounding: 0
+    leftIndentV3: {x: -7.4296875, y: -0.02, z: 7.4296875}
+    leftSurroundingV3: {x: -10.252136, y: 0, z: 10.252129}
+    rightIndentV3: {x: -7.4296875, y: -0.02, z: -7.4296875}
+    rightSurroundingV3: {x: -10.252136, y: 0, z: -10.252129}
+    leftRoadpoint: {x: -5.5, y: 0, z: 3}
+    rightRoadpoint: {x: -5.5, y: 0, z: -3}
+    leftRoundingPoints:
+    - {x: -5.5, y: 0, z: 3}
+    - {x: -4.5, y: 0, z: 3}
+    - {x: -4, y: 0, z: 3}
+    - {x: -3.6173167, y: 0, z: 3.0761204}
+    - {x: -3.2928934, y: 0, z: 3.2928932}
+    rightRoundingPoints:
+    - {x: -5.5, y: 0, z: -3}
+    - {x: -4.5, y: 0, z: -3}
+    - {x: -4, y: 0, z: -3}
+    - {x: -3.6173167, y: 0, z: -3.0761204}
+    - {x: -3.2928934, y: 0, z: -3.2928932}
+    leftRoundingPointsGlobal: []
+    rightRoundingPointsGlobal: []
+    leftInnerIndentPoints: []
+    rightInnerIndentPoints: []
+    leftCornerInt: -1
+    rightCornerInt: -1
+    leftIndentInt: 0
+    rightIndentInt: 0
+    leftInt: 0
+    rightInt: 1
+    leftIntFull: 0
+    rightIntFull: 1
+    alignmentHandleVec: {x: -2.75, y: 0, z: 0}
+    additionalIndentDistance: 1.948485
+    connectionAngle: 0
+    alignmentHandleVecRotationGizmo: {x: 0, y: 0, z: 0}
+    inwards: 0
+    roadType: 1
+    rt:
+      roadTypeName: 
+      id: 0
+      timestamp: 0
+      roadWidth: 0
+      advancedWidthSettings: 0
+      faceDistance: 0
+      angleTreshold: 0
+      uvTiling: 0
+      uv4Type: 0
+      type: 0
+      detailDistance: 0
+      planarUVs: 0
+      outerIndent: 0
+      roadShapeDataActive: 0
+      roadShapeData:
+        nodes: []
+        hardEdge: 
+        priorityNodeIndexLeft: 0
+        priorityNodeIndexRight: 0
+        nodesV3: []
+        lanes: []
+        leftLanes: 0
+        rightLanes: 0
+        symmetrical: 0
+        leftSidewalkOffset: 0
+        rightSidewalkOffset: 0
+        outerLaneMarkingLeftIndex: 0
+        includeOuterlaneLeftInShape: 0
+        includeOuterlaneRightInShape: 0
+        outerLaneMarkingRightIndex: 0
+        outerOuterLaneMarkingLeftIndex: 0
+        outerOuterLaneMarkingRightIndex: 0
+        selectedNode: 0
+        selectedLaneNode: 0
+        isSymmetrical: 0
+        isset: 0
+      excludeFromTrafficAI: 0
+      minSpeed: 0
+      maxSpeed: 0
+      speedLimit: 0
+      speedLimitConnections: 0
+      roadShape: []
+      roadShapeExt: []
+      roadShapeExt2: []
+      doConnectionTri: 
+      doConnectionTriExt: 
+      roadShapeUVs: []
+      roadShapeExtUVs: []
+      roadShapeExtUVs2: []
+      roadShapeUVs2: []
+      preserveUVs: 0
+      hardEdge: 
+      roadShapeVecsString: 
+      defaultSidewalk: 0
+      sidewalks: 0
+      sidewalkHeight: 0
+      sidewalkWidth: 0
+      crosswalks: 0
+      crosswalkIntervals: 0
+      crosswalksIntersections: 0
+      crosswalkPrefab: {fileID: 0}
+      crosswalkHeightOffset: 0
+      crosswalkType: 0
+      crosswalkDecal: {fileID: 0}
+      roadMaterial: {fileID: 0}
+      roadMaterials: []
+      roadPhysicsMaterial: {fileID: 0}
+      roadPhysicsMaterials: []
+      connectionMaterial: {fileID: 0}
+      isSideObject: 0
+      isCustomRoad: 0
+      subSegments: 0
+      soData: []
+      soDataExt: []
+      soDataLog: []
+      layer: 0
+      isStatic: 0
+      tag: 
+      renderingLayerMask: 0
+      splatMapActive: 0
+      splatIndex: 0
+      expandLevel: 0
+      smoothLevel: 0
+      splatOpacity: 0
+      followTerrainContours: 0
+      terrainContoursOffset: 0
+      terrainDeformation: 0
+      defaultIndent: 0
+      defaultSurrounding: 0
+      maxRoadheight: 0
+      maxTerrainHeightOffset: 0
+      minTerrainHeightDistance: 0
+      maxTerrainHeightDistance: 0
+      castShadow: 0
+      randomnessFlag: 0
+      randomYPosition: 0
+      randomMinYPosition: 0
+      randomMaxYPosition: 0
+      minRandomYPositionDistance: 0
+      maxRandomYPositionDistance: 0
+      randomMinRotation: 0
+      randomMaxRotation: 0
+      minRandomRotationDistance: 0
+      maxRandomRotationDistance: 0
+      vegetationStudioMaskLineActive: 0
+      vegetationStudioGrassPerimeter: 0
+      vegetationStudioPlantPerimeter: 0
+      vegetationStudioTreePerimeter: 0
+      vegetationStudioObjectPerimeter: 0
+      vegetationStudioLargeObjectPerimeter: 0
+      vegetationStudioBiomeMaskActive: 0
+      vegetationStudioBiomeMaskDistance: 0
+      vegetationStudioBiomeMaskBlendDistance: 0
+      vegetationStudioBiomeMaskNoiseScale: 0
+      decalPresets: []
+      decalClassPresets: []
+      defaultRamp: 0
+      extrusionType: 0
+      extrusionDistance: 0
+      fixedDistance: 0
+      connectionAngle: 0
+      connectionRadius: 0
+      oneWay: 0
+      cornerRadiusMainRoad: 0
+      cornerSementsMainRoad: 0
+      cornerRadiusSecondaryRoad: 0
+      cornerRadiusSecondaryCurvature: 0
+      cornerSementsSecondaryRoad: 0
+      mainRoadsOnly: 0
+      isRoadShape: 0
+      controlType: 0
+      vertexColor: {r: 0, g: 0, b: 0, a: 0}
+      trafficPosts: []
+      activeTrafficPostIndex: 0
+      showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
+      materialCreator: 0
+      synchRoadWidth: 0
+      totalLanes: 0
+      laneWidth: 0
+      shoulderWidthLeft: 0
+      shoulderWidthRight: 0
+      leftLineMarkingWidth: 0
+      rightLineMarkingWidth: 0
+      leftLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
+      rightLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
+      leftLineMarkingStyle: 0
+      rightLineMarkingStyle: 0
+      leftLineMarkingSize: 0
+      rightLineMarkingSize: 0
+      leftLineMarkingInterval: 0
+      rightLineMarkingInterval: 0
+      laneMarkingStyle: 0
+      LaneMarkingColor: {r: 0, g: 0, b: 0, a: 0}
+      laneMarkingWidth: 0
+      laneMarkingSize: 0
+      laneMarkingInterval: 0
+      medianIsland: 0
+      medianWidth: 0
+      medianLineMarkingStyle: 0
+      medianLineMarkingWidth: 0
+      medianLineMarkingSize: 0
+      medianLineMarkingInterval: 0
+      medianLineMarkingSpace: 0
+      medianLeftLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
+      medianRightLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
+      materialType: 0
+      baseTexture: {fileID: 0}
+      baseTextureMask: {fileID: 0}
+      baseTextureSize: 0
+      baseTexture2: {fileID: 0}
+      normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
+      pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
+      pbrLaneStrength: 0
+      pbrCurveStrength: 0
+      noiseTexture: {fileID: 0}
+      noiseTexture2: {fileID: 0}
+      linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
+      linesTextureSize: 0
+      linesNormalMapBlend: 0
+      normalMapScale: 0
+      metallicScale: 0
+      smoothnessScale: 0
+      aoScale: 0
+      lineMaskQuality: 0
+      dynMapsUpdated: 0
+      roadEdgeMapping: 0
+      baseUVs: []
+      leftEdgeUVs: []
+      leftEdgeWidth: 0
+      rightEdgeUVs: []
+      rightEdgeWidth: 0
+      laneNoiseControl: 0
+      mirrorLaneNoiseOnShoulder: 0
+      noiseMaps: []
+      noiseMap: {fileID: 0}
+      noiseBaseMapTiling: 0
+      noiseMapTiling: 0
+      bakeLinePBR: 0
+      shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeTimestamp: 0
     leftCorner: {x: 0, y: 0, z: 0}
     rightCorner: {x: 0, y: 0, z: 0}
@@ -3293,46 +4318,25 @@ MonoBehaviour:
     roadShapeVecs:
     - {x: -3, y: 0}
     - {x: 3, y: 0}
-    roadShapeVecsString: -4.5, 0.3;-4.3, 0.3;-3.3, 0.3;-3, 0.3;-3, 0;3, 0;3, 0.3;3.3,
-      0.3;4.3, 0.3;4.5, 0.3;
+    roadShapeVecsString: -3, 0;3, 0;
     roadShapeMatchCount: -1
     roadShapeUVY:
-    - 0
     - 1
+    - 0
     roadShapeUVY2: []
     hardEdge: 
-    roadShapeMaterialInts: 010000000100000001000000010000000100000000000000000000000100000001000000010000000100000001000000
-    sidewalkLeftVecs:
-    - {x: -4.5, y: 0.25}
-    - {x: -4.25, y: 0.25}
-    - {x: -3.25, y: 0.25}
-    - {x: -3, y: 0.25}
-    - {x: -3, y: 0}
-    sidewalkLeftUVY:
-    - 1
-    - 0.85714287
-    - 0.2857143
-    - 0.14285715
-    - 0
+    roadShapeMaterialInts: 0000000000000000
+    sidewalkLeftVecs: []
+    sidewalkLeftUVY: []
     sidewalkLeftMaterialInts: 
-    sidewalkRightVecs:
-    - {x: 3, y: 0}
-    - {x: 3, y: 0.25}
-    - {x: 3.25, y: 0.25}
-    - {x: 4.25, y: 0.25}
-    - {x: 4.5, y: 0.25}
-    sidewalkRightUVY:
-    - 0
-    - 0.14285715
-    - 0.2857143
-    - 0.85714287
-    - 1
+    sidewalkRightVecs: []
+    sidewalkRightUVY: []
     sidewalkRightMaterialInts: 
     connectionVecs: []
-    connectionVecInts: fb000000f9000000f4000000ef000000ea0000003300000047000000780000007d000000820000008700000089000000
-    fullConnectionVecInts: fb000000f9000000f4000000ef000000ea0000003300000047000000780000007d000000820000008700000089000000
-    sidewalkLeftConnectionVecInts: fb000000f9000000f4000000ef000000ea000000
-    sidewalkRightConnectionVecInts: 780000007d000000820000008700000089000000
+    connectionVecInts: 3f00000053000000
+    fullConnectionVecInts: 3f00000053000000
+    sidewalkLeftConnectionVecInts: 
+    sidewalkRightConnectionVecInts: 
     doConnectionTri: 
     outerVecInts: 
     outerVecs: []
@@ -3344,24 +4348,23 @@ MonoBehaviour:
     connectedRoadID: 0
     connectedRoadControlPoint: {x: 0, y: 0, z: 0}
     includeLeftSidewalk: 0
-    includeRightSidewalk: 1
+    includeRightSidewalk: 0
     roadMaterial: {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
     roadMaterials:
     - {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
-    - {fileID: 2100000, guid: d74dc327ca3fad8408eeeaf8ad54a110, type: 2}
     centerPointPercentage: 0.5
-    leftIndent: 4
-    rightIndent: 2
-    leftSurrounding: 12
-    rightSurrounding: 10
+    leftIndent: 8
+    rightIndent: 7
+    leftSurrounding: 16
+    rightSurrounding: 15
     leftRoadIndent: 0
     rightRoadIndent: 0
     leftRoadSurrounding: 0
     rightRoadSurrounding: 0
-    leftIndentV3: {x: -7.4296875, y: -0.02, z: 7.4296875}
-    leftSurroundingV3: {x: -10.252136, y: 0, z: 10.252129}
-    rightIndentV3: {x: -7.4296875, y: -0.02, z: -7.4296875}
-    rightSurroundingV3: {x: -10.252136, y: 0, z: -10.252129}
+    leftIndentV3: {x: 7.4296875, y: -0.02, z: -7.4296875}
+    leftSurroundingV3: {x: 10.252136, y: 0, z: -10.252129}
+    rightIndentV3: {x: 7.4296875, y: -0.02, z: 7.4296875}
+    rightSurroundingV3: {x: 10.252136, y: 0, z: 10.252129}
     leftRoadpoint: {x: 0, y: 0, z: 0}
     rightRoadpoint: {x: 0, y: 0, z: 0}
     leftRoundingPoints: []
@@ -3375,9 +4378,9 @@ MonoBehaviour:
     leftIndentInt: 0
     rightIndentInt: 0
     leftInt: 0
-    rightInt: 11
+    rightInt: 1
     leftIntFull: 0
-    rightIntFull: 11
+    rightIntFull: 1
     alignmentHandleVec: {x: 0, y: 0, z: 0}
     additionalIndentDistance: 1.948485
     connectionAngle: 0
@@ -3520,6 +4523,11 @@ MonoBehaviour:
       trafficPosts: []
       activeTrafficPostIndex: 0
       showTrafficPosts: 0
+      centerObject: {fileID: 0}
+      centerObjectActive: 0
+      islandObject: {fileID: 0}
+      islandObjectActive: 0
+      materialCreatorIsSet: 0
       materialCreator: 0
       synchRoadWidth: 0
       totalLanes: 0
@@ -3556,12 +4564,15 @@ MonoBehaviour:
       baseTextureSize: 0
       baseTexture2: {fileID: 0}
       normalMap: {fileID: 0}
+      pbrNoiseSourceTexture: {fileID: 0}
       pbrTexture: {fileID: 0}
+      pbrNoiseTexture: {fileID: 0}
       pbrLaneStrength: 0
       pbrCurveStrength: 0
       noiseTexture: {fileID: 0}
       noiseTexture2: {fileID: 0}
       linesTexture: {fileID: 0}
+      connectionLinesTexture: {fileID: 0}
       linesTextureSize: 0
       linesNormalMapBlend: 0
       normalMapScale: 0
@@ -3584,319 +4595,10 @@ MonoBehaviour:
       noiseMapTiling: 0
       bakeLinePBR: 0
       shoulderOffset: 0
-    roadTypeTimestamp: 0
-    leftCorner: {x: 0, y: 0, z: 0}
-    rightCorner: {x: 0, y: 0, z: 0}
-    direction: {x: 0, y: 0, z: 0}
-    centerCornerDirectionLeft: {x: 0, y: 0, z: 0}
-    centerCornerDirectionRight: {x: 0, y: 0, z: 0}
-    leftAngle: 0
-    rightAngle: 0
-    triangulateLeft: 1
-    triangulateRight: 1
-    laneData:
-      points: []
-      connectors: []
-      laneType:
-        position: 0
-        direction: 0
-        turnDirection: 0
-        TurnOptions: 0
-        laneIndex: 0
-      laneIndex: 0
-      direction: 0
-  - connectionHandleObject: {fileID: 0}
-    isHandleActive: 1
-    connectionPosition: 0
-    centerPoint: {x: 5.5, y: 0, z: 0}
-    tmpCenterPoint: {x: 5.5, y: 0, z: 0}
-    stageCenterPoint: {x: 0, y: 0, z: 0}
-    tmpStageCenterPoint: {x: 0, y: 0, z: 0}
-    blendData: []
-    controlPointV3: {x: 0, y: 0, z: 0}
-    controlPoint: {x: 0, y: 0}
-    endSplinePoint: {x: 0, y: 0, z: 0}
-    endControlPoint: {x: 0, y: 0, z: 0}
-    blendDistance: 0
-    extendBounds: 0
-    blendCornerPoints: []
-    blendCornerPointInts: 
-    blendCornerPointWeights: []
-    blendCornerPointsTransformed: []
-    blendRatio: 1
-    curveStrength: 0
-    roadShapeVecs:
-    - {x: -3, y: 0}
-    - {x: 3, y: 0}
-    roadShapeVecsString: -3, 0;3, 0;
-    roadShapeMatchCount: 2
-    roadShapeUVY:
-    - 1
-    - 0
-    roadShapeUVY2: []
-    hardEdge: 
-    roadShapeMaterialInts: 0000000000000000
-    sidewalkLeftVecs: []
-    sidewalkLeftUVY: []
-    sidewalkLeftMaterialInts: 
-    sidewalkRightVecs: []
-    sidewalkRightUVY: []
-    sidewalkRightMaterialInts: 
-    connectionVecs: []
-    connectionVecInts: 3f00000053000000
-    fullConnectionVecInts: 3f00000053000000
-    sidewalkLeftConnectionVecInts: 
-    sidewalkRightConnectionVecInts: 
-    doConnectionTri: 
-    outerVecInts: 
-    outerVecs: []
-    rotationPriority: 0
-    centerPointAngle: 1000
-    connectedRoad: {fileID: 0}
-    connectedMarker: -1
-    connectedRoadGO: {fileID: 0}
-    connectedRoadID: 0
-    connectedRoadControlPoint: {x: 0, y: 0, z: 0}
-    includeLeftSidewalk: 0
-    includeRightSidewalk: 0
-    roadMaterial: {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
-    roadMaterials:
-    - {fileID: 2100000, guid: f182e2714eb8a714a99ed091081ce16c, type: 2}
-    centerPointPercentage: 0.5
-    leftIndent: 8
-    rightIndent: 7
-    leftSurrounding: 16
-    rightSurrounding: 15
-    leftRoadIndent: 0
-    rightRoadIndent: 0
-    leftRoadSurrounding: 0
-    rightRoadSurrounding: 0
-    leftIndentV3: {x: 7.4296875, y: -0.02, z: -7.4296875}
-    leftSurroundingV3: {x: 10.252136, y: 0, z: -10.252129}
-    rightIndentV3: {x: 7.4296875, y: -0.02, z: 7.4296875}
-    rightSurroundingV3: {x: 10.252136, y: 0, z: 10.252129}
-    leftRoadpoint: {x: 5.5, y: 0, z: -3}
-    rightRoadpoint: {x: 5.5, y: 0, z: 3}
-    leftRoundingPoints: []
-    rightRoundingPoints: []
-    leftRoundingPointsGlobal: []
-    rightRoundingPointsGlobal: []
-    leftInnerIndentPoints: []
-    rightInnerIndentPoints: []
-    leftCornerInt: -1
-    rightCornerInt: -1
-    leftIndentInt: 0
-    rightIndentInt: 0
-    leftInt: 0
-    rightInt: 1
-    leftIntFull: 0
-    rightIntFull: 1
-    alignmentHandleVec: {x: 2.75, y: 0, z: 0}
-    additionalIndentDistance: 1.948485
-    connectionAngle: 0
-    alignmentHandleVecRotationGizmo: {x: 0, y: 0, z: 0}
-    inwards: 0
-    roadType: 1
-    rt:
-      roadTypeName: 
-      id: 0
-      timestamp: 0
-      roadWidth: 0
-      advancedWidthSettings: 0
-      faceDistance: 0
-      angleTreshold: 0
-      uvTiling: 0
-      uv4Type: 0
-      type: 0
-      detailDistance: 0
-      planarUVs: 0
-      outerIndent: 0
-      roadShapeDataActive: 0
-      roadShapeData:
-        nodes: []
-        hardEdge: 
-        priorityNodeIndexLeft: 0
-        priorityNodeIndexRight: 0
-        nodesV3: []
-        lanes: []
-        leftLanes: 0
-        rightLanes: 0
-        symmetrical: 0
-        leftSidewalkOffset: 0
-        rightSidewalkOffset: 0
-        outerLaneMarkingLeftIndex: 0
-        includeOuterlaneLeftInShape: 0
-        includeOuterlaneRightInShape: 0
-        outerLaneMarkingRightIndex: 0
-        outerOuterLaneMarkingLeftIndex: 0
-        outerOuterLaneMarkingRightIndex: 0
-        selectedNode: 0
-        selectedLaneNode: 0
-        isSymmetrical: 0
-        isset: 0
-      excludeFromTrafficAI: 0
-      minSpeed: 0
-      maxSpeed: 0
-      speedLimit: 0
-      speedLimitConnections: 0
-      roadShape: []
-      roadShapeExt: []
-      roadShapeExt2: []
-      doConnectionTri: 
-      doConnectionTriExt: 
-      roadShapeUVs: []
-      roadShapeExtUVs: []
-      roadShapeExtUVs2: []
-      roadShapeUVs2: []
-      preserveUVs: 0
-      hardEdge: 
-      roadShapeVecsString: 
-      defaultSidewalk: 0
-      sidewalks: 0
-      sidewalkHeight: 0
-      sidewalkWidth: 0
-      crosswalks: 0
-      crosswalkIntervals: 0
-      crosswalksIntersections: 0
-      crosswalkPrefab: {fileID: 0}
-      crosswalkHeightOffset: 0
-      crosswalkType: 0
-      crosswalkDecal: {fileID: 0}
-      roadMaterial: {fileID: 0}
-      roadMaterials: []
-      roadPhysicsMaterial: {fileID: 0}
-      roadPhysicsMaterials: []
-      connectionMaterial: {fileID: 0}
-      isSideObject: 0
-      isCustomRoad: 0
-      subSegments: 0
-      soData: []
-      soDataExt: []
-      soDataLog: []
-      layer: 0
-      isStatic: 0
-      tag: 
-      renderingLayerMask: 0
-      splatMapActive: 0
-      splatIndex: 0
-      expandLevel: 0
-      smoothLevel: 0
-      splatOpacity: 0
-      followTerrainContours: 0
-      terrainContoursOffset: 0
-      terrainDeformation: 0
-      defaultIndent: 0
-      defaultSurrounding: 0
-      maxRoadheight: 0
-      maxTerrainHeightOffset: 0
-      minTerrainHeightDistance: 0
-      maxTerrainHeightDistance: 0
-      castShadow: 0
-      randomnessFlag: 0
-      randomYPosition: 0
-      randomMinYPosition: 0
-      randomMaxYPosition: 0
-      minRandomYPositionDistance: 0
-      maxRandomYPositionDistance: 0
-      randomMinRotation: 0
-      randomMaxRotation: 0
-      minRandomRotationDistance: 0
-      maxRandomRotationDistance: 0
-      vegetationStudioMaskLineActive: 0
-      vegetationStudioGrassPerimeter: 0
-      vegetationStudioPlantPerimeter: 0
-      vegetationStudioTreePerimeter: 0
-      vegetationStudioObjectPerimeter: 0
-      vegetationStudioLargeObjectPerimeter: 0
-      vegetationStudioBiomeMaskActive: 0
-      vegetationStudioBiomeMaskDistance: 0
-      vegetationStudioBiomeMaskBlendDistance: 0
-      vegetationStudioBiomeMaskNoiseScale: 0
-      decalPresets: []
-      decalClassPresets: []
-      defaultRamp: 0
-      extrusionType: 0
-      extrusionDistance: 0
-      fixedDistance: 0
-      connectionAngle: 0
-      connectionRadius: 0
-      oneWay: 0
-      cornerRadiusMainRoad: 0
-      cornerSementsMainRoad: 0
-      cornerRadiusSecondaryRoad: 0
-      cornerRadiusSecondaryCurvature: 0
-      cornerSementsSecondaryRoad: 0
-      mainRoadsOnly: 0
-      isRoadShape: 0
-      controlType: 0
-      vertexColor: {r: 0, g: 0, b: 0, a: 0}
-      trafficPosts: []
-      activeTrafficPostIndex: 0
-      showTrafficPosts: 0
-      materialCreator: 0
-      synchRoadWidth: 0
-      totalLanes: 0
-      laneWidth: 0
-      shoulderWidthLeft: 0
-      shoulderWidthRight: 0
-      leftLineMarkingWidth: 0
-      rightLineMarkingWidth: 0
-      leftLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
-      rightLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
-      leftLineMarkingStyle: 0
-      rightLineMarkingStyle: 0
-      leftLineMarkingSize: 0
-      rightLineMarkingSize: 0
-      leftLineMarkingInterval: 0
-      rightLineMarkingInterval: 0
-      laneMarkingStyle: 0
-      LaneMarkingColor: {r: 0, g: 0, b: 0, a: 0}
-      laneMarkingWidth: 0
-      laneMarkingSize: 0
-      laneMarkingInterval: 0
-      medianIsland: 0
-      medianWidth: 0
-      medianLineMarkingStyle: 0
-      medianLineMarkingWidth: 0
-      medianLineMarkingSize: 0
-      medianLineMarkingInterval: 0
-      medianLineMarkingSpace: 0
-      medianLeftLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
-      medianRightLineMarkingColor: {r: 0, g: 0, b: 0, a: 0}
-      materialType: 0
-      baseTexture: {fileID: 0}
-      baseTextureMask: {fileID: 0}
-      baseTextureSize: 0
-      baseTexture2: {fileID: 0}
-      normalMap: {fileID: 0}
-      pbrTexture: {fileID: 0}
-      pbrLaneStrength: 0
-      pbrCurveStrength: 0
-      noiseTexture: {fileID: 0}
-      noiseTexture2: {fileID: 0}
-      linesTexture: {fileID: 0}
-      linesTextureSize: 0
-      linesNormalMapBlend: 0
-      normalMapScale: 0
-      metallicScale: 0
-      smoothnessScale: 0
-      aoScale: 0
-      lineMaskQuality: 0
-      dynMapsUpdated: 0
-      roadEdgeMapping: 0
-      baseUVs: []
-      leftEdgeUVs: []
-      leftEdgeWidth: 0
-      rightEdgeUVs: []
-      rightEdgeWidth: 0
-      laneNoiseControl: 0
-      mirrorLaneNoiseOnShoulder: 0
-      noiseMaps: []
-      noiseMap: {fileID: 0}
-      noiseBaseMapTiling: 0
-      noiseMapTiling: 0
-      bakeLinePBR: 0
-      shoulderOffset: 0
+      defaultLanesMetSM: 0
+      defaultShoulderMetSM: 0
+      unwrapUVs: 0
+      connectionShoulderMarkings: 0
     roadTypeTimestamp: 0
     leftCorner: {x: 0, y: 0, z: 0}
     rightCorner: {x: 0, y: 0, z: 0}
@@ -3919,11 +4621,11 @@ MonoBehaviour:
       laneIndex: 0
       direction: 0
   sidewalkControlElements:
-  - crossingElementLeftIndex: 3
+  - crossingElementLeftIndex: 1
     crossingElementRightIndex: 0
-    centerHandleV3: {x: 3.2928934, y: 0, z: -3.2928932}
+    centerHandleV3: {x: 3, y: 0, z: 0}
     centerHandleV3_2: {x: 0, y: 0, z: 0}
-    leftHandleV3: {x: 5.5, y: 0, z: -3}
+    leftHandleV3: {x: 3, y: 0, z: 5.5}
     rightHandleV3: {x: 3, y: 0, z: -5.5}
     renderFlag: 0
     leftConnectionHandle: 0
@@ -3952,11 +4654,11 @@ MonoBehaviour:
     innerSegmentDistance: 0.5
     startAngle: 0
   - crossingElementLeftIndex: 0
-    crossingElementRightIndex: 1
-    centerHandleV3: {x: -3, y: 0, z: 0}
+    crossingElementRightIndex: 2
+    centerHandleV3: {x: -3.2928934, y: 0, z: -3.2928932}
     centerHandleV3_2: {x: 0, y: 0, z: 0}
     leftHandleV3: {x: -3, y: 0, z: -5.5}
-    rightHandleV3: {x: -3, y: 0, z: 5.5}
+    rightHandleV3: {x: -5.5, y: 0, z: -3}
     renderFlag: 0
     leftConnectionHandle: 0
     rightConnectionHandle: 0
@@ -3985,9 +4687,9 @@ MonoBehaviour:
     startAngle: 0
   - crossingElementLeftIndex: 2
     crossingElementRightIndex: 1
-    centerHandleV3: {x: -3, y: 0, z: 0}
+    centerHandleV3: {x: -3.2928934, y: 0, z: 3.2928932}
     centerHandleV3_2: {x: 0, y: 0, z: 0}
-    leftHandleV3: {x: -3, y: 0, z: 0}
+    leftHandleV3: {x: -5.5, y: 0, z: 3}
     rightHandleV3: {x: -3, y: 0, z: 5.5}
     renderFlag: 0
     leftConnectionHandle: 0
@@ -4017,10 +4719,10 @@ MonoBehaviour:
     startAngle: 0
   - crossingElementLeftIndex: 1
     crossingElementRightIndex: 3
-    centerHandleV3: {x: 3.2928934, y: 0, z: 3.2928932}
+    centerHandleV3: {x: 3, y: 0, z: 0}
     centerHandleV3_2: {x: 0, y: 0, z: 0}
     leftHandleV3: {x: 3, y: 0, z: 5.5}
-    rightHandleV3: {x: 5.5, y: 0, z: 3}
+    rightHandleV3: {x: 3, y: 0, z: 0}
     renderFlag: 0
     leftConnectionHandle: 0
     rightConnectionHandle: 0
@@ -4054,19 +4756,15 @@ MonoBehaviour:
   meshVecs:
   - {x: 0, y: 0, z: 0}
   - {x: -3, y: 0, z: -5.5}
-  - {x: -3, y: 0, z: -5}
+  - {x: -3, y: 0, z: -4.5}
   - {x: -3, y: 0, z: -4}
-  - {x: -3, y: 0, z: -3}
-  - {x: -3, y: 0, z: -2}
-  - {x: -3, y: 0, z: -1}
-  - {x: -3, y: 0, z: 0}
+  - {x: -3.0761204, y: 0, z: -3.6173165}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   - {x: -2.5, y: 0, z: -5.5}
-  - {x: -2.5, y: 0, z: -5}
-  - {x: -2.5, y: 0, z: -4}
-  - {x: -2.5, y: 0, z: -3}
-  - {x: -2.5, y: 0, z: -2}
-  - {x: -2.5, y: 0, z: -1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: -4.5}
+  - {x: -2.501849, y: 0, z: -3.9570408}
+  - {x: -2.6141806, y: 0, z: -3.4259746}
+  - {x: -2.93934, y: 0, z: -2.9393399}
   - {x: 0, y: 0, z: -5.5}
   - {x: 0, y: 0, z: -5}
   - {x: 0, y: 0, z: -4}
@@ -4075,25 +4773,33 @@ MonoBehaviour:
   - {x: 0, y: 0, z: -1}
   - {x: 0, y: 0, z: 0}
   - {x: 2.5, y: 0, z: -5.5}
-  - {x: 2.5, y: 0, z: -4.5}
-  - {x: 2.501849, y: 0, z: -3.9570408}
-  - {x: 2.6141806, y: 0, z: -3.4259746}
-  - {x: 2.93934, y: 0, z: -2.9393399}
+  - {x: 2.5, y: 0, z: -5}
+  - {x: 2.5, y: 0, z: -4}
+  - {x: 2.5, y: 0, z: -3}
+  - {x: 2.5, y: 0, z: -2}
+  - {x: 2.5, y: 0, z: -1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 3, y: 0, z: -5.5}
-  - {x: 3, y: 0, z: -4.5}
+  - {x: 3, y: 0, z: -5}
   - {x: 3, y: 0, z: -4}
-  - {x: 3.0761204, y: 0, z: -3.6173165}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
+  - {x: 3, y: 0, z: -3}
+  - {x: 3, y: 0, z: -2}
+  - {x: 3, y: 0, z: -1}
+  - {x: 3, y: 0, z: 0}
   - {x: 3, y: 0, z: 5.5}
-  - {x: 3, y: 0, z: 4.5}
+  - {x: 3, y: 0, z: 5}
   - {x: 3, y: 0, z: 4}
-  - {x: 3.0761204, y: 0, z: 3.6173165}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: 3, y: 0, z: 3}
+  - {x: 3, y: 0, z: 2}
+  - {x: 3, y: 0, z: 1}
+  - {x: 3, y: 0, z: 0}
   - {x: 2.5, y: 0, z: 5.5}
-  - {x: 2.5, y: 0, z: 4.5}
-  - {x: 2.501849, y: 0, z: 3.9570408}
-  - {x: 2.6141806, y: 0, z: 3.4259746}
-  - {x: 2.93934, y: 0, z: 2.9393399}
+  - {x: 2.5, y: 0, z: 5}
+  - {x: 2.5, y: 0, z: 4}
+  - {x: 2.5, y: 0, z: 3}
+  - {x: 2.5, y: 0, z: 2}
+  - {x: 2.5, y: 0, z: 1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 0, y: 0, z: 5.5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 4}
@@ -4102,60 +4808,52 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 1}
   - {x: 0, y: 0, z: 0}
   - {x: -2.5, y: 0, z: 5.5}
-  - {x: -2.5, y: 0, z: 5}
-  - {x: -2.5, y: 0, z: 4}
-  - {x: -2.5, y: 0, z: 3}
-  - {x: -2.5, y: 0, z: 2}
-  - {x: -2.5, y: 0, z: 1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: 4.5}
+  - {x: -2.501849, y: 0, z: 3.9570408}
+  - {x: -2.6141806, y: 0, z: 3.4259746}
+  - {x: -2.93934, y: 0, z: 2.9393399}
   - {x: -3, y: 0, z: 5.5}
-  - {x: -3, y: 0, z: 5}
+  - {x: -3, y: 0, z: 4.5}
   - {x: -3, y: 0, z: 4}
-  - {x: -3, y: 0, z: 3}
-  - {x: -3, y: 0, z: 2}
-  - {x: -3, y: 0, z: 1}
-  - {x: -3, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: -3}
-  - {x: 4.5, y: 0, z: -3}
-  - {x: 4, y: 0, z: -3}
-  - {x: 3.6173167, y: 0, z: -3.0761204}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
-  - {x: 5.5, y: 0, z: -2.5}
-  - {x: 4.5, y: 0, z: -2.5}
-  - {x: 3.9570408, y: 0, z: -2.501849}
-  - {x: 3.425975, y: 0, z: -2.6141806}
-  - {x: 2.93934, y: 0, z: -2.9393399}
-  - {x: 5.5, y: 0, z: 0}
-  - {x: 4.5, y: 0, z: 0}
-  - {x: 3.9570408, y: 0, z: 0}
-  - {x: 3.425975, y: 0, z: 0}
-  - {x: 2.93934, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: 2.5}
-  - {x: 4.5, y: 0, z: 2.5}
-  - {x: 3.9570408, y: 0, z: 2.501849}
-  - {x: 3.425975, y: 0, z: 2.6141806}
-  - {x: 2.93934, y: 0, z: 2.9393399}
-  - {x: 5.5, y: 0, z: 3}
-  - {x: 4.5, y: 0, z: 3}
-  - {x: 4, y: 0, z: 3}
-  - {x: 3.6173167, y: 0, z: 3.0761204}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: -3.0761204, y: 0, z: 3.6173165}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 3}
+  - {x: -4.5, y: 0, z: 3}
+  - {x: -4, y: 0, z: 3}
+  - {x: -3.6173167, y: 0, z: 3.0761204}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 2.5}
+  - {x: -4.5, y: 0, z: 2.5}
+  - {x: -3.9570408, y: 0, z: 2.501849}
+  - {x: -3.425975, y: 0, z: 2.6141806}
+  - {x: -2.93934, y: 0, z: 2.9393399}
+  - {x: -5.5, y: 0, z: 0}
+  - {x: -4.5, y: 0, z: 0}
+  - {x: -3.9570408, y: 0, z: 0}
+  - {x: -3.425975, y: 0, z: 0}
+  - {x: -2.93934, y: 0, z: 0}
+  - {x: -5.5, y: 0, z: -2.5}
+  - {x: -4.5, y: 0, z: -2.5}
+  - {x: -3.9570408, y: 0, z: -2.501849}
+  - {x: -3.425975, y: 0, z: -2.6141806}
+  - {x: -2.93934, y: 0, z: -2.9393399}
+  - {x: -5.5, y: 0, z: -3}
+  - {x: -4.5, y: 0, z: -3}
+  - {x: -4, y: 0, z: -3}
+  - {x: -3.6173167, y: 0, z: -3.0761204}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   fullMeshVecs:
   - {x: 0, y: 0, z: 0}
   - {x: -3, y: 0, z: -5.5}
-  - {x: -3, y: 0, z: -5}
+  - {x: -3, y: 0, z: -4.5}
   - {x: -3, y: 0, z: -4}
-  - {x: -3, y: 0, z: -3}
-  - {x: -3, y: 0, z: -2}
-  - {x: -3, y: 0, z: -1}
-  - {x: -3, y: 0, z: 0}
+  - {x: -3.0761204, y: 0, z: -3.6173165}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   - {x: -2.5, y: 0, z: -5.5}
-  - {x: -2.5, y: 0, z: -5}
-  - {x: -2.5, y: 0, z: -4}
-  - {x: -2.5, y: 0, z: -3}
-  - {x: -2.5, y: 0, z: -2}
-  - {x: -2.5, y: 0, z: -1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: -4.5}
+  - {x: -2.501849, y: 0, z: -3.9570408}
+  - {x: -2.6141806, y: 0, z: -3.4259746}
+  - {x: -2.93934, y: 0, z: -2.9393399}
   - {x: 0, y: 0, z: -5.5}
   - {x: 0, y: 0, z: -5}
   - {x: 0, y: 0, z: -4}
@@ -4164,25 +4862,33 @@ MonoBehaviour:
   - {x: 0, y: 0, z: -1}
   - {x: 0, y: 0, z: 0}
   - {x: 2.5, y: 0, z: -5.5}
-  - {x: 2.5, y: 0, z: -4.5}
-  - {x: 2.501849, y: 0, z: -3.9570408}
-  - {x: 2.6141806, y: 0, z: -3.4259746}
-  - {x: 2.93934, y: 0, z: -2.9393399}
+  - {x: 2.5, y: 0, z: -5}
+  - {x: 2.5, y: 0, z: -4}
+  - {x: 2.5, y: 0, z: -3}
+  - {x: 2.5, y: 0, z: -2}
+  - {x: 2.5, y: 0, z: -1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 3, y: 0, z: -5.5}
-  - {x: 3, y: 0, z: -4.5}
+  - {x: 3, y: 0, z: -5}
   - {x: 3, y: 0, z: -4}
-  - {x: 3.0761204, y: 0, z: -3.6173165}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
+  - {x: 3, y: 0, z: -3}
+  - {x: 3, y: 0, z: -2}
+  - {x: 3, y: 0, z: -1}
+  - {x: 3, y: 0, z: 0}
   - {x: 3, y: 0, z: 5.5}
-  - {x: 3, y: 0, z: 4.5}
+  - {x: 3, y: 0, z: 5}
   - {x: 3, y: 0, z: 4}
-  - {x: 3.0761204, y: 0, z: 3.6173165}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: 3, y: 0, z: 3}
+  - {x: 3, y: 0, z: 2}
+  - {x: 3, y: 0, z: 1}
+  - {x: 3, y: 0, z: 0}
   - {x: 2.5, y: 0, z: 5.5}
-  - {x: 2.5, y: 0, z: 4.5}
-  - {x: 2.501849, y: 0, z: 3.9570408}
-  - {x: 2.6141806, y: 0, z: 3.4259746}
-  - {x: 2.93934, y: 0, z: 2.9393399}
+  - {x: 2.5, y: 0, z: 5}
+  - {x: 2.5, y: 0, z: 4}
+  - {x: 2.5, y: 0, z: 3}
+  - {x: 2.5, y: 0, z: 2}
+  - {x: 2.5, y: 0, z: 1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 0, y: 0, z: 5.5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 4}
@@ -4191,60 +4897,52 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 1}
   - {x: 0, y: 0, z: 0}
   - {x: -2.5, y: 0, z: 5.5}
-  - {x: -2.5, y: 0, z: 5}
-  - {x: -2.5, y: 0, z: 4}
-  - {x: -2.5, y: 0, z: 3}
-  - {x: -2.5, y: 0, z: 2}
-  - {x: -2.5, y: 0, z: 1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: 4.5}
+  - {x: -2.501849, y: 0, z: 3.9570408}
+  - {x: -2.6141806, y: 0, z: 3.4259746}
+  - {x: -2.93934, y: 0, z: 2.9393399}
   - {x: -3, y: 0, z: 5.5}
-  - {x: -3, y: 0, z: 5}
+  - {x: -3, y: 0, z: 4.5}
   - {x: -3, y: 0, z: 4}
-  - {x: -3, y: 0, z: 3}
-  - {x: -3, y: 0, z: 2}
-  - {x: -3, y: 0, z: 1}
-  - {x: -3, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: -3}
-  - {x: 4.5, y: 0, z: -3}
-  - {x: 4, y: 0, z: -3}
-  - {x: 3.6173167, y: 0, z: -3.0761204}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
-  - {x: 5.5, y: 0, z: -2.5}
-  - {x: 4.5, y: 0, z: -2.5}
-  - {x: 3.9570408, y: 0, z: -2.501849}
-  - {x: 3.425975, y: 0, z: -2.6141806}
-  - {x: 2.93934, y: 0, z: -2.9393399}
-  - {x: 5.5, y: 0, z: 0}
-  - {x: 4.5, y: 0, z: 0}
-  - {x: 3.9570408, y: 0, z: 0}
-  - {x: 3.425975, y: 0, z: 0}
-  - {x: 2.93934, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: 2.5}
-  - {x: 4.5, y: 0, z: 2.5}
-  - {x: 3.9570408, y: 0, z: 2.501849}
-  - {x: 3.425975, y: 0, z: 2.6141806}
-  - {x: 2.93934, y: 0, z: 2.9393399}
-  - {x: 5.5, y: 0, z: 3}
-  - {x: 4.5, y: 0, z: 3}
-  - {x: 4, y: 0, z: 3}
-  - {x: 3.6173167, y: 0, z: 3.0761204}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: -3.0761204, y: 0, z: 3.6173165}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 3}
+  - {x: -4.5, y: 0, z: 3}
+  - {x: -4, y: 0, z: 3}
+  - {x: -3.6173167, y: 0, z: 3.0761204}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 2.5}
+  - {x: -4.5, y: 0, z: 2.5}
+  - {x: -3.9570408, y: 0, z: 2.501849}
+  - {x: -3.425975, y: 0, z: 2.6141806}
+  - {x: -2.93934, y: 0, z: 2.9393399}
+  - {x: -5.5, y: 0, z: 0}
+  - {x: -4.5, y: 0, z: 0}
+  - {x: -3.9570408, y: 0, z: 0}
+  - {x: -3.425975, y: 0, z: 0}
+  - {x: -2.93934, y: 0, z: 0}
+  - {x: -5.5, y: 0, z: -2.5}
+  - {x: -4.5, y: 0, z: -2.5}
+  - {x: -3.9570408, y: 0, z: -2.501849}
+  - {x: -3.425975, y: 0, z: -2.6141806}
+  - {x: -2.93934, y: 0, z: -2.9393399}
+  - {x: -5.5, y: 0, z: -3}
+  - {x: -4.5, y: 0, z: -3}
+  - {x: -4, y: 0, z: -3}
+  - {x: -3.6173167, y: 0, z: -3.0761204}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   tmpMeshVecs:
   - {x: 0, y: 0, z: 0}
   - {x: -3, y: 0, z: -5.5}
-  - {x: -3, y: 0, z: -5}
+  - {x: -3, y: 0, z: -4.5}
   - {x: -3, y: 0, z: -4}
-  - {x: -3, y: 0, z: -3}
-  - {x: -3, y: 0, z: -2}
-  - {x: -3, y: 0, z: -1}
-  - {x: -3, y: 0, z: 0}
+  - {x: -3.0761204, y: 0, z: -3.6173165}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   - {x: -2.5, y: 0, z: -5.5}
-  - {x: -2.5, y: 0, z: -5}
-  - {x: -2.5, y: 0, z: -4}
-  - {x: -2.5, y: 0, z: -3}
-  - {x: -2.5, y: 0, z: -2}
-  - {x: -2.5, y: 0, z: -1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: -4.5}
+  - {x: -2.501849, y: 0, z: -3.9570408}
+  - {x: -2.6141806, y: 0, z: -3.4259746}
+  - {x: -2.93934, y: 0, z: -2.9393399}
   - {x: 0, y: 0, z: -5.5}
   - {x: 0, y: 0, z: -5}
   - {x: 0, y: 0, z: -4}
@@ -4253,25 +4951,33 @@ MonoBehaviour:
   - {x: 0, y: 0, z: -1}
   - {x: 0, y: 0, z: 0}
   - {x: 2.5, y: 0, z: -5.5}
-  - {x: 2.5, y: 0, z: -4.5}
-  - {x: 2.501849, y: 0, z: -3.9570408}
-  - {x: 2.6141806, y: 0, z: -3.4259746}
-  - {x: 2.93934, y: 0, z: -2.9393399}
+  - {x: 2.5, y: 0, z: -5}
+  - {x: 2.5, y: 0, z: -4}
+  - {x: 2.5, y: 0, z: -3}
+  - {x: 2.5, y: 0, z: -2}
+  - {x: 2.5, y: 0, z: -1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 3, y: 0, z: -5.5}
-  - {x: 3, y: 0, z: -4.5}
+  - {x: 3, y: 0, z: -5}
   - {x: 3, y: 0, z: -4}
-  - {x: 3.0761204, y: 0, z: -3.6173165}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
+  - {x: 3, y: 0, z: -3}
+  - {x: 3, y: 0, z: -2}
+  - {x: 3, y: 0, z: -1}
+  - {x: 3, y: 0, z: 0}
   - {x: 3, y: 0, z: 5.5}
-  - {x: 3, y: 0, z: 4.5}
+  - {x: 3, y: 0, z: 5}
   - {x: 3, y: 0, z: 4}
-  - {x: 3.0761204, y: 0, z: 3.6173165}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: 3, y: 0, z: 3}
+  - {x: 3, y: 0, z: 2}
+  - {x: 3, y: 0, z: 1}
+  - {x: 3, y: 0, z: 0}
   - {x: 2.5, y: 0, z: 5.5}
-  - {x: 2.5, y: 0, z: 4.5}
-  - {x: 2.501849, y: 0, z: 3.9570408}
-  - {x: 2.6141806, y: 0, z: 3.4259746}
-  - {x: 2.93934, y: 0, z: 2.9393399}
+  - {x: 2.5, y: 0, z: 5}
+  - {x: 2.5, y: 0, z: 4}
+  - {x: 2.5, y: 0, z: 3}
+  - {x: 2.5, y: 0, z: 2}
+  - {x: 2.5, y: 0, z: 1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 0, y: 0, z: 5.5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 4}
@@ -4280,60 +4986,52 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 1}
   - {x: 0, y: 0, z: 0}
   - {x: -2.5, y: 0, z: 5.5}
-  - {x: -2.5, y: 0, z: 5}
-  - {x: -2.5, y: 0, z: 4}
-  - {x: -2.5, y: 0, z: 3}
-  - {x: -2.5, y: 0, z: 2}
-  - {x: -2.5, y: 0, z: 1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: 4.5}
+  - {x: -2.501849, y: 0, z: 3.9570408}
+  - {x: -2.6141806, y: 0, z: 3.4259746}
+  - {x: -2.93934, y: 0, z: 2.9393399}
   - {x: -3, y: 0, z: 5.5}
-  - {x: -3, y: 0, z: 5}
+  - {x: -3, y: 0, z: 4.5}
   - {x: -3, y: 0, z: 4}
-  - {x: -3, y: 0, z: 3}
-  - {x: -3, y: 0, z: 2}
-  - {x: -3, y: 0, z: 1}
-  - {x: -3, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: -3}
-  - {x: 4.5, y: 0, z: -3}
-  - {x: 4, y: 0, z: -3}
-  - {x: 3.6173167, y: 0, z: -3.0761204}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
-  - {x: 5.5, y: 0, z: -2.5}
-  - {x: 4.5, y: 0, z: -2.5}
-  - {x: 3.9570408, y: 0, z: -2.501849}
-  - {x: 3.425975, y: 0, z: -2.6141806}
-  - {x: 2.93934, y: 0, z: -2.9393399}
-  - {x: 5.5, y: 0, z: 0}
-  - {x: 4.5, y: 0, z: 0}
-  - {x: 3.9570408, y: 0, z: 0}
-  - {x: 3.425975, y: 0, z: 0}
-  - {x: 2.93934, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: 2.5}
-  - {x: 4.5, y: 0, z: 2.5}
-  - {x: 3.9570408, y: 0, z: 2.501849}
-  - {x: 3.425975, y: 0, z: 2.6141806}
-  - {x: 2.93934, y: 0, z: 2.9393399}
-  - {x: 5.5, y: 0, z: 3}
-  - {x: 4.5, y: 0, z: 3}
-  - {x: 4, y: 0, z: 3}
-  - {x: 3.6173167, y: 0, z: 3.0761204}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: -3.0761204, y: 0, z: 3.6173165}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 3}
+  - {x: -4.5, y: 0, z: 3}
+  - {x: -4, y: 0, z: 3}
+  - {x: -3.6173167, y: 0, z: 3.0761204}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 2.5}
+  - {x: -4.5, y: 0, z: 2.5}
+  - {x: -3.9570408, y: 0, z: 2.501849}
+  - {x: -3.425975, y: 0, z: 2.6141806}
+  - {x: -2.93934, y: 0, z: 2.9393399}
+  - {x: -5.5, y: 0, z: 0}
+  - {x: -4.5, y: 0, z: 0}
+  - {x: -3.9570408, y: 0, z: 0}
+  - {x: -3.425975, y: 0, z: 0}
+  - {x: -2.93934, y: 0, z: 0}
+  - {x: -5.5, y: 0, z: -2.5}
+  - {x: -4.5, y: 0, z: -2.5}
+  - {x: -3.9570408, y: 0, z: -2.501849}
+  - {x: -3.425975, y: 0, z: -2.6141806}
+  - {x: -2.93934, y: 0, z: -2.9393399}
+  - {x: -5.5, y: 0, z: -3}
+  - {x: -4.5, y: 0, z: -3}
+  - {x: -4, y: 0, z: -3}
+  - {x: -3.6173167, y: 0, z: -3.0761204}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   tmpFullMeshVecs:
   - {x: 0, y: 0, z: 0}
   - {x: -3, y: 0, z: -5.5}
-  - {x: -3, y: 0, z: -5}
+  - {x: -3, y: 0, z: -4.5}
   - {x: -3, y: 0, z: -4}
-  - {x: -3, y: 0, z: -3}
-  - {x: -3, y: 0, z: -2}
-  - {x: -3, y: 0, z: -1}
-  - {x: -3, y: 0, z: 0}
+  - {x: -3.0761204, y: 0, z: -3.6173165}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   - {x: -2.5, y: 0, z: -5.5}
-  - {x: -2.5, y: 0, z: -5}
-  - {x: -2.5, y: 0, z: -4}
-  - {x: -2.5, y: 0, z: -3}
-  - {x: -2.5, y: 0, z: -2}
-  - {x: -2.5, y: 0, z: -1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: -4.5}
+  - {x: -2.501849, y: 0, z: -3.9570408}
+  - {x: -2.6141806, y: 0, z: -3.4259746}
+  - {x: -2.93934, y: 0, z: -2.9393399}
   - {x: 0, y: 0, z: -5.5}
   - {x: 0, y: 0, z: -5}
   - {x: 0, y: 0, z: -4}
@@ -4342,25 +5040,33 @@ MonoBehaviour:
   - {x: 0, y: 0, z: -1}
   - {x: 0, y: 0, z: 0}
   - {x: 2.5, y: 0, z: -5.5}
-  - {x: 2.5, y: 0, z: -4.5}
-  - {x: 2.501849, y: 0, z: -3.9570408}
-  - {x: 2.6141806, y: 0, z: -3.4259746}
-  - {x: 2.93934, y: 0, z: -2.9393399}
+  - {x: 2.5, y: 0, z: -5}
+  - {x: 2.5, y: 0, z: -4}
+  - {x: 2.5, y: 0, z: -3}
+  - {x: 2.5, y: 0, z: -2}
+  - {x: 2.5, y: 0, z: -1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 3, y: 0, z: -5.5}
-  - {x: 3, y: 0, z: -4.5}
+  - {x: 3, y: 0, z: -5}
   - {x: 3, y: 0, z: -4}
-  - {x: 3.0761204, y: 0, z: -3.6173165}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
+  - {x: 3, y: 0, z: -3}
+  - {x: 3, y: 0, z: -2}
+  - {x: 3, y: 0, z: -1}
+  - {x: 3, y: 0, z: 0}
   - {x: 3, y: 0, z: 5.5}
-  - {x: 3, y: 0, z: 4.5}
+  - {x: 3, y: 0, z: 5}
   - {x: 3, y: 0, z: 4}
-  - {x: 3.0761204, y: 0, z: 3.6173165}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: 3, y: 0, z: 3}
+  - {x: 3, y: 0, z: 2}
+  - {x: 3, y: 0, z: 1}
+  - {x: 3, y: 0, z: 0}
   - {x: 2.5, y: 0, z: 5.5}
-  - {x: 2.5, y: 0, z: 4.5}
-  - {x: 2.501849, y: 0, z: 3.9570408}
-  - {x: 2.6141806, y: 0, z: 3.4259746}
-  - {x: 2.93934, y: 0, z: 2.9393399}
+  - {x: 2.5, y: 0, z: 5}
+  - {x: 2.5, y: 0, z: 4}
+  - {x: 2.5, y: 0, z: 3}
+  - {x: 2.5, y: 0, z: 2}
+  - {x: 2.5, y: 0, z: 1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 0, y: 0, z: 5.5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 4}
@@ -4369,60 +5075,52 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 1}
   - {x: 0, y: 0, z: 0}
   - {x: -2.5, y: 0, z: 5.5}
-  - {x: -2.5, y: 0, z: 5}
-  - {x: -2.5, y: 0, z: 4}
-  - {x: -2.5, y: 0, z: 3}
-  - {x: -2.5, y: 0, z: 2}
-  - {x: -2.5, y: 0, z: 1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: 4.5}
+  - {x: -2.501849, y: 0, z: 3.9570408}
+  - {x: -2.6141806, y: 0, z: 3.4259746}
+  - {x: -2.93934, y: 0, z: 2.9393399}
   - {x: -3, y: 0, z: 5.5}
-  - {x: -3, y: 0, z: 5}
+  - {x: -3, y: 0, z: 4.5}
   - {x: -3, y: 0, z: 4}
-  - {x: -3, y: 0, z: 3}
-  - {x: -3, y: 0, z: 2}
-  - {x: -3, y: 0, z: 1}
-  - {x: -3, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: -3}
-  - {x: 4.5, y: 0, z: -3}
-  - {x: 4, y: 0, z: -3}
-  - {x: 3.6173167, y: 0, z: -3.0761204}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
-  - {x: 5.5, y: 0, z: -2.5}
-  - {x: 4.5, y: 0, z: -2.5}
-  - {x: 3.9570408, y: 0, z: -2.501849}
-  - {x: 3.425975, y: 0, z: -2.6141806}
-  - {x: 2.93934, y: 0, z: -2.9393399}
-  - {x: 5.5, y: 0, z: 0}
-  - {x: 4.5, y: 0, z: 0}
-  - {x: 3.9570408, y: 0, z: 0}
-  - {x: 3.425975, y: 0, z: 0}
-  - {x: 2.93934, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: 2.5}
-  - {x: 4.5, y: 0, z: 2.5}
-  - {x: 3.9570408, y: 0, z: 2.501849}
-  - {x: 3.425975, y: 0, z: 2.6141806}
-  - {x: 2.93934, y: 0, z: 2.9393399}
-  - {x: 5.5, y: 0, z: 3}
-  - {x: 4.5, y: 0, z: 3}
-  - {x: 4, y: 0, z: 3}
-  - {x: 3.6173167, y: 0, z: 3.0761204}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: -3.0761204, y: 0, z: 3.6173165}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 3}
+  - {x: -4.5, y: 0, z: 3}
+  - {x: -4, y: 0, z: 3}
+  - {x: -3.6173167, y: 0, z: 3.0761204}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 2.5}
+  - {x: -4.5, y: 0, z: 2.5}
+  - {x: -3.9570408, y: 0, z: 2.501849}
+  - {x: -3.425975, y: 0, z: 2.6141806}
+  - {x: -2.93934, y: 0, z: 2.9393399}
+  - {x: -5.5, y: 0, z: 0}
+  - {x: -4.5, y: 0, z: 0}
+  - {x: -3.9570408, y: 0, z: 0}
+  - {x: -3.425975, y: 0, z: 0}
+  - {x: -2.93934, y: 0, z: 0}
+  - {x: -5.5, y: 0, z: -2.5}
+  - {x: -4.5, y: 0, z: -2.5}
+  - {x: -3.9570408, y: 0, z: -2.501849}
+  - {x: -3.425975, y: 0, z: -2.6141806}
+  - {x: -2.93934, y: 0, z: -2.9393399}
+  - {x: -5.5, y: 0, z: -3}
+  - {x: -4.5, y: 0, z: -3}
+  - {x: -4, y: 0, z: -3}
+  - {x: -3.6173167, y: 0, z: -3.0761204}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   tCrossingTmpFullMeshVecs:
   - {x: 0, y: 0, z: 0}
   - {x: -3, y: 0, z: -5.5}
-  - {x: -3, y: 0, z: -5}
+  - {x: -3, y: 0, z: -4.5}
   - {x: -3, y: 0, z: -4}
-  - {x: -3, y: 0, z: -3}
-  - {x: -3, y: 0, z: -2}
-  - {x: -3, y: 0, z: -1}
-  - {x: -3, y: 0, z: 0}
+  - {x: -3.0761204, y: 0, z: -3.6173165}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   - {x: -2.5, y: 0, z: -5.5}
-  - {x: -2.5, y: 0, z: -5}
-  - {x: -2.5, y: 0, z: -4}
-  - {x: -2.5, y: 0, z: -3}
-  - {x: -2.5, y: 0, z: -2}
-  - {x: -2.5, y: 0, z: -1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: -4.5}
+  - {x: -2.501849, y: 0, z: -3.9570408}
+  - {x: -2.6141806, y: 0, z: -3.4259746}
+  - {x: -2.93934, y: 0, z: -2.9393399}
   - {x: 0, y: 0, z: -5.5}
   - {x: 0, y: 0, z: -5}
   - {x: 0, y: 0, z: -4}
@@ -4431,25 +5129,33 @@ MonoBehaviour:
   - {x: 0, y: 0, z: -1}
   - {x: 0, y: 0, z: 0}
   - {x: 2.5, y: 0, z: -5.5}
-  - {x: 2.5, y: 0, z: -4.5}
-  - {x: 2.501849, y: 0, z: -3.9570408}
-  - {x: 2.6141806, y: 0, z: -3.4259746}
-  - {x: 2.93934, y: 0, z: -2.9393399}
+  - {x: 2.5, y: 0, z: -5}
+  - {x: 2.5, y: 0, z: -4}
+  - {x: 2.5, y: 0, z: -3}
+  - {x: 2.5, y: 0, z: -2}
+  - {x: 2.5, y: 0, z: -1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 3, y: 0, z: -5.5}
-  - {x: 3, y: 0, z: -4.5}
+  - {x: 3, y: 0, z: -5}
   - {x: 3, y: 0, z: -4}
-  - {x: 3.0761204, y: 0, z: -3.6173165}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
+  - {x: 3, y: 0, z: -3}
+  - {x: 3, y: 0, z: -2}
+  - {x: 3, y: 0, z: -1}
+  - {x: 3, y: 0, z: 0}
   - {x: 3, y: 0, z: 5.5}
-  - {x: 3, y: 0, z: 4.5}
+  - {x: 3, y: 0, z: 5}
   - {x: 3, y: 0, z: 4}
-  - {x: 3.0761204, y: 0, z: 3.6173165}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: 3, y: 0, z: 3}
+  - {x: 3, y: 0, z: 2}
+  - {x: 3, y: 0, z: 1}
+  - {x: 3, y: 0, z: 0}
   - {x: 2.5, y: 0, z: 5.5}
-  - {x: 2.5, y: 0, z: 4.5}
-  - {x: 2.501849, y: 0, z: 3.9570408}
-  - {x: 2.6141806, y: 0, z: 3.4259746}
-  - {x: 2.93934, y: 0, z: 2.9393399}
+  - {x: 2.5, y: 0, z: 5}
+  - {x: 2.5, y: 0, z: 4}
+  - {x: 2.5, y: 0, z: 3}
+  - {x: 2.5, y: 0, z: 2}
+  - {x: 2.5, y: 0, z: 1}
+  - {x: 2.5, y: 0, z: 0}
   - {x: 0, y: 0, z: 5.5}
   - {x: 0, y: 0, z: 5}
   - {x: 0, y: 0, z: 4}
@@ -4458,44 +5164,40 @@ MonoBehaviour:
   - {x: 0, y: 0, z: 1}
   - {x: 0, y: 0, z: 0}
   - {x: -2.5, y: 0, z: 5.5}
-  - {x: -2.5, y: 0, z: 5}
-  - {x: -2.5, y: 0, z: 4}
-  - {x: -2.5, y: 0, z: 3}
-  - {x: -2.5, y: 0, z: 2}
-  - {x: -2.5, y: 0, z: 1}
-  - {x: -2.5, y: 0, z: 0}
+  - {x: -2.5, y: 0, z: 4.5}
+  - {x: -2.501849, y: 0, z: 3.9570408}
+  - {x: -2.6141806, y: 0, z: 3.4259746}
+  - {x: -2.93934, y: 0, z: 2.9393399}
   - {x: -3, y: 0, z: 5.5}
-  - {x: -3, y: 0, z: 5}
+  - {x: -3, y: 0, z: 4.5}
   - {x: -3, y: 0, z: 4}
-  - {x: -3, y: 0, z: 3}
-  - {x: -3, y: 0, z: 2}
-  - {x: -3, y: 0, z: 1}
-  - {x: -3, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: -3}
-  - {x: 4.5, y: 0, z: -3}
-  - {x: 4, y: 0, z: -3}
-  - {x: 3.6173167, y: 0, z: -3.0761204}
-  - {x: 3.2928934, y: 0, z: -3.2928932}
-  - {x: 5.5, y: 0, z: -2.5}
-  - {x: 4.5, y: 0, z: -2.5}
-  - {x: 3.9570408, y: 0, z: -2.501849}
-  - {x: 3.425975, y: 0, z: -2.6141806}
-  - {x: 2.93934, y: 0, z: -2.9393399}
-  - {x: 5.5, y: 0, z: 0}
-  - {x: 4.5, y: 0, z: 0}
-  - {x: 3.9570408, y: 0, z: 0}
-  - {x: 3.425975, y: 0, z: 0}
-  - {x: 2.93934, y: 0, z: 0}
-  - {x: 5.5, y: 0, z: 2.5}
-  - {x: 4.5, y: 0, z: 2.5}
-  - {x: 3.9570408, y: 0, z: 2.501849}
-  - {x: 3.425975, y: 0, z: 2.6141806}
-  - {x: 2.93934, y: 0, z: 2.9393399}
-  - {x: 5.5, y: 0, z: 3}
-  - {x: 4.5, y: 0, z: 3}
-  - {x: 4, y: 0, z: 3}
-  - {x: 3.6173167, y: 0, z: 3.0761204}
-  - {x: 3.2928934, y: 0, z: 3.2928932}
+  - {x: -3.0761204, y: 0, z: 3.6173165}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 3}
+  - {x: -4.5, y: 0, z: 3}
+  - {x: -4, y: 0, z: 3}
+  - {x: -3.6173167, y: 0, z: 3.0761204}
+  - {x: -3.2928934, y: 0, z: 3.2928932}
+  - {x: -5.5, y: 0, z: 2.5}
+  - {x: -4.5, y: 0, z: 2.5}
+  - {x: -3.9570408, y: 0, z: 2.501849}
+  - {x: -3.425975, y: 0, z: 2.6141806}
+  - {x: -2.93934, y: 0, z: 2.9393399}
+  - {x: -5.5, y: 0, z: 0}
+  - {x: -4.5, y: 0, z: 0}
+  - {x: -3.9570408, y: 0, z: 0}
+  - {x: -3.425975, y: 0, z: 0}
+  - {x: -2.93934, y: 0, z: 0}
+  - {x: -5.5, y: 0, z: -2.5}
+  - {x: -4.5, y: 0, z: -2.5}
+  - {x: -3.9570408, y: 0, z: -2.501849}
+  - {x: -3.425975, y: 0, z: -2.6141806}
+  - {x: -2.93934, y: 0, z: -2.9393399}
+  - {x: -5.5, y: 0, z: -3}
+  - {x: -4.5, y: 0, z: -3}
+  - {x: -4, y: 0, z: -3}
+  - {x: -3.6173167, y: 0, z: -3.0761204}
+  - {x: -3.2928934, y: 0, z: -3.2928932}
   outerVecInts: 
   surfaceVecs: []
   surfaceVecType: 
@@ -4513,22 +5215,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 2
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.6
     connection: 0
     blendType: 0
   - verticeIndex: 3
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.4
     connection: 0
     blendType: 0
   - verticeIndex: 4
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.24692659
     connection: 0
     blendType: 0
   - verticeIndex: 5
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.117157266
     connection: 0
     blendType: 0
   - verticeIndex: 6
@@ -4538,22 +5240,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 7
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.6
     connection: 0
     blendType: 0
   - verticeIndex: 8
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.3828163
     connection: 0
     blendType: 0
   - verticeIndex: 9
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.17038985
     connection: 0
     blendType: 0
   - verticeIndex: 10
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: -0.024264049
     connection: 0
     blendType: 0
   - verticeIndex: 11
@@ -4618,22 +5320,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 23
     meshIndex: 0
-    blendWeight: 0.6
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 24
     meshIndex: 0
-    blendWeight: 0.3828163
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 25
     meshIndex: 0
-    blendWeight: 0.17038985
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 26
     meshIndex: 0
-    blendWeight: -0.024264049
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 27
@@ -4643,22 +5345,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 28
     meshIndex: 0
-    blendWeight: 0.6
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 29
     meshIndex: 0
-    blendWeight: 0.4
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 30
     meshIndex: 0
-    blendWeight: 0.24692659
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 31
     meshIndex: 0
-    blendWeight: 0.117157266
+    blendWeight: 1
     connection: 0
     blendType: 0
   - verticeIndex: 32
@@ -4668,22 +5370,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 33
     meshIndex: 0
-    blendWeight: 0.6
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 34
     meshIndex: 0
-    blendWeight: 0.4
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 35
     meshIndex: 0
-    blendWeight: 0.24692659
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 36
     meshIndex: 0
-    blendWeight: 0.117157266
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 37
@@ -4693,22 +5395,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 38
     meshIndex: 0
-    blendWeight: 0.6
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 39
     meshIndex: 0
-    blendWeight: 0.3828163
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 40
     meshIndex: 0
-    blendWeight: 0.17038985
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 41
     meshIndex: 0
-    blendWeight: -0.024264049
+    blendWeight: 1
     connection: 1
     blendType: 0
   - verticeIndex: 42
@@ -4773,22 +5475,22 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 54
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.6
     connection: 1
     blendType: 0
   - verticeIndex: 55
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.3828163
     connection: 1
     blendType: 0
   - verticeIndex: 56
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.17038985
     connection: 1
     blendType: 0
   - verticeIndex: 57
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: -0.024264049
     connection: 1
     blendType: 0
   - verticeIndex: 58
@@ -4798,148 +5500,148 @@ MonoBehaviour:
     blendType: 0
   - verticeIndex: 59
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.6
     connection: 1
     blendType: 0
   - verticeIndex: 60
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.4
     connection: 1
     blendType: 0
   - verticeIndex: 61
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.24692659
     connection: 1
     blendType: 0
   - verticeIndex: 62
     meshIndex: 0
-    blendWeight: 1
+    blendWeight: 0.117157266
     connection: 1
     blendType: 0
   - verticeIndex: 63
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 64
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 65
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 66
     meshIndex: 0
     blendWeight: 0.013840068
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 67
     meshIndex: 0
     blendWeight: 0.053253304
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 68
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 69
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 70
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 71
     meshIndex: 0
     blendWeight: 0.013840068
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 72
     meshIndex: 0
     blendWeight: 0.053253304
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 73
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 74
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 75
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 76
     meshIndex: 0
     blendWeight: -0.54545456
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 77
     meshIndex: 0
     blendWeight: -0.54545456
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 78
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 79
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 80
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 81
     meshIndex: 0
     blendWeight: 0.013840068
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 82
     meshIndex: 0
     blendWeight: 0.053253304
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 83
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 84
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 85
     meshIndex: 0
     blendWeight: 0
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 86
     meshIndex: 0
     blendWeight: 0.013840068
-    connection: 3
+    connection: 2
     blendType: 0
   - verticeIndex: 87
     meshIndex: 0
     blendWeight: 0.053253304
-    connection: 3
+    connection: 2
     blendType: 0
   childObjects: []
   indentVecs: []
@@ -4963,7 +5665,9 @@ MonoBehaviour:
   isERCrossingExt: 0
   isYConnector: 0
   isIConnector: 0
+  isIConnectorControlPoint: 1
   isFlexConnector: 0
+  lock90DegreeAngle: 0
   priorityRoadCount: 0
   isSnapConnector: 0
   isExitRoadConnector: 0
@@ -5018,14 +5722,14 @@ MonoBehaviour:
   - {x: 10.252136, y: 0, z: 10.252129}
   - {x: 10.252136, y: 0, z: 10.252129}
   - {x: 10.252136, y: 0, z: -10.252129}
-  surfaceInts: 07000000010000001f0000001b0000003e000000380000002400000020000000380000003e0000003e00000038000000430000003f0000005700000053000000010000000200000003000000040000000500000006000000070000003e0000003d0000003c0000003b0000003a0000003900000038000000
+  surfaceInts: 05000000010000001f000000190000003e0000003a0000002600000020000000430000003f000000570000005300000026000000200000002000000026000000190000001a0000001b0000001c0000001d0000001e0000001f00000026000000250000002400000023000000220000002100000020000000
   leftBottomCorner: {x: 0, y: 0, z: 0}
   leftTopCorner: {x: 0, y: 0, z: 0}
   rightBottomCorner: {x: 0, y: 0, z: 0}
   rightTopCorner: {x: 0, y: 0, z: 0}
   tCrossing: 1
   tStraightBending: 1
-  tCrossingLeftRight: 1
+  tCrossingLeftRight: 0
   tMainRoadWidth: 6
   tConnectionRoadWidth: 6
   bottomLeftSidewalkWidth: 1.5
@@ -5082,6 +5786,13 @@ MonoBehaviour:
   roundingPointsSet: 0
   signPostsSet: 0
   displayLaneData: 1
+  gizmoDir: {x: 0, y: 0, z: 1}
+  diagonalCrosswalks: 0
+  centerObject: {fileID: 0}
+  centerObjectSize: 0
+  centerObjectActive: 0
+  centerObjectDisabled: 0
+  flattenShape: 0
 --- !u!33 &33923746738712100
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -5110,6 +5821,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5131,9 +5844,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!64 &64722161294490610
 MeshCollider:
@@ -5156,7 +5871,7 @@ MeshCollider:
   serializedVersion: 5
   m_Convex: 0
   m_CookingOptions: 30
-  m_Mesh: {fileID: 0}
+  m_Mesh: {fileID: 4300000, guid: e9632c06beec86940af6c9a1b3a295fe, type: 2}
 --- !u!1 &1572557627515356
 GameObject:
   m_ObjectHideFlags: 0
@@ -5232,6 +5947,8 @@ MeshRenderer:
   m_RayTracingAccelStructBuildFlagsOverride: 0
   m_RayTracingAccelStructBuildFlags: 1
   m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -5253,9 +5970,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!64 &64080796813073166
 MeshCollider:
