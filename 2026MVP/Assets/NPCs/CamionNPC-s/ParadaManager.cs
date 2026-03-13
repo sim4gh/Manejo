@@ -7,6 +7,7 @@ public class ParadaManager : MonoBehaviour
     private bool _colaActiva = false;
     private bool _bajadaActiva = false;
     public string NumParada;
+    public SimpleSpeedGauge movimientoCarro;
 
     public void Start()
     {
@@ -18,6 +19,11 @@ public class ParadaManager : MonoBehaviour
     }
     public void OnTriggerStay(Collider other)
     {
+        if (movimientoCarro.velocidadActual != "0")
+        {
+            return;
+
+        }
         if (other.CompareTag("puerta") && !_colaActiva)
         {
             StartCoroutine(ColaPasaje());

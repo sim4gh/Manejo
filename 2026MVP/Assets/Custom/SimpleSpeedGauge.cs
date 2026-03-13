@@ -10,6 +10,7 @@ public class SimpleSpeedGauge : MonoBehaviour
     [Header("UI References")]
     public Image gaugeImage;
     public TextMeshProUGUI speedText;
+    public string velocidadActual;
 
     [Header("Vehicle")]
     public GameObject vehicle;
@@ -58,6 +59,7 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         float speed = GetSpeed();
         speedText.text = speed.ToString(speedFormat);
+        velocidadActual = speedText.text;
     }
 
     float GetSpeed()
