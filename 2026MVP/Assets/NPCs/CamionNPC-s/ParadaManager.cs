@@ -8,6 +8,9 @@ public class ParadaManager : MonoBehaviour
     private bool _bajadaActiva = false;
     public string NumParada;
     public SimpleSpeedGauge movimientoCarro;
+    public bool _Estacionado = false;
+    public float tiempo = 0;
+    public bool  aumenta = false;
 
     public void Start()
     {
@@ -19,20 +22,39 @@ public class ParadaManager : MonoBehaviour
     }
     public void OnTriggerStay(Collider other)
     {
-        if (movimientoCarro.velocidadActual != "0")
-        {
-            return;
+        if (!other.CompareTag("puerta")) return;
 
+        bool carroDetenido = movimientoCarro.velocidadActual == "0";
+
+        if (!carroDetenido)
+        {
+            aumenta = false;
+            tiempo = 0;
+            _Estacionado = false;
+            return;
         }
-        if (other.CompareTag("puerta") && !_colaActiva)
+
+        aumenta = true;
+        tiempo += Time.deltaTime;
+
+        if (tiempo >= 5f)
+        {
+            _Estacionado = true;
+        }
+
+        if (!_Estacionado) return;
+
+        if (!_colaActiva)
         {
             StartCoroutine(ColaPasaje());
         }
-        if (other.CompareTag("puerta") && !_bajadaActiva)
+
+        if (!_bajadaActiva)
         {
             StartCoroutine(ColaBajada());
         }
     }
+
     public void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("puerta"))
@@ -46,6 +68,7 @@ public class ParadaManager : MonoBehaviour
         _colaActiva = true;
         for (int i = 0; i < pasajero.Count; i++)
         {
+           
             yield return new WaitForSeconds(5);
             pasajero[i]._Activo = true;
         }

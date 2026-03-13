@@ -52,6 +52,7 @@ public class Pasajero : MonoBehaviour
         {
             if (indiceActual >= puntos.Count) return;
             animaciones.Play("Walk");
+            transform.SetParent(_BusTransform.transform);
             Transform destino = puntos[indiceActual];
             float distancia = Vector3.Distance(transform.position, destino.position);
             if (distancia > 0.2f)
@@ -112,11 +113,11 @@ public class Pasajero : MonoBehaviour
 
     public void BajarDelBus()
     {
-        if (!_Sentado && !_Bajando) return; // solo sale si no está en ningún estado válido
+        if (!_Sentado && !_Bajando) return; 
 
         if (!_Bajando)
         {
-            transform.SetParent(null);
+            //transform.SetParent(null);
             puntosInversos.Clear();
             puntosInversos.Add(_Asientos[Num_Asiento].transform);
             for (int i = indiceActual - 1; i >= 0; i--)
