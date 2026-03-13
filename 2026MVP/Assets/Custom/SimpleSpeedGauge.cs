@@ -59,6 +59,8 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         float speed = GetSpeed();
         speedText.text = speed.ToString(speedFormat);
+
+
         velocidadActual = speedText.text;
     }
 
