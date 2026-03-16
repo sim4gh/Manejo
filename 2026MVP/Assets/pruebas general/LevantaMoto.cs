@@ -3,8 +3,8 @@ using UnityEngine;
 public class LevantaMoto : MonoBehaviour
 {
     [Header("Configuración")]
-    public float rotationThreshold = 80f;  // Límite de rotación en Z
-    public float delayBeforeReset = 5f;    // Segundos antes de resetear
+    public float rotationThreshold = 80f;  
+    public float delayBeforeReset = 5f;    
 
     private bool isCounting = false;
     private float timer = 0f;
@@ -30,12 +30,12 @@ public class LevantaMoto : MonoBehaviour
         }
         else
         {
-            // Si regresa al rango normal, reiniciamos el timer
+            
             timer = 0f;
         }
     }
 
-    // Convierte ángulos de [0, 360] a [-180, 180]
+    
     float NormalizeAngle(float angle)
     {
         if (angle > 180f) angle -= 360f;
