@@ -13,6 +13,7 @@ public class Pasajero : MonoBehaviour
     public int Num_Asiento = 0;
     public GameObject _BusTransform;
     [Header("Animacion y variables de personaje")]
+    public RagDollPasajeroManager RagDollPasajeroManager;
     public Animator animaciones;
     public int indiceActual = 0;
     public float rotacionAl_AsientoDelantero = 0;
@@ -29,16 +30,21 @@ public class Pasajero : MonoBehaviour
 
     void Start()
     {
+        RagDollPasajeroManager = GetComponent<RagDollPasajeroManager>();
         animaciones.Play("Idle");
     }
 
     void Update()
     {
+        if (!animaciones.enabled) return; 
+
         if (!_Activo && !_BajarActivado) return;
+
         if (!_Sentado && !_Bajando && !_BajarActivado)
         {
             BuscoAsiento();
         }
+
         if (_BajarActivado || _Bajando)
         {
             BajarDelBus();
@@ -117,7 +123,6 @@ public class Pasajero : MonoBehaviour
 
         if (!_Bajando)
         {
-            //transform.SetParent(null);
             puntosInversos.Clear();
             puntosInversos.Add(_Asientos[Num_Asiento].transform);
             for (int i = indiceActual - 1; i >= 0; i--)
@@ -165,6 +170,11 @@ public class Pasajero : MonoBehaviour
     }
     private void OnTriggerEnter(Collider other)
     {
+        if (other.CompareTag("puerta")&& !_Activo)
+        {
+            RagDollPasajeroManager.ActivoRagdoll(true);
+        }
+
         if (other.CompareTag("Asientos"))
         {
             AsientoOrientacion = other.GetComponent<Asiento>().tipoAsiento;

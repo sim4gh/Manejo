@@ -7,11 +7,10 @@ public class activarPeaton : MonoBehaviour
     
     private void OnTriggerEnter(Collider other)
     {
-        if (other.GetComponent<PlayerComponent>())
+        if (other.GetComponent<PlayerComponent>() || other.CompareTag("puerta"))
         {
             peaton.puedoAvanzar= true;
             peaton.caminar.Play("Running");
-            Debug.Log("si esta");
         }
     }
 

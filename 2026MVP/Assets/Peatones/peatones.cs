@@ -57,8 +57,7 @@ public class peatones : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        if (collision.gameObject.CompareTag("automovil") ||
-            collision.gameObject.CompareTag("Player"))
+        if (collision.gameObject.CompareTag("automovil") || collision.gameObject.CompareTag("Player"))
         {
             if (puedoAvanzar)
             {
