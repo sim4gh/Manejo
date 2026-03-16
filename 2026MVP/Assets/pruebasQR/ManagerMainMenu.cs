@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
 public class ManagerMainMenu : MonoBehaviour
 {
@@ -13,18 +12,14 @@ public class ManagerMainMenu : MonoBehaviour
     public TMP_InputField inputPeatones;
     public TMP_InputField inputCarros;
 
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        // Cargar valores guardados en PlayerPrefs (si existen)
         NoPeatones = PlayerPrefs.GetInt("NoPeatones", 0);
         NoCarros = PlayerPrefs.GetInt("NoCarros", 0);
 
-        // Mostrar los valores cargados en los InputFields
         inputPeatones.text = NoPeatones.ToString();
         inputCarros.text = NoCarros.ToString();
 
-        // Suscribirse a los eventos de cambio
         inputPeatones.onValueChanged.AddListener(OnPeatonesChanged);
         inputCarros.onValueChanged.AddListener(OnCarrosChanged);
     }
@@ -49,7 +44,6 @@ public class ManagerMainMenu : MonoBehaviour
         }
     }
 
-    // Update is called once per frame
     void Update()
     {
         if (Input.GetKey(KeyCode.P))
@@ -69,7 +63,6 @@ public class ManagerMainMenu : MonoBehaviour
 
     void OnDestroy()
     {
-        // Buena práctica: desuscribirse al destruir el objeto
         inputPeatones.onValueChanged.RemoveListener(OnPeatonesChanged);
         inputCarros.onValueChanged.RemoveListener(OnCarrosChanged);
     }
