@@ -10,6 +10,14 @@ public class DestrabarAutomovil : MonoBehaviour
 
     private bool yaActivado = false;
 
+    [Header("UI")]
+    public GameObject mensajeUI; // 👈 Arrastra aquí tu GameObject del Canvas
+    private void Start()
+    {
+        if (mensajeUI != null)
+            mensajeUI.SetActive(false); // Se asegura que inicie apagado
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (other.CompareTag("automovil") && !yaActivado)
@@ -32,6 +40,9 @@ public class DestrabarAutomovil : MonoBehaviour
     {
         Debug.Log("Automóvil atascado detectado. Redirigiendo en " + tiempoEspera + " segundos...");
 
+        if (mensajeUI != null)
+            mensajeUI.SetActive(true);
+
         yield return new WaitForSeconds(tiempoEspera);
 
         if (automovil != null)
@@ -46,6 +57,9 @@ public class DestrabarAutomovil : MonoBehaviour
             automovil.transform.position += posicionRescate; // ✅ Desplazamiento relativo
             Debug.Log("Automóvil desplazado a: " + automovil.transform.position);
         }
+
+        if (mensajeUI != null)
+            mensajeUI.SetActive(false);
 
         yaActivado = false;
     }
