@@ -1,3 +1,4 @@
+using Gley.UrbanSystem;
 using UnityEngine;
 
 public class RagDollPasajeroManager : MonoBehaviour
@@ -42,5 +43,13 @@ public class RagDollPasajeroManager : MonoBehaviour
     public void MePegas()
     {
         ActivoRagdoll(true);
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.GetComponent<PlayerCar>())
+        {
+            MePegas();
+        }
     }
 }
