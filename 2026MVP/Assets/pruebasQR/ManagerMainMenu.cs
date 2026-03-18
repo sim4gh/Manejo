@@ -58,19 +58,19 @@ public class ManagerMainMenu : MonoBehaviour
 
     void Update()
     {
-        if (Input.GetKey(KeyCode.P))
-        {
-            if (activar == false)
-            {
-                activar = true;
-            }
-            else
-            {
-                activar = false;
-            }
+        //if (Input.GetKey(KeyCode.P))
+        //{
+        //    if (activar == false)
+        //    {
+        //        activar = true;
+        //    }
+        //    else
+        //    {
+        //        activar = false;
+        //    }
 
-            configuracion.SetActive(activar);
-        }
+        //    configuracion.SetActive(activar);
+        //}
     }
 
     void OnDestroy()

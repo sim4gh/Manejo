@@ -5,7 +5,7 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 0
+  - enabled: 1
     path: Assets/Scenes/MainMenu.unity
     guid: b2968151364f743cb837a6cedf012a26
   - enabled: 1
@@ -14,6 +14,24 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Gley/UrbanExample/Samples/Shaderillo.unity
     guid: ca58f8ace7b6ce6428e00f4b32064b7e
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Carros/Motocicleta.unity
+    guid: 273eea4ee69cadc43a0fe67a81d0f665
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Carros/Jetta.unity
+    guid: 89a243addc76c224b97081b373dd22b0
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Carros/carretera.unity
+    guid: 1f50349b82dce004c8daa47c2b35a5f1
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Carros/Camioneta.unity
+    guid: 2ad16d700fc345740a0a1cc4babff68d
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/Carros/CamionDCarga.unity
+    guid: 71aefca3cc1b01e4ab3a1ac89a186725
+  - enabled: 1
+    path: Assets/Gley/UrbanExample/Samples/BusPasajeros/BusPasajeros.unity
+    guid: 67a6809c8cea67142b0c616861a0063a
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 289c1b55c9541489481df5cc06664110, type: 3}
   m_UseUCBPForAssetBundles: 0
