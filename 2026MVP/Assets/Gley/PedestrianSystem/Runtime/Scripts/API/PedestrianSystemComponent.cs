@@ -5,6 +5,8 @@ namespace Gley.PedestrianSystem
     [HelpURL("https://gley.gitbook.io/mobile-pedestrian-system/setup-guide/initializing-asset")]
     public class PedestrianSystemComponent : MonoBehaviour
     {
+        public int NoPeatones;
+
         [Tooltip("Player is used to instantiate pedestrians out of view")]
         [SerializeField] private Transform _player;
 
@@ -48,6 +50,9 @@ namespace Gley.PedestrianSystem
             };
 
             API.Initialize(_player, _nrOfPedestrians, _pedestrianPool, options);
+
+            NoPeatones = PlayerPrefs.GetInt("NoPeatones", 0);
+            _nrOfPedestrians = NoPeatones;
         }
     }
 }

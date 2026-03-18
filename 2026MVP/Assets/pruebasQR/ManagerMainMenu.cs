@@ -44,6 +44,18 @@ public class ManagerMainMenu : MonoBehaviour
         }
     }
 
+    public void ActivarCargolluvia()
+    {
+        PlayerPrefs.SetInt("Cargolluvia", 1);
+        PlayerPrefs.Save();
+    }
+
+    public void DesactivarCargolluvia()
+    {
+        PlayerPrefs.SetInt("Cargolluvia", 0);
+        PlayerPrefs.Save();
+    }
+
     void Update()
     {
         if (Input.GetKey(KeyCode.P))

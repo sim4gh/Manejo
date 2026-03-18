@@ -8,6 +8,8 @@ namespace Gley.TrafficSystem
     [HelpURL("https://gley.gitbook.io/mobile-traffic-system-v3/setup-guide/initializing-asset")]
     public class TrafficComponent : MonoBehaviour
     {
+        public int NoCarros;
+
         [Header("Required Settings")]
         [Tooltip("Player is used to instantiate vehicles out of view")]
         public Transform player;
@@ -68,6 +70,10 @@ namespace Gley.TrafficSystem
 
            
             API.Initialize(player, nrOfVehicles, vehiclePool, options);
+
+
+            NoCarros = PlayerPrefs.GetInt("NoCarros", 0);
+            nrOfVehicles = NoCarros;
         }
     }
 }
