@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 7318677349597582848}
   - component: {fileID: 3660333426334345186}
   - component: {fileID: 5227107116887352125}
-  - component: {fileID: 3065908170139362104}
   m_Layer: 0
   m_Name: Cube (2)
   m_TagString: Untagged
@@ -113,21 +112,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3065908170139362104
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 102605627340395222}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 10, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &133871669544973234
 GameObject:
   m_ObjectHideFlags: 0
@@ -140,7 +124,6 @@ GameObject:
   - component: {fileID: 8097489351607179508}
   - component: {fileID: 3473743920092283279}
   - component: {fileID: 4407690163916437488}
-  - component: {fileID: 9055002103316903987}
   m_Layer: 0
   m_Name: Cube (9)
   m_TagString: Untagged
@@ -241,21 +224,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9055002103316903987
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 133871669544973234}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &141011746459212659
 GameObject:
   m_ObjectHideFlags: 0
@@ -268,7 +236,6 @@ GameObject:
   - component: {fileID: 7380431845500043348}
   - component: {fileID: 5739537112377637332}
   - component: {fileID: 2622057555001413580}
-  - component: {fileID: 4816586838754614178}
   m_Layer: 0
   m_Name: Cube (6)
   m_TagString: Untagged
@@ -369,21 +336,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4816586838754614178
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 141011746459212659}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &319931587740136584
 GameObject:
   m_ObjectHideFlags: 0
@@ -396,7 +348,6 @@ GameObject:
   - component: {fileID: 5239518193213224611}
   - component: {fileID: 3625913737216106016}
   - component: {fileID: 4081381100926819685}
-  - component: {fileID: 395134216917699179}
   m_Layer: 0
   m_Name: Cube (45)
   m_TagString: Untagged
@@ -497,21 +448,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &395134216917699179
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 319931587740136584}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &333306188634982952
 GameObject:
   m_ObjectHideFlags: 0
@@ -524,7 +460,6 @@ GameObject:
   - component: {fileID: 2554990312354491946}
   - component: {fileID: 3182829667020117776}
   - component: {fileID: 648876002701819709}
-  - component: {fileID: 3314091194047426905}
   m_Layer: 0
   m_Name: Cube (18)
   m_TagString: Untagged
@@ -625,21 +560,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3314091194047426905
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 333306188634982952}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &518020704821981357
 GameObject:
   m_ObjectHideFlags: 0
@@ -652,7 +572,6 @@ GameObject:
   - component: {fileID: 8109236309050670737}
   - component: {fileID: 7264773107961363460}
   - component: {fileID: 555167787133940472}
-  - component: {fileID: 6856369917971683105}
   m_Layer: 0
   m_Name: Cube (5)
   m_TagString: Untagged
@@ -753,21 +672,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &6856369917971683105
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 518020704821981357}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &543207254309371536
 GameObject:
   m_ObjectHideFlags: 0
@@ -780,7 +684,6 @@ GameObject:
   - component: {fileID: 6144610813919333436}
   - component: {fileID: 2219950022813066041}
   - component: {fileID: 6165566451553715943}
-  - component: {fileID: 1084340884606344697}
   m_Layer: 0
   m_Name: Cube (12)
   m_TagString: Untagged
@@ -881,21 +784,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1084340884606344697
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 543207254309371536}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &610876646424522729
 GameObject:
   m_ObjectHideFlags: 0
@@ -908,7 +796,6 @@ GameObject:
   - component: {fileID: 8202454840520104076}
   - component: {fileID: 4746315187266916192}
   - component: {fileID: 6907723873968893708}
-  - component: {fileID: 8209888021113937402}
   m_Layer: 0
   m_Name: Cube (8)
   m_TagString: Untagged
@@ -1009,21 +896,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8209888021113937402
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 610876646424522729}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &922541042744200899
 GameObject:
   m_ObjectHideFlags: 0
@@ -1036,7 +908,6 @@ GameObject:
   - component: {fileID: 1151305687122567110}
   - component: {fileID: 416924597420095676}
   - component: {fileID: 174576166407236221}
-  - component: {fileID: 8990053830737960047}
   m_Layer: 0
   m_Name: Cube (11)
   m_TagString: Untagged
@@ -1137,21 +1008,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8990053830737960047
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 922541042744200899}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1021483226377046428
 GameObject:
   m_ObjectHideFlags: 0
@@ -1164,7 +1020,6 @@ GameObject:
   - component: {fileID: 1082432504862756725}
   - component: {fileID: 5717969846287652455}
   - component: {fileID: 1724248491973927601}
-  - component: {fileID: 2965254298512500159}
   m_Layer: 0
   m_Name: Cube (43)
   m_TagString: Untagged
@@ -1265,21 +1120,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2965254298512500159
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1021483226377046428}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1067814926072324885
 GameObject:
   m_ObjectHideFlags: 0
@@ -1292,7 +1132,6 @@ GameObject:
   - component: {fileID: 3089566995107100818}
   - component: {fileID: 4111152627866423795}
   - component: {fileID: 3020437431134713808}
-  - component: {fileID: 7041095467651748105}
   m_Layer: 0
   m_Name: Cube (7)
   m_TagString: Untagged
@@ -1393,21 +1232,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7041095467651748105
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1067814926072324885}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1107042670429637100
 GameObject:
   m_ObjectHideFlags: 0
@@ -1420,7 +1244,6 @@ GameObject:
   - component: {fileID: 1290666407243596410}
   - component: {fileID: 1034407881007124801}
   - component: {fileID: 7461078942196258397}
-  - component: {fileID: 3414210025412241433}
   m_Layer: 0
   m_Name: Cube (17)
   m_TagString: Untagged
@@ -1521,21 +1344,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3414210025412241433
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1107042670429637100}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1336286109481473960
 GameObject:
   m_ObjectHideFlags: 0
@@ -1548,7 +1356,6 @@ GameObject:
   - component: {fileID: 758183382816067306}
   - component: {fileID: 161947689188231984}
   - component: {fileID: 1206812481382253869}
-  - component: {fileID: 3989957885297048414}
   m_Layer: 0
   m_Name: Cube (44)
   m_TagString: Untagged
@@ -1649,21 +1456,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3989957885297048414
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1336286109481473960}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1354114199433973601
 GameObject:
   m_ObjectHideFlags: 0
@@ -1676,7 +1468,6 @@ GameObject:
   - component: {fileID: 4413209380026852941}
   - component: {fileID: 7029674826148828760}
   - component: {fileID: 4078620833438939929}
-  - component: {fileID: 5538920339949356262}
   m_Layer: 0
   m_Name: Cube (9)
   m_TagString: Untagged
@@ -1777,21 +1568,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5538920339949356262
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1354114199433973601}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1572567313944525609
 GameObject:
   m_ObjectHideFlags: 0
@@ -1804,7 +1580,6 @@ GameObject:
   - component: {fileID: 8556965072245377895}
   - component: {fileID: 4103140779309350212}
   - component: {fileID: 6017126585341746907}
-  - component: {fileID: 9069995408441067302}
   m_Layer: 0
   m_Name: Cube (33)
   m_TagString: Untagged
@@ -1905,21 +1680,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9069995408441067302
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1572567313944525609}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1621946890023199652
 GameObject:
   m_ObjectHideFlags: 0
@@ -1932,7 +1692,6 @@ GameObject:
   - component: {fileID: 3420631703598349537}
   - component: {fileID: 5972540906623706094}
   - component: {fileID: 7091822994481120232}
-  - component: {fileID: 4326127568945770150}
   m_Layer: 0
   m_Name: Cube (41)
   m_TagString: Untagged
@@ -2033,21 +1792,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4326127568945770150
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1621946890023199652}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 10, y: 2, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1622427126351096279
 GameObject:
   m_ObjectHideFlags: 0
@@ -2060,7 +1804,6 @@ GameObject:
   - component: {fileID: 8344986516919666041}
   - component: {fileID: 7282622937250351164}
   - component: {fileID: 9107748142014495254}
-  - component: {fileID: 5265872048241195276}
   m_Layer: 0
   m_Name: Cube (27)
   m_TagString: Untagged
@@ -2161,21 +1904,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5265872048241195276
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1622427126351096279}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1754491449894845495
 GameObject:
   m_ObjectHideFlags: 0
@@ -2222,7 +1950,6 @@ GameObject:
   - component: {fileID: 8616303323517708362}
   - component: {fileID: 5729412057551703643}
   - component: {fileID: 8348140060532192046}
-  - component: {fileID: 4850148226721528185}
   m_Layer: 0
   m_Name: Cube (46)
   m_TagString: Untagged
@@ -2323,21 +2050,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4850148226721528185
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1781147739642177825}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1840001530906072661
 GameObject:
   m_ObjectHideFlags: 0
@@ -2350,7 +2062,6 @@ GameObject:
   - component: {fileID: 682408562852065276}
   - component: {fileID: 1993933519818207994}
   - component: {fileID: 1767594635430222231}
-  - component: {fileID: 7684556611980094922}
   m_Layer: 0
   m_Name: Cube (16)
   m_TagString: Untagged
@@ -2451,21 +2162,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7684556611980094922
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1840001530906072661}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &1975601052310987364
 GameObject:
   m_ObjectHideFlags: 0
@@ -2478,7 +2174,6 @@ GameObject:
   - component: {fileID: 3759288532625332387}
   - component: {fileID: 1598409759967464618}
   - component: {fileID: 6145765921618771841}
-  - component: {fileID: 2705829347619669235}
   m_Layer: 0
   m_Name: Cube (38)
   m_TagString: Untagged
@@ -2579,21 +2274,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2705829347619669235
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1975601052310987364}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2004256811916336575
 GameObject:
   m_ObjectHideFlags: 0
@@ -2606,7 +2286,6 @@ GameObject:
   - component: {fileID: 5319678068245177444}
   - component: {fileID: 6890735738900659455}
   - component: {fileID: 368123470844023067}
-  - component: {fileID: 8079596807908954178}
   m_Layer: 0
   m_Name: Cube (8)
   m_TagString: Untagged
@@ -2707,21 +2386,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8079596807908954178
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2004256811916336575}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2119645128142089385
 GameObject:
   m_ObjectHideFlags: 0
@@ -2734,7 +2398,6 @@ GameObject:
   - component: {fileID: 5439115370315816446}
   - component: {fileID: 7904376634863705811}
   - component: {fileID: 354162933515662657}
-  - component: {fileID: 2772350224217676685}
   m_Layer: 0
   m_Name: Cube (44)
   m_TagString: Untagged
@@ -2835,21 +2498,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2772350224217676685
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2119645128142089385}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2162367544559689709
 GameObject:
   m_ObjectHideFlags: 0
@@ -2862,7 +2510,6 @@ GameObject:
   - component: {fileID: 8330034596557139197}
   - component: {fileID: 3902769585494939910}
   - component: {fileID: 4428472454537657388}
-  - component: {fileID: 281357158825667147}
   m_Layer: 0
   m_Name: Cube (7)
   m_TagString: Untagged
@@ -2963,21 +2610,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &281357158825667147
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2162367544559689709}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2681801572251245584
 GameObject:
   m_ObjectHideFlags: 0
@@ -2990,7 +2622,6 @@ GameObject:
   - component: {fileID: 875318474201047563}
   - component: {fileID: 6864362475985901551}
   - component: {fileID: 3216403979661254277}
-  - component: {fileID: 1311207225735394240}
   m_Layer: 0
   m_Name: Cube (8)
   m_TagString: Untagged
@@ -3091,21 +2722,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1311207225735394240
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2681801572251245584}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2693199541158435221
 GameObject:
   m_ObjectHideFlags: 0
@@ -3118,7 +2734,6 @@ GameObject:
   - component: {fileID: 3401615184963510398}
   - component: {fileID: 5000984969676751269}
   - component: {fileID: 7794913859178763760}
-  - component: {fileID: 8218718574180949170}
   m_Layer: 0
   m_Name: Cube (44)
   m_TagString: Untagged
@@ -3219,21 +2834,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8218718574180949170
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2693199541158435221}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &2745757574397711313
 GameObject:
   m_ObjectHideFlags: 0
@@ -3246,7 +2846,6 @@ GameObject:
   - component: {fileID: 2645137374608387057}
   - component: {fileID: 5262031412003348495}
   - component: {fileID: 1910043896195505551}
-  - component: {fileID: 4085841861247235271}
   m_Layer: 0
   m_Name: Cube (45)
   m_TagString: Untagged
@@ -3347,21 +2946,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4085841861247235271
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2745757574397711313}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3038840901001549543
 GameObject:
   m_ObjectHideFlags: 0
@@ -3374,7 +2958,6 @@ GameObject:
   - component: {fileID: 3960419100375683879}
   - component: {fileID: 8441075373868614723}
   - component: {fileID: 7686556565648084385}
-  - component: {fileID: 8743861550995956276}
   m_Layer: 0
   m_Name: Cube (46)
   m_TagString: Untagged
@@ -3475,21 +3058,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8743861550995956276
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3038840901001549543}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3078421444052089173
 GameObject:
   m_ObjectHideFlags: 0
@@ -3502,7 +3070,6 @@ GameObject:
   - component: {fileID: 8175065919362958729}
   - component: {fileID: 8194370192242012112}
   - component: {fileID: 6837854107062735372}
-  - component: {fileID: 5107722545623166324}
   m_Layer: 0
   m_Name: Cube (9)
   m_TagString: Untagged
@@ -3603,21 +3170,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5107722545623166324
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3078421444052089173}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3171070924861738770
 GameObject:
   m_ObjectHideFlags: 0
@@ -3630,7 +3182,6 @@ GameObject:
   - component: {fileID: 5677715502519436926}
   - component: {fileID: 3434451837844007959}
   - component: {fileID: 1504090388579183470}
-  - component: {fileID: 3054472005830818516}
   m_Layer: 0
   m_Name: Cube (36)
   m_TagString: Untagged
@@ -3731,21 +3282,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3054472005830818516
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3171070924861738770}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3415122533856178822
 GameObject:
   m_ObjectHideFlags: 0
@@ -3758,7 +3294,6 @@ GameObject:
   - component: {fileID: 3919089406002322052}
   - component: {fileID: 4561724957601943226}
   - component: {fileID: 2419439249808259681}
-  - component: {fileID: 1978728617915926267}
   m_Layer: 0
   m_Name: Cube (44)
   m_TagString: Untagged
@@ -3859,21 +3394,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1978728617915926267
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3415122533856178822}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3604350122597092613
 GameObject:
   m_ObjectHideFlags: 0
@@ -3886,7 +3406,6 @@ GameObject:
   - component: {fileID: 6307330948075551429}
   - component: {fileID: 3775901270168029444}
   - component: {fileID: 968809369614298436}
-  - component: {fileID: 1988606421087424158}
   m_Layer: 0
   m_Name: Cube (32)
   m_TagString: Untagged
@@ -3987,21 +3506,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1988606421087424158
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3604350122597092613}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3655948305922458560
 GameObject:
   m_ObjectHideFlags: 0
@@ -4014,7 +3518,6 @@ GameObject:
   - component: {fileID: 1096004100526143177}
   - component: {fileID: 2765102044960673810}
   - component: {fileID: 4957794571568755851}
-  - component: {fileID: 7592890336509068913}
   m_Layer: 0
   m_Name: Cube (26)
   m_TagString: Untagged
@@ -4115,21 +3618,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7592890336509068913
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3655948305922458560}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3739357033339862728
 GameObject:
   m_ObjectHideFlags: 0
@@ -4142,7 +3630,6 @@ GameObject:
   - component: {fileID: 7836649375331438264}
   - component: {fileID: 5474538591316324722}
   - component: {fileID: 778131087600712438}
-  - component: {fileID: 8784110312703810469}
   m_Layer: 0
   m_Name: Cube (28)
   m_TagString: Untagged
@@ -4243,21 +3730,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8784110312703810469
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3739357033339862728}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3755200868841700717
 GameObject:
   m_ObjectHideFlags: 0
@@ -4270,7 +3742,6 @@ GameObject:
   - component: {fileID: 900764626333010703}
   - component: {fileID: 38440324563313778}
   - component: {fileID: 1147680756476582416}
-  - component: {fileID: 8723514563900316450}
   m_Layer: 0
   m_Name: Cube (25)
   m_TagString: Untagged
@@ -4371,21 +3842,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8723514563900316450
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3755200868841700717}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3807544618023530559
 GameObject:
   m_ObjectHideFlags: 0
@@ -4398,7 +3854,6 @@ GameObject:
   - component: {fileID: 4055283690818679800}
   - component: {fileID: 5303880728826872422}
   - component: {fileID: 8545923900741215450}
-  - component: {fileID: 9071334200335937676}
   m_Layer: 0
   m_Name: Cube (35)
   m_TagString: Untagged
@@ -4499,21 +3954,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9071334200335937676
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3807544618023530559}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 10, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3845134619025069468
 GameObject:
   m_ObjectHideFlags: 0
@@ -4526,7 +3966,6 @@ GameObject:
   - component: {fileID: 2228200334342043922}
   - component: {fileID: 8444395621660639095}
   - component: {fileID: 2603805675055627080}
-  - component: {fileID: 3764788273734266507}
   m_Layer: 0
   m_Name: Cube (7)
   m_TagString: Untagged
@@ -4627,21 +4066,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3764788273734266507
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3845134619025069468}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &3913545772130889278
 GameObject:
   m_ObjectHideFlags: 0
@@ -4654,7 +4078,6 @@ GameObject:
   - component: {fileID: 5435461748351025892}
   - component: {fileID: 5565228940616183826}
   - component: {fileID: 7920461980677268879}
-  - component: {fileID: 8015098993211851204}
   m_Layer: 0
   m_Name: Cube (21)
   m_TagString: Untagged
@@ -4755,21 +4178,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8015098993211851204
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3913545772130889278}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &4058736194721479303
 GameObject:
   m_ObjectHideFlags: 0
@@ -4782,7 +4190,6 @@ GameObject:
   - component: {fileID: 1049322590050161346}
   - component: {fileID: 7699858992506714615}
   - component: {fileID: 3819603882178923678}
-  - component: {fileID: 5924327910996722024}
   m_Layer: 0
   m_Name: Cube (22)
   m_TagString: Untagged
@@ -4883,21 +4290,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5924327910996722024
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4058736194721479303}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &4062131259024293798
 GameObject:
   m_ObjectHideFlags: 0
@@ -4910,7 +4302,6 @@ GameObject:
   - component: {fileID: 8488683387614857088}
   - component: {fileID: 6242817949486925713}
   - component: {fileID: 9199656459274355132}
-  - component: {fileID: 1098893193913558719}
   m_Layer: 0
   m_Name: Cube (4)
   m_TagString: Untagged
@@ -5011,21 +4402,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1098893193913558719
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4062131259024293798}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 10, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &4142465858951731308
 GameObject:
   m_ObjectHideFlags: 0
@@ -5038,7 +4414,6 @@ GameObject:
   - component: {fileID: 3616174296179660365}
   - component: {fileID: 4944849244835413092}
   - component: {fileID: 4142146910216087671}
-  - component: {fileID: 1107536655296084459}
   m_Layer: 0
   m_Name: Cube (1)
   m_TagString: Untagged
@@ -5139,21 +4514,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1107536655296084459
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4142465858951731308}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -10, y: 2, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &4446645259139342185
 GameObject:
   m_ObjectHideFlags: 0
@@ -5166,7 +4526,6 @@ GameObject:
   - component: {fileID: 4267115376171520331}
   - component: {fileID: 9163148258094592079}
   - component: {fileID: 6265463299213517808}
-  - component: {fileID: 1228729238586584349}
   m_Layer: 0
   m_Name: Cube (30)
   m_TagString: Untagged
@@ -5267,21 +4626,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1228729238586584349
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4446645259139342185}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &4510032346263656435
 GameObject:
   m_ObjectHideFlags: 0
@@ -5328,7 +4672,6 @@ GameObject:
   - component: {fileID: 1247695347826634379}
   - component: {fileID: 3127886148644485930}
   - component: {fileID: 6284638977800310977}
-  - component: {fileID: 4432490881589033609}
   m_Layer: 0
   m_Name: Cube (45)
   m_TagString: Untagged
@@ -5429,21 +4772,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4432490881589033609
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4610631252101119824}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &5444221820770442466
 GameObject:
   m_ObjectHideFlags: 0
@@ -5456,7 +4784,6 @@ GameObject:
   - component: {fileID: 6164243406378272808}
   - component: {fileID: 4622969655939320668}
   - component: {fileID: 2232084660349191955}
-  - component: {fileID: 2931156417659062233}
   m_Layer: 0
   m_Name: Cube (37)
   m_TagString: Untagged
@@ -5557,21 +4884,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2931156417659062233
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5444221820770442466}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &5499714170813727861
 GameObject:
   m_ObjectHideFlags: 0
@@ -5584,7 +4896,6 @@ GameObject:
   - component: {fileID: 5170780810485334561}
   - component: {fileID: 3777892338366562185}
   - component: {fileID: 1872309443103829264}
-  - component: {fileID: 2003879179970195448}
   m_Layer: 0
   m_Name: Cube (3)
   m_TagString: Untagged
@@ -5685,21 +4996,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &2003879179970195448
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5499714170813727861}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -10, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &5653463496349539813
 GameObject:
   m_ObjectHideFlags: 0
@@ -5712,7 +5008,6 @@ GameObject:
   - component: {fileID: 851575581914132880}
   - component: {fileID: 7798091084066730159}
   - component: {fileID: 6888931400749507342}
-  - component: {fileID: 3473997338746107341}
   m_Layer: 0
   m_Name: Cube (14)
   m_TagString: Untagged
@@ -5813,21 +5108,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3473997338746107341
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5653463496349539813}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &5906659106851428758
 GameObject:
   m_ObjectHideFlags: 0
@@ -5840,7 +5120,6 @@ GameObject:
   - component: {fileID: 1972649138227872547}
   - component: {fileID: 2241978134968256909}
   - component: {fileID: 2382228982230252346}
-  - component: {fileID: 3803937028480523815}
   m_Layer: 0
   m_Name: Cube (46)
   m_TagString: Untagged
@@ -5941,21 +5220,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3803937028480523815
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5906659106851428758}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &6044398463948172343
 GameObject:
   m_ObjectHideFlags: 0
@@ -5968,7 +5232,6 @@ GameObject:
   - component: {fileID: 5431204699331097389}
   - component: {fileID: 5671614188971552981}
   - component: {fileID: 1963883954001805523}
-  - component: {fileID: 8102433650124703482}
   m_Layer: 0
   m_Name: Cube (42)
   m_TagString: Untagged
@@ -6069,21 +5332,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8102433650124703482
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6044398463948172343}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -10, y: 2, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &6150313809763838098
 GameObject:
   m_ObjectHideFlags: 0
@@ -6096,7 +5344,6 @@ GameObject:
   - component: {fileID: 2245415680452299109}
   - component: {fileID: 4934190858673291418}
   - component: {fileID: 6683962072075646539}
-  - component: {fileID: 7822942488975562470}
   m_Layer: 0
   m_Name: Cube (24)
   m_TagString: Untagged
@@ -6197,21 +5444,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &7822942488975562470
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6150313809763838098}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &6245984556726569956
 GameObject:
   m_ObjectHideFlags: 0
@@ -6375,7 +5607,6 @@ GameObject:
   - component: {fileID: 8257679498391891476}
   - component: {fileID: 8132574950512863209}
   - component: {fileID: 8175091413138546279}
-  - component: {fileID: 3719812114972193948}
   m_Layer: 0
   m_Name: Cube (20)
   m_TagString: Untagged
@@ -6476,21 +5707,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3719812114972193948
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 6644475315534341737}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &6831314276705944414
 GameObject:
   m_ObjectHideFlags: 0
@@ -6537,7 +5753,6 @@ GameObject:
   - component: {fileID: 1834401103205560962}
   - component: {fileID: 439391070043222407}
   - component: {fileID: 1617833283442368610}
-  - component: {fileID: 8902243005280973735}
   m_Layer: 0
   m_Name: Cube (29)
   m_TagString: Untagged
@@ -6638,21 +5853,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8902243005280973735
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7024476458323170700}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7079394752208478814
 GameObject:
   m_ObjectHideFlags: 0
@@ -6665,7 +5865,6 @@ GameObject:
   - component: {fileID: 5436109295133888504}
   - component: {fileID: 8545057359403521638}
   - component: {fileID: 4624426396089965820}
-  - component: {fileID: 1374564398736469419}
   m_Layer: 0
   m_Name: Cube (15)
   m_TagString: Untagged
@@ -6766,21 +5965,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1374564398736469419
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7079394752208478814}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7108285736245563610
 GameObject:
   m_ObjectHideFlags: 0
@@ -6793,7 +5977,6 @@ GameObject:
   - component: {fileID: 4818129172094600245}
   - component: {fileID: 3564143140856481169}
   - component: {fileID: 2766952103985306706}
-  - component: {fileID: 6227954386480577813}
   m_Layer: 0
   m_Name: Cube (7)
   m_TagString: Untagged
@@ -6894,21 +6077,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &6227954386480577813
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7108285736245563610}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7221989251697508832
 GameObject:
   m_ObjectHideFlags: 0
@@ -6921,7 +6089,6 @@ GameObject:
   - component: {fileID: 5928956724178155667}
   - component: {fileID: 2546391738036027383}
   - component: {fileID: 3575599629027539883}
-  - component: {fileID: 304873442526341232}
   m_Layer: 0
   m_Name: Cube (13)
   m_TagString: Untagged
@@ -7022,21 +6189,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &304873442526341232
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7221989251697508832}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7236414372779943681
 GameObject:
   m_ObjectHideFlags: 0
@@ -7049,7 +6201,6 @@ GameObject:
   - component: {fileID: 6547948495477191747}
   - component: {fileID: 2967844066887436814}
   - component: {fileID: 8503904708665841769}
-  - component: {fileID: 3820985575540973942}
   m_Layer: 0
   m_Name: Cube (40)
   m_TagString: Untagged
@@ -7150,21 +6301,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3820985575540973942
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7236414372779943681}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7237670713154727226
 GameObject:
   m_ObjectHideFlags: 0
@@ -7211,7 +6347,6 @@ GameObject:
   - component: {fileID: 5011147552103763912}
   - component: {fileID: 4395018660461530264}
   - component: {fileID: 789018762133093947}
-  - component: {fileID: 8344590199997891454}
   m_Layer: 0
   m_Name: Cube (7)
   m_TagString: Untagged
@@ -7312,21 +6447,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8344590199997891454
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7477329375317209868}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &7679860600483595334
 GameObject:
   m_ObjectHideFlags: 0
@@ -7339,7 +6459,6 @@ GameObject:
   - component: {fileID: 1280266951666954120}
   - component: {fileID: 5160058736823597911}
   - component: {fileID: 5626047864803209564}
-  - component: {fileID: 3529160747524461451}
   m_Layer: 0
   m_Name: Cube (34)
   m_TagString: Untagged
@@ -7440,21 +6559,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3529160747524461451
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7679860600483595334}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -10, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8018904099427802384
 GameObject:
   m_ObjectHideFlags: 0
@@ -7467,7 +6571,6 @@ GameObject:
   - component: {fileID: 3642756396193204536}
   - component: {fileID: 2803208455164732771}
   - component: {fileID: 3961025148432242060}
-  - component: {fileID: 5133909481724520128}
   m_Layer: 0
   m_Name: Cube (9)
   m_TagString: Untagged
@@ -7568,21 +6671,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5133909481724520128
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8018904099427802384}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8039646161524440869
 GameObject:
   m_ObjectHideFlags: 0
@@ -7595,7 +6683,6 @@ GameObject:
   - component: {fileID: 6884841151186949199}
   - component: {fileID: 8185915924701626775}
   - component: {fileID: 2662493813752849401}
-  - component: {fileID: 4713777333249557313}
   m_Layer: 0
   m_Name: Cube (23)
   m_TagString: Untagged
@@ -7696,21 +6783,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4713777333249557313
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8039646161524440869}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8209035834419081673
 GameObject:
   m_ObjectHideFlags: 0
@@ -7723,7 +6795,6 @@ GameObject:
   - component: {fileID: 1839978918931488725}
   - component: {fileID: 3707238624572735070}
   - component: {fileID: 9065008730963081714}
-  - component: {fileID: 3136418575020680755}
   m_Layer: 0
   m_Name: Cube (8)
   m_TagString: Untagged
@@ -7824,21 +6895,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &3136418575020680755
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8209035834419081673}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8498459263953347518
 GameObject:
   m_ObjectHideFlags: 0
@@ -7851,7 +6907,6 @@ GameObject:
   - component: {fileID: 2910645943070063473}
   - component: {fileID: 716499127637364455}
   - component: {fileID: 2148799558219642344}
-  - component: {fileID: 4388667864600386470}
   m_Layer: 0
   m_Name: Cube (44)
   m_TagString: Untagged
@@ -7952,21 +7007,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &4388667864600386470
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8498459263953347518}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8515562426395102417
 GameObject:
   m_ObjectHideFlags: 0
@@ -7979,7 +7019,6 @@ GameObject:
   - component: {fileID: 6641626898235343913}
   - component: {fileID: 7726464764388915861}
   - component: {fileID: 4626180569460946068}
-  - component: {fileID: 126950896912673300}
   m_Layer: 0
   m_Name: Cube (45)
   m_TagString: Untagged
@@ -8080,21 +7119,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &126950896912673300
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8515562426395102417}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8533221535453005032
 GameObject:
   m_ObjectHideFlags: 0
@@ -8107,7 +7131,6 @@ GameObject:
   - component: {fileID: 5059172490520367673}
   - component: {fileID: 326728226884541103}
   - component: {fileID: 3855893679722744460}
-  - component: {fileID: 1002783842768484135}
   m_Layer: 0
   m_Name: Cube (10)
   m_TagString: Untagged
@@ -8208,21 +7231,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1002783842768484135
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8533221535453005032}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8642498852117749988
 GameObject:
   m_ObjectHideFlags: 0
@@ -8269,7 +7277,6 @@ GameObject:
   - component: {fileID: 194604109703777632}
   - component: {fileID: 7682396920783933244}
   - component: {fileID: 5094067707187397804}
-  - component: {fileID: 1510608523245664191}
   m_Layer: 0
   m_Name: Cube (46)
   m_TagString: Untagged
@@ -8370,21 +7377,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &1510608523245664191
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8695448354231288842}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8716748941431067566
 GameObject:
   m_ObjectHideFlags: 0
@@ -8397,7 +7389,6 @@ GameObject:
   - component: {fileID: 7114268592134788557}
   - component: {fileID: 7492547795480191909}
   - component: {fileID: 6996591579179599083}
-  - component: {fileID: 8301095951743633793}
   m_Layer: 0
   m_Name: Cube (19)
   m_TagString: Untagged
@@ -8498,21 +7489,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8301095951743633793
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8716748941431067566}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &8933771288681230588
 GameObject:
   m_ObjectHideFlags: 0
@@ -8559,7 +7535,6 @@ GameObject:
   - component: {fileID: 7768957550269266179}
   - component: {fileID: 5782516011394065464}
   - component: {fileID: 3717461283316256583}
-  - component: {fileID: 8519536565252539525}
   m_Layer: 0
   m_Name: Cube (31)
   m_TagString: Untagged
@@ -8660,21 +7635,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &8519536565252539525
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 8988720529855860588}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -5}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &9079764579993744251
 GameObject:
   m_ObjectHideFlags: 0
@@ -8687,7 +7647,6 @@ GameObject:
   - component: {fileID: 3599347066735879928}
   - component: {fileID: 3182871899552685316}
   - component: {fileID: 2317300592527180615}
-  - component: {fileID: 978076441039171292}
   m_Layer: 0
   m_Name: Cube (8)
   m_TagString: Untagged
@@ -8788,21 +7747,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &978076441039171292
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9079764579993744251}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: -10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &9087770821804701930
 GameObject:
   m_ObjectHideFlags: 0
@@ -8815,7 +7759,6 @@ GameObject:
   - component: {fileID: 3808705097198223362}
   - component: {fileID: 1271235287206331813}
   - component: {fileID: 5349950520897316530}
-  - component: {fileID: 9167464848484962266}
   m_Layer: 0
   m_Name: Cube (39)
   m_TagString: Untagged
@@ -8916,21 +7859,6 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &9167464848484962266
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9087770821804701930}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: -5, y: 0, z: 0}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
 --- !u!1 &9116035016817342367
 GameObject:
   m_ObjectHideFlags: 0
@@ -8943,7 +7871,6 @@ GameObject:
   - component: {fileID: 8710710726645771853}
   - component: {fileID: 3806593194504340093}
   - component: {fileID: 8619002133441463806}
-  - component: {fileID: 5441752351572100553}
   m_Layer: 0
   m_Name: Cube (9)
   m_TagString: Untagged
@@ -9044,18 +7971,3 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!114 &5441752351572100553
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9116035016817342367}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 12717a94c1ee0a741a45eb32dbd0cf10, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DestrabarAutomovil
-  posicionRescate: {x: 0, y: 0, z: 10}
-  tiempoEspera: 5
-  mensajeUI: {fileID: 0}
