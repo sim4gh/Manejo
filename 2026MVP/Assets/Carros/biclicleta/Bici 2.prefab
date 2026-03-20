@@ -693,7 +693,7 @@ Rigidbody:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 182014}
   serializedVersion: 5
-  m_Mass: 200
+  m_Mass: 20
   m_LinearDamping: 0.1
   m_AngularDamping: 0
   m_CenterOfMass: {x: 0, y: 0, z: 0}
@@ -1656,8 +1656,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.25, y: 0.16686743, z: 1.6527387}
-  m_Center: {x: 0, y: 0.61347854, z: -0.06993598}
+  m_Size: {x: 0.42982602, y: 1.6079729, z: 1.7515335}
+  m_Center: {x: -0.07098973, y: 1.3340312, z: -0.020538539}
 --- !u!1 &1641824222520184158
 GameObject:
   m_ObjectHideFlags: 0
@@ -2290,7 +2290,7 @@ Animator:
   m_Enabled: 1
   m_Avatar: {fileID: 0}
   m_Controller: {fileID: 9100000, guid: 29ad27ac8d73dbc4a93e4fd28cf5c7b6, type: 2}
-  m_CullingMode: 0
+  m_CullingMode: 2
   m_UpdateMode: 0
   m_ApplyRootMotion: 0
   m_LinearVelocityBlending: 0
