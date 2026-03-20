@@ -660,9 +660,10 @@ GameObject:
   - component: {fileID: 2417354223392503314}
   - component: {fileID: 218821382439706085}
   - component: {fileID: 2870942755899542285}
+  - component: {fileID: 125702139557354442}
   m_Layer: 9
   m_Name: Bici 2
-  m_TagString: Untagged
+  m_TagString: automovil
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -795,6 +796,18 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DetenerAnimacion
   bikeAnimator: {fileID: 8671809277354446099}
   twoWheel: {fileID: 2417354223392503314}
+--- !u!114 &125702139557354442
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 182014}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 17fea1eedfbfd0b46802b1d544a50f90, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::DesactivarBici
 --- !u!1 &185924
 GameObject:
   m_ObjectHideFlags: 0
