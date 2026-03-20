@@ -36,6 +36,8 @@ namespace Gley.UrbanSystem
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
+        private InputAction _gasAction;
+        private InputAction _brakeAction;
 #endif
 
         /// <summary>
@@ -61,6 +63,7 @@ namespace Gley.UrbanSystem
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private void SetupDesktopInput()
         {
+            // ---- Teclado + Gamepad (igual que antes) ----
             _moveAction = new InputAction("Move", InputActionType.Value);
 
             _moveAction.AddCompositeBinding("2DVector")
@@ -78,6 +81,31 @@ namespace Gley.UrbanSystem
             _moveAction.AddBinding("<Gamepad>/leftStick");
 
             _moveAction.Enable();
+
+            // ---- Volante G923: busqueda dinamica, no importa casing ni espacios ----
+            foreach (var device in InputSystem.devices)
+            {
+                if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    string wheel = "<" + device.layout + ">";
+
+                    // Direccion del volante
+                    _moveAction.AddBinding(wheel + "/stick/x");
+
+                    // Acelerador (eje RZ): 0 = reposo, 1 = pisado a fondo
+                    _gasAction = new InputAction("Gas", InputActionType.Value);
+                    _gasAction.AddBinding(wheel + "/rz");
+                    _gasAction.Enable();
+
+                    // Freno (eje Z): 0 = reposo, 1 = pisado a fondo
+                    _brakeAction = new InputAction("Brake", InputActionType.Value);
+                    _brakeAction.AddBinding(wheel + "/z");
+                    _brakeAction.Enable();
+
+                    Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + device.layout);
+                    break;
+                }
+            }
         }
 #endif
 
@@ -137,7 +165,19 @@ namespace Gley.UrbanSystem
 #else
             Vector2 input = _moveAction.ReadValue<Vector2>();
             horizontalInput = input.x;
-            verticalInput = input.y;
+
+            // Si hay input de teclado o gamepad, tiene prioridad
+            if (Mathf.Abs(input.y) > 0.01f)
+            {
+                verticalInput = input.y;
+            }
+            else if (_gasAction != null || _brakeAction != null)
+            {
+                // Pedales G923: 0 = reposo, 1 = pisado a fondo
+                float gas = _gasAction != null ? _gasAction.ReadValue<float>() : 0f;
+                float brake = _brakeAction != null ? _brakeAction.ReadValue<float>() : 0f;
+                verticalInput = gas - brake;
+            }
 #endif
         }
 
@@ -173,10 +213,10 @@ namespace Gley.UrbanSystem
 
         private void PointerUp(string name)
         {
-            if (name == "Left") left = false;
+            if (name == "Left")  left  = false;
             if (name == "Right") right = false;
-            if (name == "Up") up = false;
-            if (name == "Down") down = false;
+            if (name == "Up")    up    = false;
+            if (name == "Down")  down  = false;
         }
 #endif
 
@@ -187,6 +227,8 @@ namespace Gley.UrbanSystem
             onButtonUp -= PointerUp;
 #else
             _moveAction?.Disable();
+            _gasAction?.Disable();
+            _brakeAction?.Disable();
 #endif
         }
     }
