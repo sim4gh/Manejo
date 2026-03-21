@@ -142,7 +142,7 @@ namespace Gley.UrbanSystem
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
             // ---- Steering ----
-            if (_hasWheel && _steerAction != null)
+            if (_hasWheel)
             {
                 float wheelSteer = _steerAction.ReadValue<float>();
                 horizontalInput = Mathf.Abs(wheelSteer) > 0.01f ? wheelSteer : kbInput.x;
@@ -158,7 +158,7 @@ namespace Gley.UrbanSystem
                 verticalInput = kbInput.y;
                 brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
-            else if (_hasWheel && _gasAction != null && _brakeAction != null)
+            else if (_hasWheel)
             {
                 float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
                 float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
@@ -241,10 +241,10 @@ namespace Gley.UrbanSystem
             onButtonDown -= PointerDown;
             onButtonUp -= PointerUp;
 #else
-            _moveAction?.Disable();
-            _gasAction?.Disable();
-            _brakeAction?.Disable();
-            _steerAction?.Disable();
+            _moveAction?.Disable(); _moveAction?.Dispose();
+            _gasAction?.Disable();  _gasAction?.Dispose();
+            _brakeAction?.Disable(); _brakeAction?.Dispose();
+            _steerAction?.Disable(); _steerAction?.Dispose();
 #endif
         }
     }

@@ -28,6 +28,9 @@ public class SimpleSpeedGauge : MonoBehaviour
     private bool useRCCP = false;
     private Gley.UrbanSystem.PlayerCar playerCar;
 
+    // Gear strings cacheados (evita ToString() allocation cada frame)
+    private static readonly string[] GearStrings = { "R", "N", "1", "2", "3", "4", "5", "6" };
+
     void Start()
     {
         if (vehicle == null)
@@ -85,13 +88,14 @@ public class SimpleSpeedGauge : MonoBehaviour
         speedText.text = speed.ToString(speedFormat);
         velocidadActual = speedText.text;
 
-        // Mostrar gear
+        // Mostrar gear (sin allocation: strings cacheados)
+        // GearStrings: [0]=R, [1]=N, [2]=1, [3]=2, ... [7]=6
         if (gearText != null && playerCar != null)
         {
             int gear = playerCar.currentGear;
-            if (gear == -1) gearText.text = "R";
-            else if (gear == 0) gearText.text = "N";
-            else gearText.text = gear.ToString();
+            int idx = gear + 1; // -1→0(R), 0→1(N), 1→2("1"), ...6→7("6")
+            if (idx >= 0 && idx < GearStrings.Length)
+                gearText.text = GearStrings[idx];
         }
     }
 
