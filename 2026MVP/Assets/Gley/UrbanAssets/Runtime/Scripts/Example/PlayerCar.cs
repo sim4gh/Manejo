@@ -87,9 +87,13 @@ namespace Gley.UrbanSystem
             visualWheel.transform.rotation = rotation;
         }
 
+        [Header("Freno")]
+        public float maxBrakeTorque = 3000f;
+
         public void FixedUpdate()
         {
-            float motor = maxMotorTorque * inputScript.GetVerticalInput();
+            float gasInput = Mathf.Clamp01(inputScript.GetVerticalInput());
+            float brakeInputValue = Mathf.Clamp01(inputScript.GetBrakeInput());
             currentSteeringInput = inputScript.GetHorizontalInput();
             float steering = maxSteeringAngle * currentSteeringInput;
 
@@ -98,31 +102,18 @@ namespace Gley.UrbanSystem
 #else
             var velocity = rb.velocity;
 #endif
-            float localVelocity = transform.InverseTransformDirection(velocity).z + 0.1f;
-            reverse = false;
-            brake = false;
-            if (localVelocity < 0)
-            {
-                reverse = true;
-            }
+            float localVelocity = transform.InverseTransformDirection(velocity).z;
+            float speed = Mathf.Abs(localVelocity);
+            reverse = localVelocity < -0.5f;
 
-            if (motor < 0)
-            {
-                if (localVelocity > 0)
-                {
-                    brake = true;
-                }
-            }
-            else
-            {
-                if (motor > 0)
-                {
-                    if (localVelocity < 0)
-                    {
-                        brake = true;
-                    }
-                }
-            }
+            // Motor: solo positivo (acelerador). No permite reversa con freno.
+            float motor = maxMotorTorque * gasInput;
+
+            // Freno: usa brakeTorque real del WheelCollider
+            float brakeTorque = maxBrakeTorque * brakeInputValue;
+
+            // Luces de freno
+            brake = brakeInputValue > 0.05f;
 
             foreach (AxleInfo axleInfo in axleInfos)
             {
@@ -135,6 +126,8 @@ namespace Gley.UrbanSystem
                 {
                     axleInfo.leftWheel.motorTorque = motor;
                     axleInfo.rightWheel.motorTorque = motor;
+                    axleInfo.leftWheel.brakeTorque = brakeTorque;
+                    axleInfo.rightWheel.brakeTorque = brakeTorque;
                 }
                 ApplyLocalPositionToVisuals(axleInfo.leftWheel);
                 ApplyLocalPositionToVisuals(axleInfo.rightWheel);

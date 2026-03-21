@@ -4,5 +4,6 @@ namespace Gley.UrbanSystem
     {
         public float GetHorizontalInput();
         public float GetVerticalInput();
+        public float GetBrakeInput() { return 0f; }
     }
 }

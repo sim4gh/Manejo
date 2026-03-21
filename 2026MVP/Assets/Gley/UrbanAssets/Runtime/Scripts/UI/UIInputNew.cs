@@ -33,6 +33,7 @@ namespace Gley.UrbanSystem
 
         private float horizontalInput;
         private float verticalInput;
+        private float brakeInput;
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
@@ -123,11 +124,19 @@ namespace Gley.UrbanSystem
         }
 
         /// <summary>
-        /// Get acceleration input
+        /// Get acceleration input (0 to 1 for gas, no brake mixed in when wheel connected)
         /// </summary>
         public float GetVerticalInput()
         {
             return verticalInput;
+        }
+
+        /// <summary>
+        /// Get brake input (0 to 1)
+        /// </summary>
+        public float GetBrakeInput()
+        {
+            return brakeInput;
         }
 
         /// <summary>
@@ -187,8 +196,9 @@ namespace Gley.UrbanSystem
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
             if (Mathf.Abs(kbInput.y) > 0.01f)
             {
-                // Teclado/gamepad tiene prioridad si hay input
+                // Teclado/gamepad: gas y freno combinados en vertical
                 verticalInput = kbInput.y;
+                brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
             else if (_hasWheel && _gasAction != null && _brakeAction != null)
             {
@@ -197,12 +207,19 @@ namespace Gley.UrbanSystem
                 float rawGas = _gasAction.ReadValue<float>();
                 float rawBrake = _brakeAction.ReadValue<float>();
                 float gas = (1f - rawGas) / 2f;
-                float brake = (1f - rawBrake) / 2f;
-                verticalInput = gas - brake;
+                float brakeLinear = (1f - rawBrake) / 2f;
+                // Curva exponencial para el freno:
+                // Primera mitad del pedal (0-0.5): frenado suave/progresivo
+                // Segunda mitad (0.5-1.0): frenado agresivo, escala rapido
+                float brake = brakeLinear * brakeLinear * 2f;
+                brake = Mathf.Clamp01(brake);
+                verticalInput = gas;
+                brakeInput = brake;
             }
             else
             {
                 verticalInput = kbInput.y;
+                brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
 #endif
         }
