@@ -12,6 +12,9 @@ public class SimpleSpeedGauge : MonoBehaviour
     public TextMeshProUGUI speedText;
     public string velocidadActual;
 
+    [Header("Gear Display")]
+    public TextMeshProUGUI gearText;
+
     [Header("Vehicle")]
     public GameObject vehicle;
 
@@ -23,6 +26,7 @@ public class SimpleSpeedGauge : MonoBehaviour
     private Component rccpController;
     private System.Type rccpType;
     private bool useRCCP = false;
+    private Gley.UrbanSystem.PlayerCar playerCar;
 
     void Start()
     {
@@ -32,6 +36,7 @@ public class SimpleSpeedGauge : MonoBehaviour
         if (vehicle != null)
         {
             vehicleRb = vehicle.GetComponent<Rigidbody>();
+            playerCar = vehicle.GetComponent<Gley.UrbanSystem.PlayerCar>();
             TryFindRCCP();
         }
 
@@ -59,9 +64,16 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         float speed = GetSpeed();
         speedText.text = speed.ToString(speedFormat);
-
-
         velocidadActual = speedText.text;
+
+        // Mostrar gear
+        if (gearText != null && playerCar != null)
+        {
+            int gear = playerCar.currentGear;
+            if (gear == -1) gearText.text = "R";
+            else if (gear == 0) gearText.text = "N";
+            else gearText.text = gear.ToString();
+        }
     }
 
     float GetSpeed()

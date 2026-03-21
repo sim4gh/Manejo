@@ -40,7 +40,9 @@ namespace Gley.UrbanSystem
         private InputAction _gasAction;
         private InputAction _brakeAction;
         private InputAction _steerAction;  // G923 steering (float, separate from Vector2 _moveAction)
+        private InputAction[] _gearActions; // H-shifter buttons 13-19
         private bool _hasWheel = false;
+        private int _currentGear = 0; // 0=N, 1-6=gears, -1=R
 #endif
 
         /// <summary>
@@ -108,6 +110,20 @@ namespace Gley.UrbanSystem
                     _brakeAction.AddBinding(wheel + "/rz");
                     _brakeAction.Enable();
 
+                    // H-shifter: buttons 13-18 = gears 1-6, button19 = R
+                    _gearActions = new InputAction[7];
+                    int[] gearValues = { 1, 2, 3, 4, 5, 6, -1 }; // 1-6 + R
+                    for (int i = 0; i < 7; i++)
+                    {
+                        int buttonNum = 13 + i; // button13 to button19
+                        int gearVal = gearValues[i];
+                        _gearActions[i] = new InputAction("G923_Gear" + buttonNum, InputActionType.Button);
+                        _gearActions[i].AddBinding(wheel + "/button" + buttonNum);
+                        _gearActions[i].performed += ctx => _currentGear = gearVal;
+                        _gearActions[i].canceled += ctx => _currentGear = 0;
+                        _gearActions[i].Enable();
+                    }
+
                     Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                     break;
                 }
@@ -137,6 +153,14 @@ namespace Gley.UrbanSystem
         public float GetBrakeInput()
         {
             return brakeInput;
+        }
+
+        /// <summary>
+        /// Get current gear: 0=N, 1-6=gears, -1=R
+        /// </summary>
+        public int GetCurrentGear()
+        {
+            return _currentGear;
         }
 
         /// <summary>
@@ -273,6 +297,8 @@ namespace Gley.UrbanSystem
             _gasAction?.Disable();
             _brakeAction?.Disable();
             _steerAction?.Disable();
+            if (_gearActions != null)
+                foreach (var a in _gearActions) a?.Disable();
 #endif
         }
     }

@@ -90,12 +90,16 @@ namespace Gley.UrbanSystem
         [Header("Freno")]
         public float maxBrakeTorque = 3000f;
 
+        // Gear actual: 0=N, 1-6, -1=R — leido por SimpleSpeedGauge
+        [HideInInspector] public int currentGear = 0;
+
         public void FixedUpdate()
         {
             float gasInput = Mathf.Clamp01(inputScript.GetVerticalInput());
             float brakeInputValue = Mathf.Clamp01(inputScript.GetBrakeInput());
             currentSteeringInput = inputScript.GetHorizontalInput();
             float steering = maxSteeringAngle * currentSteeringInput;
+            currentGear = inputScript.GetCurrentGear();
 
 #if UNITY_6000_0_OR_NEWER
             var velocity = rb.linearVelocity;
@@ -103,16 +107,21 @@ namespace Gley.UrbanSystem
             var velocity = rb.velocity;
 #endif
             float localVelocity = transform.InverseTransformDirection(velocity).z;
-            float speed = Mathf.Abs(localVelocity);
-            reverse = localVelocity < -0.5f;
 
-            // Motor: solo positivo (acelerador). No permite reversa con freno.
-            float motor = maxMotorTorque * gasInput;
+            // Motor segun gear
+            float motor;
+            if (currentGear == -1) // Reversa
+                motor = -maxMotorTorque * gasInput;
+            else if (currentGear == 0) // Neutral
+                motor = 0f;
+            else // 1-6
+                motor = maxMotorTorque * gasInput;
 
             // Freno: usa brakeTorque real del WheelCollider
             float brakeTorque = maxBrakeTorque * brakeInputValue;
 
-            // Luces de freno
+            // Luces
+            reverse = (currentGear == -1);
             brake = brakeInputValue > 0.05f;
 
             foreach (AxleInfo axleInfo in axleInfos)
