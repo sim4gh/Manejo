@@ -38,6 +38,8 @@ namespace Gley.UrbanSystem
         private InputAction _moveAction;
         private InputAction _gasAction;
         private InputAction _brakeAction;
+        private InputAction _steerAction;  // G923 steering (float, separate from Vector2 _moveAction)
+        private bool _hasWheel = false;
 #endif
 
         /// <summary>
@@ -82,27 +84,30 @@ namespace Gley.UrbanSystem
 
             _moveAction.Enable();
 
-            // ---- Volante G923: busqueda dinamica, no importa casing ni espacios ----
+            // ---- Volante G923: busqueda dinamica ----
             foreach (var device in InputSystem.devices)
             {
                 if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     string wheel = "<" + device.layout + ">";
+                    _hasWheel = true;
 
-                    // Direccion del volante
-                    _moveAction.AddBinding(wheel + "/stick/x");
+                    // Direccion: accion float separada (NO agregar a _moveAction que es Vector2)
+                    _steerAction = new InputAction("G923_Steer", InputActionType.Value);
+                    _steerAction.AddBinding(wheel + "/stick/x");
+                    _steerAction.Enable();
 
-                    // Acelerador (eje RZ): 0 = reposo, 1 = pisado a fondo
-                    _gasAction = new InputAction("Gas", InputActionType.Value);
-                    _gasAction.AddBinding(wheel + "/rz");
+                    // Acelerador (eje Z): raw 1=suelto, -1=pisado
+                    _gasAction = new InputAction("G923_Gas", InputActionType.Value);
+                    _gasAction.AddBinding(wheel + "/z");
                     _gasAction.Enable();
 
-                    // Freno (eje Z): 0 = reposo, 1 = pisado a fondo
-                    _brakeAction = new InputAction("Brake", InputActionType.Value);
-                    _brakeAction.AddBinding(wheel + "/z");
+                    // Freno (eje RZ): raw 1=suelto, -1=pisado
+                    _brakeAction = new InputAction("G923_Brake", InputActionType.Value);
+                    _brakeAction.AddBinding(wheel + "/rz");
                     _brakeAction.Enable();
 
-                    Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + device.layout);
+                    Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                     break;
                 }
             }
@@ -163,20 +168,41 @@ namespace Gley.UrbanSystem
 
             verticalInput = Mathf.Clamp(verticalInput, -1f, 1f);
 #else
-            Vector2 input = _moveAction.ReadValue<Vector2>();
-            horizontalInput = input.x;
-
-            // Si hay input de teclado o gamepad, tiene prioridad
-            if (Mathf.Abs(input.y) > 0.01f)
+            // G923 steering tiene prioridad si esta conectado
+            if (_hasWheel && _steerAction != null)
             {
-                verticalInput = input.y;
+                float wheelSteer = _steerAction.ReadValue<float>();
+                // Si el volante se esta moviendo, usarlo
+                if (Mathf.Abs(wheelSteer) > 0.01f)
+                    horizontalInput = wheelSteer;
+                else
+                    horizontalInput = _moveAction.ReadValue<Vector2>().x; // fallback teclado
             }
-            else if (_gasAction != null || _brakeAction != null)
+            else
             {
-                // Pedales G923: 0 = reposo, 1 = pisado a fondo
-                float gas = _gasAction != null ? _gasAction.ReadValue<float>() : 0f;
-                float brake = _brakeAction != null ? _brakeAction.ReadValue<float>() : 0f;
+                horizontalInput = _moveAction.ReadValue<Vector2>().x;
+            }
+
+            // Pedales G923 o teclado para vertical
+            Vector2 kbInput = _moveAction.ReadValue<Vector2>();
+            if (Mathf.Abs(kbInput.y) > 0.01f)
+            {
+                // Teclado/gamepad tiene prioridad si hay input
+                verticalInput = kbInput.y;
+            }
+            else if (_hasWheel && _gasAction != null && _brakeAction != null)
+            {
+                // Pedales G923: raw va de 1 (suelto) a -1 (pisado)
+                // Normalizar a 0 (suelto) - 1 (pisado): (1 - raw) / 2
+                float rawGas = _gasAction.ReadValue<float>();
+                float rawBrake = _brakeAction.ReadValue<float>();
+                float gas = (1f - rawGas) / 2f;
+                float brake = (1f - rawBrake) / 2f;
                 verticalInput = gas - brake;
+            }
+            else
+            {
+                verticalInput = kbInput.y;
             }
 #endif
         }
@@ -229,6 +255,7 @@ namespace Gley.UrbanSystem
             _moveAction?.Disable();
             _gasAction?.Disable();
             _brakeAction?.Disable();
+            _steerAction?.Disable();
 #endif
         }
     }

@@ -15,6 +15,10 @@ public class MainMenuController : MonoBehaviour
     public Button abrirFolderButton;
     public TextMeshProUGUI errorText;
 
+    [Header("Transmission")]
+    [Tooltip("Toggle for manual transmission (off = automatic)")]
+    public Toggle transmisionManualToggle;
+
     [Header("Settings")]
     [Tooltip("Name of the game scene to load")]
     public string gameSceneName = "UrbanExample";
@@ -31,6 +35,13 @@ public class MainMenuController : MonoBehaviour
         // Clear any previous error
         if (errorText != null)
             errorText.text = "";
+
+        // Transmission toggle
+        if (transmisionManualToggle != null)
+        {
+            transmisionManualToggle.isOn = PlayerPrefs.GetInt("TransmisionManual", 0) == 1;
+            transmisionManualToggle.onValueChanged.AddListener(OnTransmisionChanged);
+        }
 
         // Ensure GameManager exists
         if (GameManager.Instance == null)
@@ -69,6 +80,13 @@ public class MainMenuController : MonoBehaviour
     /// Called when the "Abrir folder de Telemetría" button is clicked.
     /// Opens the telemetry folder in the OS file explorer.
     /// </summary>
+    void OnTransmisionChanged(bool isManual)
+    {
+        PlayerPrefs.SetInt("TransmisionManual", isManual ? 1 : 0);
+        PlayerPrefs.Save();
+        Debug.Log($"Transmission set to: {(isManual ? "Manual" : "Automatic")}");
+    }
+
     void OnAbrirFolderClicked()
     {
         string path = Application.persistentDataPath;
