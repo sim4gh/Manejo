@@ -1,10 +1,7 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine;
 using UnityEngine.InputSystem;
-
-#if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
 using UnityEngine.SceneManagement;
-#endif
 
 namespace Gley.UrbanSystem
 {
@@ -41,6 +38,10 @@ namespace Gley.UrbanSystem
         private InputAction _brakeAction;
         private InputAction _steerAction;  // G923 steering (float, separate from Vector2 _moveAction)
         private InputAction[] _gearActions; // H-shifter buttons 13-19
+        private InputAction _l2Action, _r2Action, _l3Action, _r3Action; // combo buttons
+        private float _menuComboTimer = 0f;   // L2+R2 hold timer
+        private float _restartComboTimer = 0f; // L3+R3 hold timer
+        private const float COMBO_HOLD_TIME = 0.5f;
         private bool _hasWheel = false;
         private int _currentGear = 0; // 0=N, 1-6=gears, -1=R
 #endif
@@ -123,6 +124,13 @@ namespace Gley.UrbanSystem
                         _gearActions[i].canceled += ctx => _currentGear = 0;
                         _gearActions[i].Enable();
                     }
+
+                    // Combo buttons: L2(7), R2(8), L3(11), R3(12)
+                    _l2Action = new InputAction("G923_L2", InputActionType.Button, wheel + "/button7");
+                    _r2Action = new InputAction("G923_R2", InputActionType.Button, wheel + "/button8");
+                    _l3Action = new InputAction("G923_L3", InputActionType.Button, wheel + "/button11");
+                    _r3Action = new InputAction("G923_R3", InputActionType.Button, wheel + "/button12");
+                    _l2Action.Enable(); _r2Action.Enable(); _l3Action.Enable(); _r3Action.Enable();
 
                     Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                     break;
@@ -245,6 +253,42 @@ namespace Gley.UrbanSystem
                 verticalInput = kbInput.y;
                 brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
+
+            // Combos de botones G923
+            if (_hasWheel)
+            {
+                // L2 + R2 hold 0.5s → menu principal
+                if (_l2Action != null && _r2Action != null &&
+                    _l2Action.ReadValue<float>() > 0.5f && _r2Action.ReadValue<float>() > 0.5f)
+                {
+                    _menuComboTimer += Time.deltaTime;
+                    if (_menuComboTimer >= COMBO_HOLD_TIME)
+                    {
+                        _menuComboTimer = 0f;
+                        SceneManager.LoadScene("MainMenu");
+                    }
+                }
+                else
+                {
+                    _menuComboTimer = 0f;
+                }
+
+                // L3 + R3 hold 0.5s → reiniciar escena
+                if (_l3Action != null && _r3Action != null &&
+                    _l3Action.ReadValue<float>() > 0.5f && _r3Action.ReadValue<float>() > 0.5f)
+                {
+                    _restartComboTimer += Time.deltaTime;
+                    if (_restartComboTimer >= COMBO_HOLD_TIME)
+                    {
+                        _restartComboTimer = 0f;
+                        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                    }
+                }
+                else
+                {
+                    _restartComboTimer = 0f;
+                }
+            }
 #endif
         }
 
@@ -299,6 +343,8 @@ namespace Gley.UrbanSystem
             _steerAction?.Disable();
             if (_gearActions != null)
                 foreach (var a in _gearActions) a?.Disable();
+            _l2Action?.Disable(); _r2Action?.Disable();
+            _l3Action?.Disable(); _r3Action?.Disable();
 #endif
         }
     }
