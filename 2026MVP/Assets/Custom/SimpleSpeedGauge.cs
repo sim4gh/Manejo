@@ -54,6 +54,7 @@ public class SimpleSpeedGauge : MonoBehaviour
             gearText = gearObj.AddComponent<TextMeshProUGUI>();
             gearText.font = speedText.font;
             gearText.fontSize = speedText.fontSize * 0.35f;
+            gearText.fontStyle = TMPro.FontStyles.Bold;
             gearText.color = textColor;
             gearText.alignment = TextAlignmentOptions.Center;
             // Posicionar debajo del texto de velocidad
@@ -61,7 +62,7 @@ public class SimpleSpeedGauge : MonoBehaviour
             RectTransform speedRt = speedText.GetComponent<RectTransform>();
             rt.anchorMin = speedRt.anchorMin;
             rt.anchorMax = speedRt.anchorMax;
-            rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(0, -speedRt.rect.height * 0.7f);
+            rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(0, -speedRt.rect.height * 1.0f);
             rt.sizeDelta = new Vector2(speedRt.sizeDelta.x, speedRt.sizeDelta.y * 0.4f);
         }
     }
