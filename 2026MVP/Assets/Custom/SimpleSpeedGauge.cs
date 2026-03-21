@@ -42,6 +42,25 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         if (speedText != null)
             speedText.color = textColor;
+
+        // Crear gear text automaticamente si no esta asignado
+        if (gearText == null && speedText != null)
+        {
+            GameObject gearObj = new GameObject("GearText");
+            gearObj.transform.SetParent(speedText.transform.parent, false);
+            gearText = gearObj.AddComponent<TextMeshProUGUI>();
+            gearText.font = speedText.font;
+            gearText.fontSize = speedText.fontSize * 0.35f;
+            gearText.color = textColor;
+            gearText.alignment = TextAlignmentOptions.Center;
+            // Posicionar debajo del texto de velocidad
+            RectTransform rt = gearText.GetComponent<RectTransform>();
+            RectTransform speedRt = speedText.GetComponent<RectTransform>();
+            rt.anchorMin = speedRt.anchorMin;
+            rt.anchorMax = speedRt.anchorMax;
+            rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(0, -speedRt.rect.height * 0.7f);
+            rt.sizeDelta = new Vector2(speedRt.sizeDelta.x, speedRt.sizeDelta.y * 0.4f);
+        }
     }
 
     void TryFindRCCP()
