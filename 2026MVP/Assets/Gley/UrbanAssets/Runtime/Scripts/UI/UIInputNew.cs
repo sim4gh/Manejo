@@ -8,22 +8,13 @@ namespace Gley.UrbanSystem
     public class UIInputNew : MonoBehaviour, IUIInput
     {
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
-        // Events used for UI buttons only on mobile devices
         public delegate void ButtonDown(string button);
         public static event ButtonDown onButtonDown;
-
-        public static void TriggerButtonDownEvent(string button)
-        {
-            onButtonDown?.Invoke(button);
-        }
+        public static void TriggerButtonDownEvent(string button) { onButtonDown?.Invoke(button); }
 
         public delegate void ButtonUp(string button);
         public static event ButtonUp onButtonUp;
-
-        public static void TriggerButtonUpEvent(string button)
-        {
-            onButtonUp?.Invoke(button);
-        }
+        public static void TriggerButtonUpEvent(string button) { onButtonUp?.Invoke(button); }
 
         private bool left, right, up, down;
 #endif
@@ -31,24 +22,27 @@ namespace Gley.UrbanSystem
         private float horizontalInput;
         private float verticalInput;
         private float brakeInput;
+        private int _currentGear;
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
         private InputAction _gasAction;
         private InputAction _brakeAction;
-        private InputAction _steerAction;  // G923 steering (float, separate from Vector2 _moveAction)
-        private InputAction[] _gearActions; // H-shifter buttons 13-19
-        private InputAction _l2Action, _r2Action, _l3Action, _r3Action; // combo buttons
-        private float _menuComboTimer = 0f;   // L2+R2 hold timer
-        private float _restartComboTimer = 0f; // L3+R3 hold timer
+        private InputAction _steerAction;
+        private InputDevice _wheelDevice;
+        private bool _hasWheel;
+
+        // Controles cacheados (evita TryGetChildControl cada frame)
+        private InputControl<float>[] _gearControls; // [7] buttons 13-19
+        private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
+        private float _menuComboTimer;
+        private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 0.5f;
-        private bool _hasWheel = false;
-        private int _currentGear = 0; // 0=N, 1-6=gears, -1=R
+
+        // Mapeo gear: indice 0-6 → gear 1-6, R(-1)
+        private static readonly int[] GearValues = { 1, 2, 3, 4, 5, 6, -1 };
 #endif
 
-        /// <summary>
-        /// Initializes the input system based on platform used
-        /// </summary>
         public UIInputNew Initialize()
         {
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
@@ -56,11 +50,7 @@ namespace Gley.UrbanSystem
             onButtonUp += PointerUp;
 #else
             GameObject steeringUI = GameObject.Find("SteeringUI");
-            if (steeringUI)
-            {
-                steeringUI.SetActive(false);
-            }
-
+            if (steeringUI) steeringUI.SetActive(false);
             SetupDesktopInput();
 #endif
             return this;
@@ -69,182 +59,110 @@ namespace Gley.UrbanSystem
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private void SetupDesktopInput()
         {
-            // ---- Teclado + Gamepad (igual que antes) ----
             _moveAction = new InputAction("Move", InputActionType.Value);
-
             _moveAction.AddCompositeBinding("2DVector")
-                .With("Up", "<Keyboard>/w")
-                .With("Down", "<Keyboard>/s")
-                .With("Left", "<Keyboard>/a")
-                .With("Right", "<Keyboard>/d");
-
+                .With("Up", "<Keyboard>/w").With("Down", "<Keyboard>/s")
+                .With("Left", "<Keyboard>/a").With("Right", "<Keyboard>/d");
             _moveAction.AddCompositeBinding("2DVector")
-                .With("Up", "<Keyboard>/upArrow")
-                .With("Down", "<Keyboard>/downArrow")
-                .With("Left", "<Keyboard>/leftArrow")
-                .With("Right", "<Keyboard>/rightArrow");
-
+                .With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow")
+                .With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
             _moveAction.AddBinding("<Gamepad>/leftStick");
-
             _moveAction.Enable();
 
             // ---- Volante G923: busqueda dinamica ----
             foreach (var device in InputSystem.devices)
             {
-                if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                {
-                    string wheel = "<" + device.layout + ">";
-                    _hasWheel = true;
+                if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) < 0)
+                    continue;
 
-                    // Direccion: accion float separada (NO agregar a _moveAction que es Vector2)
-                    _steerAction = new InputAction("G923_Steer", InputActionType.Value);
-                    _steerAction.AddBinding(wheel + "/stick/x");
-                    _steerAction.Enable();
+                string wheel = "<" + device.layout + ">";
+                _hasWheel = true;
+                _wheelDevice = device;
 
-                    // Acelerador (eje Z): raw 1=suelto, -1=pisado
-                    _gasAction = new InputAction("G923_Gas", InputActionType.Value);
-                    _gasAction.AddBinding(wheel + "/z");
-                    _gasAction.Enable();
+                // Ejes via InputAction (funciona para ejes HID)
+                _steerAction = new InputAction("G923_Steer", InputActionType.Value);
+                _steerAction.AddBinding(wheel + "/stick/x");
+                _steerAction.Enable();
 
-                    // Freno (eje RZ): raw 1=suelto, -1=pisado
-                    _brakeAction = new InputAction("G923_Brake", InputActionType.Value);
-                    _brakeAction.AddBinding(wheel + "/rz");
-                    _brakeAction.Enable();
+                _gasAction = new InputAction("G923_Gas", InputActionType.Value);
+                _gasAction.AddBinding(wheel + "/z");
+                _gasAction.Enable();
 
-                    // H-shifter: buttons 13-18 = gears 1-6, button19 = R
-                    _gearActions = new InputAction[7];
-                    int[] gearValues = { 1, 2, 3, 4, 5, 6, -1 }; // 1-6 + R
-                    for (int i = 0; i < 7; i++)
-                    {
-                        int buttonNum = 13 + i; // button13 to button19
-                        int gearVal = gearValues[i];
-                        _gearActions[i] = new InputAction("G923_Gear" + buttonNum, InputActionType.Button);
-                        _gearActions[i].AddBinding(wheel + "/button" + buttonNum);
-                        _gearActions[i].performed += ctx => _currentGear = gearVal;
-                        _gearActions[i].canceled += ctx => _currentGear = 0;
-                        _gearActions[i].Enable();
-                    }
+                _brakeAction = new InputAction("G923_Brake", InputActionType.Value);
+                _brakeAction.AddBinding(wheel + "/rz");
+                _brakeAction.Enable();
 
-                    // Combo buttons: L2(7), R2(8), L3(11), R3(12)
-                    _l2Action = new InputAction("G923_L2", InputActionType.Button, wheel + "/button7");
-                    _r2Action = new InputAction("G923_R2", InputActionType.Button, wheel + "/button8");
-                    _l3Action = new InputAction("G923_L3", InputActionType.Button, wheel + "/button11");
-                    _r3Action = new InputAction("G923_R3", InputActionType.Button, wheel + "/button12");
-                    _l2Action.Enable(); _r2Action.Enable(); _l3Action.Enable(); _r3Action.Enable();
+                // Botones via acceso directo al device (cachear una sola vez)
+                // H-shifter: buttons 13-19
+                _gearControls = new InputControl<float>[7];
+                for (int i = 0; i < 7; i++)
+                    _gearControls[i] = CacheButton(13 + i);
 
-                    Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
-                    break;
-                }
+                // Combos: L2(7), R2(8), L3(11), R3(12)
+                _l2Ctrl = CacheButton(7);
+                _r2Ctrl = CacheButton(8);
+                _l3Ctrl = CacheButton(11);
+                _r3Ctrl = CacheButton(12);
+
+                Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
+                break;
             }
+        }
+
+        private InputControl<float> CacheButton(int num)
+        {
+            var ctrl = _wheelDevice.TryGetChildControl("button" + num);
+            return ctrl as InputControl<float>;
+        }
+
+        private bool IsPressed(InputControl<float> ctrl)
+        {
+            return ctrl != null && ctrl.ReadValue() > 0.5f;
         }
 #endif
 
-        /// <summary>
-        /// Get steering input
-        /// </summary>
-        public float GetHorizontalInput()
-        {
-            return horizontalInput;
-        }
+        public float GetHorizontalInput() => horizontalInput;
+        public float GetVerticalInput() => verticalInput;
+        public float GetBrakeInput() => brakeInput;
+        public int GetCurrentGear() => _currentGear;
 
-        /// <summary>
-        /// Get acceleration input (0 to 1 for gas, no brake mixed in when wheel connected)
-        /// </summary>
-        public float GetVerticalInput()
-        {
-            return verticalInput;
-        }
-
-        /// <summary>
-        /// Get brake input (0 to 1)
-        /// </summary>
-        public float GetBrakeInput()
-        {
-            return brakeInput;
-        }
-
-        /// <summary>
-        /// Get current gear: 0=N, 1-6=gears, -1=R
-        /// </summary>
-        public int GetCurrentGear()
-        {
-            return _currentGear;
-        }
-
-        /// <summary>
-        /// Read input
-        /// </summary>
         private void Update()
         {
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
-            // Horizontal
-            if (left)
-            {
-                horizontalInput -= Time.deltaTime;
-            }
-            else if (right)
-            {
-                horizontalInput += Time.deltaTime;
-            }
-            else
-            {
-                horizontalInput = Mathf.MoveTowards(horizontalInput, 0, 5 * Time.deltaTime);
-            }
-
+            if (left) horizontalInput -= Time.deltaTime;
+            else if (right) horizontalInput += Time.deltaTime;
+            else horizontalInput = Mathf.MoveTowards(horizontalInput, 0, 5 * Time.deltaTime);
             horizontalInput = Mathf.Clamp(horizontalInput, -1f, 1f);
 
-            // Vertical
-            if (up)
-            {
-                verticalInput += Time.deltaTime;
-            }
-            else if (down)
-            {
-                verticalInput -= Time.deltaTime;
-            }
-            else
-            {
-                verticalInput = 0;
-            }
-
+            if (up) verticalInput += Time.deltaTime;
+            else if (down) verticalInput -= Time.deltaTime;
+            else verticalInput = 0;
             verticalInput = Mathf.Clamp(verticalInput, -1f, 1f);
 #else
-            // G923 steering tiene prioridad si esta conectado
+            Vector2 kbInput = _moveAction.ReadValue<Vector2>();
+
+            // ---- Steering ----
             if (_hasWheel && _steerAction != null)
             {
                 float wheelSteer = _steerAction.ReadValue<float>();
-                // Si el volante se esta moviendo, usarlo
-                if (Mathf.Abs(wheelSteer) > 0.01f)
-                    horizontalInput = wheelSteer;
-                else
-                    horizontalInput = _moveAction.ReadValue<Vector2>().x; // fallback teclado
+                horizontalInput = Mathf.Abs(wheelSteer) > 0.01f ? wheelSteer : kbInput.x;
             }
             else
             {
-                horizontalInput = _moveAction.ReadValue<Vector2>().x;
+                horizontalInput = kbInput.x;
             }
 
-            // Pedales G923 o teclado para vertical
-            Vector2 kbInput = _moveAction.ReadValue<Vector2>();
+            // ---- Gas / Brake ----
             if (Mathf.Abs(kbInput.y) > 0.01f)
             {
-                // Teclado/gamepad: gas y freno combinados en vertical
                 verticalInput = kbInput.y;
                 brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
             else if (_hasWheel && _gasAction != null && _brakeAction != null)
             {
-                // Pedales G923: raw va de 1 (suelto) a -1 (pisado)
-                // Normalizar a 0 (suelto) - 1 (pisado): (1 - raw) / 2
-                float rawGas = _gasAction.ReadValue<float>();
-                float rawBrake = _brakeAction.ReadValue<float>();
-                float gas = (1f - rawGas) / 2f;
-                float brakeLinear = (1f - rawBrake) / 2f;
-                // Curva exponencial para el freno:
-                // Primera mitad del pedal (0-0.5): frenado suave/progresivo
-                // Segunda mitad (0.5-1.0): frenado agresivo, escala rapido
-                float brake = brakeLinear * brakeLinear * 2f;
-                brake = Mathf.Clamp01(brake);
+                float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
+                float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
+                float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                 verticalInput = gas;
                 brakeInput = brake;
             }
@@ -254,12 +172,25 @@ namespace Gley.UrbanSystem
                 brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
             }
 
-            // Combos de botones G923
-            if (_hasWheel)
+            // ---- Botones G923 (acceso directo, sin InputAction) ----
+            if (_hasWheel && _wheelDevice != null)
             {
-                // L2 + R2 hold 0.5s → menu principal
-                if (_l2Action != null && _r2Action != null &&
-                    _l2Action.ReadValue<float>() > 0.5f && _r2Action.ReadValue<float>() > 0.5f)
+                // H-shifter
+                _currentGear = 0;
+                if (_gearControls != null)
+                {
+                    for (int i = 0; i < _gearControls.Length; i++)
+                    {
+                        if (IsPressed(_gearControls[i]))
+                        {
+                            _currentGear = GearValues[i];
+                            break;
+                        }
+                    }
+                }
+
+                // Combo L2+R2 hold → menu principal
+                if (IsPressed(_l2Ctrl) && IsPressed(_r2Ctrl))
                 {
                     _menuComboTimer += Time.deltaTime;
                     if (_menuComboTimer >= COMBO_HOLD_TIME)
@@ -268,14 +199,10 @@ namespace Gley.UrbanSystem
                         SceneManager.LoadScene("MainMenu");
                     }
                 }
-                else
-                {
-                    _menuComboTimer = 0f;
-                }
+                else { _menuComboTimer = 0f; }
 
-                // L3 + R3 hold 0.5s → reiniciar escena
-                if (_l3Action != null && _r3Action != null &&
-                    _l3Action.ReadValue<float>() > 0.5f && _r3Action.ReadValue<float>() > 0.5f)
+                // Combo L3+R3 hold → reiniciar escena
+                if (IsPressed(_l3Ctrl) && IsPressed(_r3Ctrl))
                 {
                     _restartComboTimer += Time.deltaTime;
                     if (_restartComboTimer >= COMBO_HOLD_TIME)
@@ -284,10 +211,7 @@ namespace Gley.UrbanSystem
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
                     }
                 }
-                else
-                {
-                    _restartComboTimer = 0f;
-                }
+                else { _restartComboTimer = 0f; }
             }
 #endif
         }
@@ -295,31 +219,11 @@ namespace Gley.UrbanSystem
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
         private void PointerDown(string name)
         {
-            if (name == "Restart")
-            {
-                SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-            }
-
-            if (name == "Left")
-            {
-                left = true;
-                right = false;
-            }
-            if (name == "Right")
-            {
-                right = true;
-                left = false;
-            }
-            if (name == "Up")
-            {
-                up = true;
-                down = false;
-            }
-            if (name == "Down")
-            {
-                down = true;
-                up = false;
-            }
+            if (name == "Restart") SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+            if (name == "Left")  { left = true; right = false; }
+            if (name == "Right") { right = true; left = false; }
+            if (name == "Up")    { up = true; down = false; }
+            if (name == "Down")  { down = true; up = false; }
         }
 
         private void PointerUp(string name)
@@ -341,10 +245,6 @@ namespace Gley.UrbanSystem
             _gasAction?.Disable();
             _brakeAction?.Disable();
             _steerAction?.Disable();
-            if (_gearActions != null)
-                foreach (var a in _gearActions) a?.Disable();
-            _l2Action?.Disable(); _r2Action?.Disable();
-            _l3Action?.Disable(); _r3Action?.Disable();
 #endif
         }
     }
