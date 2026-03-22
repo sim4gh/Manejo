@@ -36,7 +36,7 @@ namespace Gley.UrbanSystem
         // Controles cacheados (evita TryGetChildControl cada frame)
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
-        private InputControl<float> _hatLeftCtrl, _hatRightCtrl, _hatUpCtrl;
+        private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
         private float _menuComboTimer;
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
@@ -106,10 +106,9 @@ namespace Gley.UrbanSystem
                 _l3Ctrl = CacheButton(11);
                 _r3Ctrl = CacheButton(12);
 
-                // D-pad (hat): direccionales
-                _hatLeftCtrl = CacheControl("hat/left");
-                _hatRightCtrl = CacheControl("hat/right");
-                _hatUpCtrl = CacheControl("hat/up");
+                // Paddles: direccionales
+                _l1Ctrl = CacheButton(5);  // L1 = paddle izquierdo
+                _r1Ctrl = CacheButton(6);  // R1 = paddle derecho
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                 break;
@@ -202,11 +201,13 @@ namespace Gley.UrbanSystem
                     }
                 }
 
-                // D-pad → direccionales (toggle por frame, detecta flanco)
-                _indicatorInput = 0;
-                if (IsPressed(_hatLeftCtrl)) _indicatorInput = -1;
-                else if (IsPressed(_hatRightCtrl)) _indicatorInput = 1;
-                else if (IsPressed(_hatUpCtrl)) _indicatorInput = 2;
+                // Paddles → direccionales
+                bool l1 = IsPressed(_l1Ctrl);
+                bool r1 = IsPressed(_r1Ctrl);
+                if (l1 && r1) _indicatorInput = 2;       // ambos = hazard
+                else if (l1) _indicatorInput = -1;        // izquierda
+                else if (r1) _indicatorInput = 1;         // derecha
+                else _indicatorInput = 0;
 
                 // Combo L2+R2 hold → menu principal
                 if (IsPressed(_l2Ctrl) && IsPressed(_r2Ctrl))
