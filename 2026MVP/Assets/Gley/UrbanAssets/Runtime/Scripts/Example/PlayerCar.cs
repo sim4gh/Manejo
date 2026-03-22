@@ -166,24 +166,26 @@ namespace Gley.UrbanSystem
             int indicatorInput = inputScript.GetIndicatorInput();
             if (indicatorInput != lastIndicatorInput && indicatorInput != 0)
             {
-                // Flanco: el D-pad acaba de ser presionado
-                if (indicatorInput == -1) // Hat izquierda
+                if (indicatorInput == -1)
                 {
                     blinkLeft = !blinkLeft;
                     blinkRifgt = false;
                     lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
+                    Debug.Log("[DIRECCIONAL] Izquierda " + (blinkLeft ? "ON" : "OFF"));
                 }
-                else if (indicatorInput == 1) // Hat derecha
+                else if (indicatorInput == 1)
                 {
                     blinkRifgt = !blinkRifgt;
                     blinkLeft = false;
                     lightsComponent.SetBlinker(blinkRifgt ? BlinkType.Right : BlinkType.Stop);
+                    Debug.Log("[DIRECCIONAL] Derecha " + (blinkRifgt ? "ON" : "OFF"));
                 }
-                else if (indicatorInput == 2) // Hat arriba = hazard
+                else if (indicatorInput == 2)
                 {
                     blinkLeft = false;
                     blinkRifgt = false;
                     lightsComponent.SetBlinker(BlinkType.StartHazard);
+                    Debug.Log("[DIRECCIONAL] Hazard ON");
                 }
             }
             lastIndicatorInput = indicatorInput;

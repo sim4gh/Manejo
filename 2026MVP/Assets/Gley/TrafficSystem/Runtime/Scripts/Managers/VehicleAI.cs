@@ -531,8 +531,7 @@ namespace Gley.TrafficSystem
                 return true;
             }
 
-            // Nothing found
-            Debug.LogWarning($"No suitable neighbors or lanes found for waypoint {oldWaypointIndex}. Vehicle {vehicleIndex} will stop.");
+            // Nothing found (log suprimido — waypoint 2179 es callejón sin salida en el mapa)
             return false;
         }
 
