@@ -787,28 +787,40 @@ public class MenuScreenManager : MonoBehaviour
 
     float ReadSteerInput()
     {
-        // Inicializar InputAction para G923 si no existe
+        // Intentar detectar G923 cada frame hasta encontrarlo
         if (steerAction == null)
         {
             foreach (var device in InputSystem.devices)
             {
-                if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                string name = device.displayName ?? "";
+                string desc = device.description.product ?? "";
+                if (name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    desc.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    name.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     string path = device.path;
                     steerAction = new InputAction("MenuSteer", InputActionType.Value);
                     steerAction.AddBinding(path + "/stick/x");
                     steerAction.Enable();
-                    Debug.Log($"[MenuScreenManager] G923 detectado: {path}");
+                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path})");
                     break;
                 }
             }
-            // Fallback a gamepad genérico
+            // Fallback: cualquier joystick o gamepad
+            if (steerAction == null && Joystick.current != null)
+            {
+                steerAction = new InputAction("MenuSteer", InputActionType.Value);
+                steerAction.AddBinding(Joystick.current.path + "/stick/x");
+                steerAction.Enable();
+                Debug.Log($"[MenuScreenManager] Joystick fallback: {Joystick.current.displayName}");
+            }
             if (steerAction == null && Gamepad.current != null)
             {
                 steerAction = new InputAction("MenuSteer", InputActionType.Value);
                 steerAction.AddBinding("<Gamepad>/leftStick/x");
                 steerAction.Enable();
             }
+            // No encontró nada — retorna 0, intentará de nuevo el próximo frame
             if (steerAction == null) return 0f;
         }
         return steerAction.ReadValue<float>();
