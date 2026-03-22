@@ -23,6 +23,7 @@ namespace Gley.UrbanSystem
         private float verticalInput;
         private float brakeInput;
         private int _currentGear;
+        private int _indicatorInput; // -1=izq, 0=off, 1=der, 2=hazard
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
@@ -35,6 +36,7 @@ namespace Gley.UrbanSystem
         // Controles cacheados (evita TryGetChildControl cada frame)
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
+        private InputControl<float> _hatLeftCtrl, _hatRightCtrl, _hatUpCtrl;
         private float _menuComboTimer;
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
@@ -104,6 +106,11 @@ namespace Gley.UrbanSystem
                 _l3Ctrl = CacheButton(11);
                 _r3Ctrl = CacheButton(12);
 
+                // D-pad (hat): direccionales
+                _hatLeftCtrl = CacheControl("hat/left");
+                _hatRightCtrl = CacheControl("hat/right");
+                _hatUpCtrl = CacheControl("hat/up");
+
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                 break;
             }
@@ -111,7 +118,12 @@ namespace Gley.UrbanSystem
 
         private InputControl<float> CacheButton(int num)
         {
-            var ctrl = _wheelDevice.TryGetChildControl("button" + num);
+            return CacheControl("button" + num);
+        }
+
+        private InputControl<float> CacheControl(string path)
+        {
+            var ctrl = _wheelDevice.TryGetChildControl(path);
             return ctrl as InputControl<float>;
         }
 
@@ -125,6 +137,7 @@ namespace Gley.UrbanSystem
         public float GetVerticalInput() => verticalInput;
         public float GetBrakeInput() => brakeInput;
         public int GetCurrentGear() => _currentGear;
+        public int GetIndicatorInput() => _indicatorInput;
 
         private void Update()
         {
@@ -188,6 +201,12 @@ namespace Gley.UrbanSystem
                         }
                     }
                 }
+
+                // D-pad → direccionales (toggle por frame, detecta flanco)
+                _indicatorInput = 0;
+                if (IsPressed(_hatLeftCtrl)) _indicatorInput = -1;
+                else if (IsPressed(_hatRightCtrl)) _indicatorInput = 1;
+                else if (IsPressed(_hatUpCtrl)) _indicatorInput = 2;
 
                 // Combo L2+R2 hold → menu principal
                 if (IsPressed(_l2Ctrl) && IsPressed(_r2Ctrl))

@@ -49,6 +49,14 @@ namespace Gley.UrbanSystem
         private float steeringWheelCurrentAngle;
         private Quaternion steeringWheelInitialRotation;
 
+        // Direccionales: flanco para toggle
+        private int lastIndicatorInput;
+
+        // Debug frenado
+        private bool isBraking;
+        private Vector3 brakeStartPos;
+        private float brakeStartSpeed;
+
 
 
         private void Start()
@@ -146,38 +154,52 @@ namespace Gley.UrbanSystem
         private void Update()
         {
             realtimeSinceStartup += Time.deltaTime;
+
+            // Luces principales (teclado: Space)
             if (GetKeyDownSpace())
             {
                 mainLights = !mainLights;
                 lightsComponent.SetMainLights(mainLights);
             }
 
+            // Direccionales: D-pad del volante (toggle por flanco) + teclado Q/E
+            int indicatorInput = inputScript.GetIndicatorInput();
+            if (indicatorInput != lastIndicatorInput && indicatorInput != 0)
+            {
+                // Flanco: el D-pad acaba de ser presionado
+                if (indicatorInput == -1) // Hat izquierda
+                {
+                    blinkLeft = !blinkLeft;
+                    blinkRifgt = false;
+                    lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
+                }
+                else if (indicatorInput == 1) // Hat derecha
+                {
+                    blinkRifgt = !blinkRifgt;
+                    blinkLeft = false;
+                    lightsComponent.SetBlinker(blinkRifgt ? BlinkType.Right : BlinkType.Stop);
+                }
+                else if (indicatorInput == 2) // Hat arriba = hazard
+                {
+                    blinkLeft = false;
+                    blinkRifgt = false;
+                    lightsComponent.SetBlinker(BlinkType.StartHazard);
+                }
+            }
+            lastIndicatorInput = indicatorInput;
+
+            // Teclado fallback: Q=izq, E=der
             if (GetKeyDownQ())
             {
                 blinkLeft = !blinkLeft;
-                if (blinkLeft == true)
-                {
-                    blinkRifgt = false;
-                    lightsComponent.SetBlinker(BlinkType.Left);
-                }
-                else
-                {
-                    lightsComponent.SetBlinker(BlinkType.Stop);
-                }
+                blinkRifgt = false;
+                lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
             }
-
             if (GetKeyDownE())
             {
                 blinkRifgt = !blinkRifgt;
-                if (blinkRifgt == true)
-                {
-                    blinkLeft = false;
-                    lightsComponent.SetBlinker(BlinkType.Right);
-                }
-                else
-                {
-                    lightsComponent.SetBlinker(BlinkType.Stop);
-                }
+                blinkLeft = false;
+                lightsComponent.SetBlinker(blinkRifgt ? BlinkType.Right : BlinkType.Stop);
             }
 
             lightsComponent.SetBrakeLights(brake);
@@ -185,7 +207,35 @@ namespace Gley.UrbanSystem
             lightsComponent.UpdateLights(realtimeSinceStartup);
 
             UpdateSteeringWheel();
+            UpdateBrakeDebug();
+        }
 
+        void UpdateBrakeDebug()
+        {
+#if UNITY_6000_0_OR_NEWER
+            float speed = rb.linearVelocity.magnitude * 3.6f;
+#else
+            float speed = rb.velocity.magnitude * 3.6f;
+#endif
+
+            if (brake && !isBraking && speed > 5f)
+            {
+                // Inicio de frenado
+                isBraking = true;
+                brakeStartPos = transform.position;
+                brakeStartSpeed = speed;
+            }
+            else if (isBraking && speed < 1f)
+            {
+                // Fin de frenado
+                float distance = Vector3.Distance(brakeStartPos, transform.position);
+                Debug.Log($"[FRENO] De {brakeStartSpeed:F0} km/h a 0 en {distance:F1}m");
+                isBraking = false;
+            }
+            else if (!brake)
+            {
+                isBraking = false;
+            }
         }
 
         void UpdateSteeringWheel()
