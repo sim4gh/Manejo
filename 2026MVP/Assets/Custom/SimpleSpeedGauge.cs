@@ -98,7 +98,7 @@ public class SimpleSpeedGauge : MonoBehaviour
         RectTransform speedRt = speedText.GetComponent<RectTransform>();
         rt.anchorMin = speedRt.anchorMin;
         rt.anchorMax = speedRt.anchorMax;
-        rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(side * speedRt.sizeDelta.x * 0.9f, 0);
+        rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(side * speedRt.sizeDelta.x * 0.55f, 0);
         rt.sizeDelta = new Vector2(speedRt.sizeDelta.y * 0.5f, speedRt.sizeDelta.y * 0.5f);
         return tmp;
     }
