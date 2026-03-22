@@ -75,7 +75,7 @@ public class ManagerMainMenu : MonoBehaviour
 
     void OnDestroy()
     {
-        inputPeatones.onValueChanged.RemoveListener(OnPeatonesChanged);
-        inputCarros.onValueChanged.RemoveListener(OnCarrosChanged);
+        if (inputPeatones != null) inputPeatones.onValueChanged.RemoveListener(OnPeatonesChanged);
+        if (inputCarros != null) inputCarros.onValueChanged.RemoveListener(OnCarrosChanged);
     }
 }

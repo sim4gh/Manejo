@@ -101,10 +101,36 @@ Simulador de examen de manejo para evaluacion de conductores en Tlaxcala, Mexico
 | 6 | Camion D Carga | Camion | Examen con camion de carga |
 | 7 | Motocicleta | Moto | Examen con motocicleta |
 
-## Flujo del Juego
+## Flujo del Juego (v2 — QR/Tramite, 2026-03-22)
 
-1. **Inicio:** QR kiosko o MainMenu con expediente
-2. **Carga:** Se carga "UrbanExample" con trafico y peatones Gley
+El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al Canvas via `MenuBootstrap.cs` y genera toda la UI proceduralmente.
+
+### Pantalla 0 — Verificacion (QR o codigo manual)
+- **QR**: POST `/kiosk/sessions` → genera QR → poll cada 10s → al verificarse obtiene `tramiteId`, `citizenName`, `licenseType`
+- **Codigo manual**: Input "TLX-XXXXXX" → GET `/simulator/lookup?code={code}` → misma info
+- **Demo codes**: 0000=particular, 1111=publico, 2222=motocicleta, 3333=carga
+- **Clima**: aleatorio (`PlayerPrefs["Cargolluvia"] = Random.Range(0,2)`)
+- Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
+
+### Pantalla 1 — Configuracion (solo licenseType=particular)
+- Seleccion de modelo: Sedan→`"carretera"`, Jetta→`"Jetta"`, Camioneta→`"Camioneta"`
+- Seleccion de transmision: Automatica/Manual → `PlayerPrefs["TransmisionManual"]`
+- Default: Sedan + Automatica
+
+### Pantalla 2 — Inicio de prueba (verificacion de volante)
+- "Gira el volante a la DERECHA, luego a la IZQUIERDA"
+- Detecta G923 input (`Gamepad.current.leftStick.x`)
+- Al completar → carga escena seleccionada
+- Timeout 15s → boton "Iniciar sin volante"
+
+### Mapeo licenseType → escena
+- `particular` → depende de modelo (carretera/Jetta/Camioneta)
+- `motocicleta` → `"Motocicleta"`
+- `publico` → `"BusPasajeros"`
+- `carga` → `"CamionDCarga"`
+
+### Post-inicio
+1. **Carga:** Se carga la escena con trafico y peatones Gley
 3. **Ejecucion:** ViolationDetector monitorea infracciones en tiempo real
    - Velocidad vs limites de waypoints Gley
    - Semaforos rojos (RedLightDetector)
