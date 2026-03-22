@@ -62,13 +62,15 @@ namespace Gley.UrbanSystem
         private void Start()
         {
             GetComponent<Rigidbody>().centerOfMass = centerOfMass.localPosition;
-            isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
-            if (isAutomaticMode) currentGear = 1; // Arrancar en Drive, no Neutral
 #if ENABLE_LEGACY_INPUT_MANAGER
             inputScript = gameObject.AddComponent<UIInputOld>().Initialize();
+            isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
 #else
-            inputScript = gameObject.AddComponent<UIInputNew>().Initialize();
+            var uiInputNew = gameObject.AddComponent<UIInputNew>().Initialize();
+            inputScript = uiInputNew;
+            isAutomaticMode = uiInputNew.IsAutomaticMode();
 #endif
+            if (isAutomaticMode) currentGear = 1;
             lightsComponent = gameObject.GetComponent<VehicleLightsComponent>();
             lightsComponent.Initialize();
             rb = GetComponent<Rigidbody>();

@@ -53,13 +53,17 @@ namespace Gley.UrbanSystem
             onButtonUp += PointerUp;
 #else
             _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
-            if (_isAutomaticMode) _currentGear = 1; // Start in Drive
             GameObject steeringUI = GameObject.Find("SteeringUI");
             if (steeringUI) steeringUI.SetActive(false);
             SetupDesktopInput();
+            // Sin volante → forzar automático (teclado necesita funcionar)
+            if (!_hasWheel) _isAutomaticMode = true;
+            if (_isAutomaticMode) _currentGear = 1; // Start in Drive
 #endif
             return this;
         }
+
+        public bool IsAutomaticMode() => _isAutomaticMode;
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private void SetupDesktopInput()
