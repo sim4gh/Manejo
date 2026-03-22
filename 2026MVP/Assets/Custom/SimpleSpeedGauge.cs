@@ -25,6 +25,7 @@ public class SimpleSpeedGauge : MonoBehaviour
     private Rigidbody vehicleRb;
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpSpeedProperty;
     private bool useRCCP = false;
     private Gley.UrbanSystem.PlayerCar playerCar;
 
@@ -111,7 +112,8 @@ public class SimpleSpeedGauge : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpSpeedProperty = rccpType.GetProperty("speed");
+                useRCCP = rccpSpeedProperty != null;
                 break;
             }
         }
@@ -153,10 +155,17 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         if (gearText != null && playerCar != null)
         {
-            int gear = playerCar.currentGear;
-            int idx = gear + 1; // -1→0(R), 0→1(N), 1→2("1"), ...6→7("6")
-            if (idx >= 0 && idx < GearStrings.Length)
-                gearText.text = GearStrings[idx];
+            if (playerCar.isAutomaticMode)
+            {
+                gearText.text = playerCar.currentGear == -1 ? "R" : "A";
+            }
+            else
+            {
+                int gear = playerCar.currentGear;
+                int idx = gear + 1; // -1→0(R), 0→1(N), 1→2("1"), ...6→7("6")
+                if (idx >= 0 && idx < GearStrings.Length)
+                    gearText.text = GearStrings[idx];
+            }
         }
     }
 
@@ -166,7 +175,7 @@ public class SimpleSpeedGauge : MonoBehaviour
         {
             try
             {
-                return (float)rccpType.GetProperty("speed").GetValue(rccpController);
+                return (float)rccpSpeedProperty.GetValue(rccpController);
             }
             catch { }
         }

@@ -21,6 +21,16 @@ public class RedLightDetector : MonoBehaviour
     [Tooltip("How often to check (seconds)")]
     public float checkInterval = 0.2f;
 
+    [Header("Right Turn on Red")]
+    [Tooltip("Allow right turns on red without penalty")]
+    public bool allowRightOnRed = true;
+
+    [Tooltip("Min angle (degrees) to consider a right turn")]
+    public float rightTurnMinAngle = 30f;
+
+    [Tooltip("Max angle (degrees) to consider a right turn")]
+    public float rightTurnMaxAngle = 150f;
+
     [Header("Penalties")]
     public int redLightPenalty = 20;
 
@@ -36,6 +46,7 @@ public class RedLightDetector : MonoBehaviour
     private Vector3 entryPosition;
     private float lastViolationTime = -999f;
     private float lastCheckTime = 0f;
+    private Vector3 entryForward;
     private Rigidbody vehicleRb;
 
     // Cached traffic light data
@@ -55,6 +66,7 @@ public class RedLightDetector : MonoBehaviour
     // RCCP integration
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpSpeedProperty;
     private bool useRCCP = false;
 
     void Start()
@@ -76,7 +88,8 @@ public class RedLightDetector : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpSpeedProperty = rccpType.GetProperty("speed");
+                useRCCP = rccpSpeedProperty != null;
                 break;
             }
         }
@@ -192,6 +205,13 @@ public class RedLightDetector : MonoBehaviour
             {
                 Color debugColor = isAtRedLight ? Color.red : Color.green;
                 Debug.DrawLine(playerPos + Vector3.up * 2, closestLight.position, debugColor, checkInterval);
+
+                // Draw entry heading (yellow) and current heading (cyan) when tracking a red light
+                if (wasRedOnEntry)
+                {
+                    Debug.DrawRay(entryPosition + Vector3.up * 2, entryForward * 5f, Color.yellow, checkInterval);
+                    Debug.DrawRay(playerPos + Vector3.up * 2, transform.forward * 5f, Color.cyan, checkInterval);
+                }
             }
         }
 
@@ -211,6 +231,9 @@ public class RedLightDetector : MonoBehaviour
                 currentLight = closestLight;
                 wasRedOnEntry = true;
                 entryPosition = playerPos;
+                entryForward = transform.forward;
+                entryForward.y = 0;
+                entryForward = entryForward.normalized;
 
                 if (showDebug)
                 {
@@ -231,7 +254,15 @@ public class RedLightDetector : MonoBehaviour
                     // Check cooldown
                     if (Time.time - lastViolationTime > violationCooldown)
                     {
-                        TriggerRedLightViolation(speed, currentLight.name);
+                        if (allowRightOnRed && IsRightTurn())
+                        {
+                            if (showDebug)
+                                Debug.Log("[RedLight] Right turn on red - no violation");
+                        }
+                        else
+                        {
+                            TriggerRedLightViolation(speed, currentLight.name);
+                        }
                     }
                 }
 
@@ -250,6 +281,21 @@ public class RedLightDetector : MonoBehaviour
                 wasRedOnEntry = false;
             }
         }
+    }
+
+    bool IsRightTurn()
+    {
+        Vector3 currentForward = transform.forward;
+        currentForward.y = 0;
+        currentForward = currentForward.normalized;
+
+        // Positive = left turn (counter-clockwise), Negative = right turn (clockwise)
+        float angle = Vector3.SignedAngle(entryForward, currentForward, Vector3.up);
+
+        if (showDebug)
+            Debug.Log($"[RedLight] Turn angle: {angle:F1} degrees (right turn range: {-rightTurnMinAngle} to {-rightTurnMaxAngle})");
+
+        return angle < -rightTurnMinAngle && angle > -rightTurnMaxAngle;
     }
 
     void TriggerRedLightViolation(float speed, string intersectionName)
@@ -291,7 +337,7 @@ public class RedLightDetector : MonoBehaviour
         {
             try
             {
-                return (float)rccpType.GetProperty("speed").GetValue(rccpController);
+                return (float)rccpSpeedProperty.GetValue(rccpController);
             }
             catch { }
         }

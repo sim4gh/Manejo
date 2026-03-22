@@ -62,6 +62,7 @@ namespace Gley.UrbanSystem
         private void Start()
         {
             GetComponent<Rigidbody>().centerOfMass = centerOfMass.localPosition;
+            isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
 #if ENABLE_LEGACY_INPUT_MANAGER
             inputScript = gameObject.AddComponent<UIInputOld>().Initialize();
 #else
@@ -100,6 +101,7 @@ namespace Gley.UrbanSystem
 
         // Gear actual: 0=N, 1-6, -1=R — leido por SimpleSpeedGauge
         [HideInInspector] public int currentGear = 0;
+        [HideInInspector] public bool isAutomaticMode;
 
         public void FixedUpdate()
         {

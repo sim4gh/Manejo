@@ -29,6 +29,7 @@ public class SpeedLimitDisplay : MonoBehaviour
     private GameObject playerVehicle;
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpSpeedProperty;
     private bool useRCCP = false;
     private Rigidbody vehicleRb;
 
@@ -73,7 +74,8 @@ public class SpeedLimitDisplay : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpSpeedProperty = rccpType.GetProperty("speed");
+                useRCCP = rccpSpeedProperty != null;
                 break;
             }
         }
@@ -139,7 +141,7 @@ public class SpeedLimitDisplay : MonoBehaviour
         {
             try
             {
-                return (float)rccpType.GetProperty("speed").GetValue(rccpController);
+                return (float)rccpSpeedProperty.GetValue(rccpController);
             }
             catch { }
         }

@@ -48,7 +48,11 @@ public class Speedometer : MonoBehaviour
     // RCCP Reference (optional - uses reflection to avoid hard dependency)
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpSpeedProperty;
+    private System.Reflection.PropertyInfo rccpRPMProperty;
+    private System.Reflection.PropertyInfo rccpGearProperty;
     private bool useRCCP = false;
+    private Gley.UrbanSystem.PlayerCar playerCar;
 
     void Start()
     {
@@ -61,6 +65,7 @@ public class Speedometer : MonoBehaviour
         if (vehicle != null)
         {
             vehicleRb = vehicle.GetComponent<Rigidbody>();
+            playerCar = vehicle.GetComponent<Gley.UrbanSystem.PlayerCar>();
 
             // Try to find RCCP controller
             TryFindRCCP();
@@ -87,7 +92,10 @@ public class Speedometer : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpSpeedProperty = rccpType.GetProperty("speed");
+                rccpRPMProperty = rccpType.GetProperty("engineRPM");
+                rccpGearProperty = rccpType.GetProperty("currentGear");
+                useRCCP = rccpSpeedProperty != null;
                 Debug.Log("[Speedometer] Found RCCP controller");
                 break;
             }
@@ -118,9 +126,9 @@ public class Speedometer : MonoBehaviour
             // Get data from RCCP using reflection
             try
             {
-                currentSpeed = (float)rccpType.GetProperty("speed").GetValue(rccpController);
-                currentRPM = (float)rccpType.GetProperty("engineRPM").GetValue(rccpController);
-                currentGear = (int)rccpType.GetProperty("currentGear").GetValue(rccpController);
+                currentSpeed = (float)rccpSpeedProperty.GetValue(rccpController);
+                currentRPM = (float)rccpRPMProperty.GetValue(rccpController);
+                currentGear = (int)rccpGearProperty.GetValue(rccpController);
             }
             catch
             {
@@ -197,6 +205,23 @@ public class Speedometer : MonoBehaviour
     {
         if (gearText == null) return;
 
+        // Automático: mostrar "A" (Drive) o "R" (Reversa)
+        if (playerCar != null && playerCar.isAutomaticMode)
+        {
+            if (playerCar.currentGear == -1)
+            {
+                gearText.text = "R";
+                gearText.color = Color.red;
+            }
+            else
+            {
+                gearText.text = "A";
+                gearText.color = Color.cyan;
+            }
+            return;
+        }
+
+        // Manual: comportamiento existente
         switch (currentGear)
         {
             case -1:

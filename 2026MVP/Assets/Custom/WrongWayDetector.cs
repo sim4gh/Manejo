@@ -41,6 +41,7 @@ public class WrongWayDetector : MonoBehaviour
     // RCCP integration
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpSpeedProperty;
     private bool useRCCP = false;
 
     void Start()
@@ -63,7 +64,8 @@ public class WrongWayDetector : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpSpeedProperty = rccpType.GetProperty("speed");
+                useRCCP = rccpSpeedProperty != null;
                 break;
             }
         }
@@ -195,7 +197,7 @@ public class WrongWayDetector : MonoBehaviour
         {
             try
             {
-                return (float)rccpType.GetProperty("speed").GetValue(rccpController);
+                return (float)rccpSpeedProperty.GetValue(rccpController);
             }
             catch { }
         }

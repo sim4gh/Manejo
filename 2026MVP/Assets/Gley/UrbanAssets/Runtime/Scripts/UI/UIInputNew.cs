@@ -24,6 +24,7 @@ namespace Gley.UrbanSystem
         private float brakeInput;
         private int _currentGear;
         private int _indicatorInput; // -1=izq, 0=off, 1=der, 2=hazard
+        private bool _isAutomaticMode;
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
@@ -51,6 +52,8 @@ namespace Gley.UrbanSystem
             onButtonDown += PointerDown;
             onButtonUp += PointerUp;
 #else
+            _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
+            if (_isAutomaticMode) _currentGear = 1; // Start in Drive
             GameObject steeringUI = GameObject.Find("SteeringUI");
             if (steeringUI) steeringUI.SetActive(false);
             SetupDesktopInput();
@@ -68,6 +71,9 @@ namespace Gley.UrbanSystem
             _moveAction.AddCompositeBinding("2DVector")
                 .With("Up", "<Keyboard>/upArrow").With("Down", "<Keyboard>/downArrow")
                 .With("Left", "<Keyboard>/leftArrow").With("Right", "<Keyboard>/rightArrow");
+            _moveAction.AddCompositeBinding("2DVector")
+                .With("Up", "<Keyboard>/k").With("Down", "<Keyboard>/j")
+                .With("Left", "<Keyboard>/h").With("Right", "<Keyboard>/l");
             _moveAction.AddBinding("<Gamepad>/leftStick");
             _moveAction.Enable();
 
@@ -164,43 +170,80 @@ namespace Gley.UrbanSystem
                 horizontalInput = kbInput.x;
             }
 
-            // ---- Gas / Brake ----
-            if (Mathf.Abs(kbInput.y) > 0.01f)
+            // ---- Gas / Brake + Gear ----
+            if (_isAutomaticMode)
             {
-                verticalInput = kbInput.y;
-                brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
-            }
-            else if (_hasWheel)
-            {
-                float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
-                float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
-                float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
-                verticalInput = gas;
-                brakeInput = brake;
+                // Automático: arriba=Drive(A), abajo=Reversa(R) directa
+                if (kbInput.y > 0.01f)
+                {
+                    _currentGear = 1;
+                    verticalInput = kbInput.y;
+                    brakeInput = 0f;
+                }
+                else if (kbInput.y < -0.01f)
+                {
+                    _currentGear = -1;
+                    verticalInput = -kbInput.y; // flip a positivo para gas en reversa
+                    brakeInput = 0f;
+                }
+                else if (_hasWheel)
+                {
+                    // Sin teclado: pedales del volante, mantener último gear
+                    float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
+                    float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
+                    verticalInput = gas;
+                    brakeInput = brake;
+                }
+                else
+                {
+                    verticalInput = 0f;
+                    brakeInput = 0f;
+                }
             }
             else
             {
-                verticalInput = kbInput.y;
-                brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
-            }
-
-            // ---- Botones G923 (acceso directo, sin InputAction) ----
-            if (_hasWheel && _wheelDevice != null)
-            {
-                // H-shifter
-                _currentGear = 0;
-                if (_gearControls != null)
+                // Manual: gas/brake existente
+                if (Mathf.Abs(kbInput.y) > 0.01f)
                 {
-                    for (int i = 0; i < _gearControls.Length; i++)
+                    verticalInput = kbInput.y;
+                    brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
+                }
+                else if (_hasWheel)
+                {
+                    float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
+                    float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
+                    verticalInput = gas;
+                    brakeInput = brake;
+                }
+                else
+                {
+                    verticalInput = kbInput.y;
+                    brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
+                }
+
+                // Manual: H-shifter del volante
+                if (_hasWheel && _wheelDevice != null)
+                {
+                    _currentGear = 0;
+                    if (_gearControls != null)
                     {
-                        if (IsPressed(_gearControls[i]))
+                        for (int i = 0; i < _gearControls.Length; i++)
                         {
-                            _currentGear = GearValues[i];
-                            break;
+                            if (IsPressed(_gearControls[i]))
+                            {
+                                _currentGear = GearValues[i];
+                                break;
+                            }
                         }
                     }
                 }
+            }
 
+            // ---- Botones G923 (independiente de transmisión) ----
+            if (_hasWheel && _wheelDevice != null)
+            {
                 // Paddles → direccionales
                 bool l1 = IsPressed(_l1Ctrl);
                 bool r1 = IsPressed(_r1Ctrl);

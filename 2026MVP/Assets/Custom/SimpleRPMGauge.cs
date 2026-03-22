@@ -23,6 +23,7 @@ public class SimpleRPMGauge : MonoBehaviour
     private Rigidbody vehicleRb;
     private Component rccpController;
     private System.Type rccpType;
+    private System.Reflection.PropertyInfo rccpRPMProperty;
     private bool useRCCP = false;
 
     void Start()
@@ -48,7 +49,8 @@ public class SimpleRPMGauge : MonoBehaviour
             {
                 rccpController = component;
                 rccpType = component.GetType();
-                useRCCP = true;
+                rccpRPMProperty = rccpType.GetProperty("engineRPM");
+                useRCCP = rccpRPMProperty != null;
                 break;
             }
         }
@@ -73,7 +75,7 @@ public class SimpleRPMGauge : MonoBehaviour
         {
             try
             {
-                return (float)rccpType.GetProperty("engineRPM").GetValue(rccpController);
+                return (float)rccpRPMProperty.GetValue(rccpController);
             }
             catch { }
         }
