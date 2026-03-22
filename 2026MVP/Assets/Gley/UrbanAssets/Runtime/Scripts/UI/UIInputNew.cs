@@ -37,7 +37,7 @@ namespace Gley.UrbanSystem
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private float _menuComboTimer;
         private float _restartComboTimer;
-        private const float COMBO_HOLD_TIME = 0.5f;
+        private const float COMBO_HOLD_TIME = 1.5f;
 
         // Mapeo gear: indice 0-6 → gear 1-6, R(-1)
         private static readonly int[] GearValues = { 1, 2, 3, 4, 5, 6, -1 };
@@ -196,6 +196,7 @@ namespace Gley.UrbanSystem
                     if (_menuComboTimer >= COMBO_HOLD_TIME)
                     {
                         _menuComboTimer = 0f;
+                        Time.timeScale = 1f;
                         SceneManager.LoadScene("MainMenu");
                     }
                 }
@@ -208,6 +209,7 @@ namespace Gley.UrbanSystem
                     if (_restartComboTimer >= COMBO_HOLD_TIME)
                     {
                         _restartComboTimer = 0f;
+                        Time.timeScale = 1f;
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
                     }
                 }
