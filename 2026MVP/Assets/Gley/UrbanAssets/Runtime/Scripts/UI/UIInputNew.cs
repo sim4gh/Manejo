@@ -241,7 +241,7 @@ namespace Gley.UrbanSystem
                 }
             }
 
-            // ---- Botones G923 (independiente de transmisión) ----
+            // ---- Paddles G923 (solo con volante) ----
             if (_hasWheel && _wheelDevice != null)
             {
                 // Paddles → direccionales
@@ -251,33 +251,51 @@ namespace Gley.UrbanSystem
                 else if (l1) _indicatorInput = -1;        // izquierda
                 else if (r1) _indicatorInput = 1;         // derecha
                 else _indicatorInput = 0;
-
-                // Combo L2+R2 hold → menu principal
-                if (IsPressed(_l2Ctrl) && IsPressed(_r2Ctrl))
-                {
-                    _menuComboTimer += Time.deltaTime;
-                    if (_menuComboTimer >= COMBO_HOLD_TIME)
-                    {
-                        _menuComboTimer = 0f;
-                        Time.timeScale = 1f;
-                        SceneManager.LoadScene("MainMenu");
-                    }
-                }
-                else { _menuComboTimer = 0f; }
-
-                // Combo L3+R3 hold → reiniciar escena
-                if (IsPressed(_l3Ctrl) && IsPressed(_r3Ctrl))
-                {
-                    _restartComboTimer += Time.deltaTime;
-                    if (_restartComboTimer >= COMBO_HOLD_TIME)
-                    {
-                        _restartComboTimer = 0f;
-                        Time.timeScale = 1f;
-                        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
-                    }
-                }
-                else { _restartComboTimer = 0f; }
             }
+
+            // ---- Combos: volante + teclado (ambas fuentes, con o sin volante) ----
+            bool menuCombo = false;
+            bool restartCombo = false;
+
+            if (_hasWheel && _wheelDevice != null)
+            {
+                if (IsPressed(_l2Ctrl) && IsPressed(_r2Ctrl)) menuCombo = true;
+                if (IsPressed(_l3Ctrl) && IsPressed(_r3Ctrl)) restartCombo = true;
+            }
+
+            if (Keyboard.current != null)
+            {
+                bool ctrl = Keyboard.current.leftCtrlKey.isPressed
+                         || Keyboard.current.rightCtrlKey.isPressed;
+                bool shift = Keyboard.current.leftShiftKey.isPressed
+                          || Keyboard.current.rightShiftKey.isPressed;
+                if (ctrl && shift && Keyboard.current.mKey.isPressed) menuCombo = true;
+                if (ctrl && shift && Keyboard.current.sKey.isPressed) restartCombo = true;
+            }
+
+            if (menuCombo)
+            {
+                _menuComboTimer += Time.deltaTime;
+                if (_menuComboTimer >= COMBO_HOLD_TIME)
+                {
+                    _menuComboTimer = 0f;
+                    Time.timeScale = 1f;
+                    SceneManager.LoadScene("MainMenu");
+                }
+            }
+            else { _menuComboTimer = 0f; }
+
+            if (restartCombo)
+            {
+                _restartComboTimer += Time.deltaTime;
+                if (_restartComboTimer >= COMBO_HOLD_TIME)
+                {
+                    _restartComboTimer = 0f;
+                    Time.timeScale = 1f;
+                    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                }
+            }
+            else { _restartComboTimer = 0f; }
 #endif
         }
 

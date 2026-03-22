@@ -63,6 +63,7 @@ namespace Gley.UrbanSystem
         {
             GetComponent<Rigidbody>().centerOfMass = centerOfMass.localPosition;
             isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
+            if (isAutomaticMode) currentGear = 1; // Arrancar en Drive, no Neutral
 #if ENABLE_LEGACY_INPUT_MANAGER
             inputScript = gameObject.AddComponent<UIInputOld>().Initialize();
 #else
