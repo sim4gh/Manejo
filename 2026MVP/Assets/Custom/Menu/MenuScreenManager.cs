@@ -532,12 +532,11 @@ public class MenuScreenManager : MonoBehaviour
         y -= 60;
 
         // Botón skip — más grande
-        skipButton = MenuCardBuilder.CreateButton(area.transform, "Iniciar sin volante", "secondary",
+        skipButton = MenuCardBuilder.CreateButton(area.transform, "Iniciar sin volante", "primary",
             new Vector2(350, 65), () => LoadSelectedScene()).GetComponent<Button>();
         skipButton.GetComponent<RectTransform>().Set(
             new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(0, y), new Vector2(350, 65));
-        skipButton.gameObject.SetActive(false);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -773,8 +772,6 @@ public class MenuScreenManager : MonoBehaviour
         leftFill.color = MenuTheme.SecondaryCrimson;
 
         wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la DERECHA";
-        skipButton.gameObject.SetActive(false);
-
         string examType = licenseType switch
         {
             "particular" => "Vehículo Particular",
@@ -786,14 +783,6 @@ public class MenuScreenManager : MonoBehaviour
         string name = string.IsNullOrEmpty(citizenName) ? "" : citizenName + " | ";
         if (examInfoText != null) examInfoText.text = $"{name}Examen: {examType}";
 
-        StartCoroutine(WheelCheckTimeout());
-    }
-
-    IEnumerator WheelCheckTimeout()
-    {
-        yield return new WaitForSeconds(15f);
-        if (!rightDone || !leftDone)
-            skipButton.gameObject.SetActive(true);
     }
 
     void Update()
