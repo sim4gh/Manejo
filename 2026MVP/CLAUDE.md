@@ -89,13 +89,17 @@ Simulador de examen de manejo para evaluacion de conductores en Tlaxcala, Mexico
 | `BotonCambioEscena.cs` | `Assets/pruebas general/` | Carga escena por nombre (default "UrbanExample") |
 | `ShowRoom.cs` | `Assets/Mobile Motorcycles/` | Carrusel de modelos con flechas |
 
-## Escenas
+## Escenas (7 total)
 
-| Escena | Ubicacion | Proposito |
-|--------|-----------|-----------|
-| `MainMenu` | `Assets/Scenes/` | Menu principal con input de expediente |
-| `SampleScene` | `Assets/Scenes/` | Escena de pruebas |
-| `UrbanExample` | (Gley) | Escena principal del examen de manejo |
+| # | Escena | Vehiculo | Descripcion |
+|---|--------|----------|-------------|
+| 1 | MainMenu | — | Menu principal con input de expediente |
+| 2 | Carretera | Player Original | Escena principal del examen de manejo (UrbanExample) |
+| 3 | Jetta | Jetta | Examen con vehiculo Jetta |
+| 4 | Camioneta | Camioneta | Examen con camioneta |
+| 5 | Bus Pasajeros | Bus | Examen con autobus de pasajeros |
+| 6 | Camion D Carga | Camion | Examen con camion de carga |
+| 7 | Motocicleta | Moto | Examen con motocicleta |
 
 ## Flujo del Juego
 
