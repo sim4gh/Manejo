@@ -31,6 +31,13 @@ public class SimpleSpeedGauge : MonoBehaviour
     // Gear strings cacheados (evita ToString() allocation cada frame)
     private static readonly string[] GearStrings = { "R", "N", "1", "2", "3", "4", "5", "6" };
 
+    // Direccionales HUD
+    private TextMeshProUGUI leftArrow;
+    private TextMeshProUGUI rightArrow;
+    private float blinkTimer;
+    private bool blinkVisible;
+    private const float BLINK_INTERVAL = 0.4f;
+
     void Start()
     {
         if (vehicle == null)
@@ -65,6 +72,35 @@ public class SimpleSpeedGauge : MonoBehaviour
             rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(0, -speedRt.rect.height * 1.0f);
             rt.sizeDelta = new Vector2(speedRt.sizeDelta.x, speedRt.sizeDelta.y * 0.4f);
         }
+
+        // Crear flechas de direccionales
+        if (speedText != null)
+        {
+            leftArrow = CreateArrow("LeftArrow", "\u25C4", -1); // ◄
+            rightArrow = CreateArrow("RightArrow", "\u25BA", 1); // ►
+            leftArrow.gameObject.SetActive(false);
+            rightArrow.gameObject.SetActive(false);
+        }
+    }
+
+    TextMeshProUGUI CreateArrow(string name, string symbol, int side)
+    {
+        GameObject obj = new GameObject(name);
+        obj.transform.SetParent(speedText.transform.parent, false);
+        var tmp = obj.AddComponent<TextMeshProUGUI>();
+        tmp.text = symbol;
+        tmp.font = speedText.font;
+        tmp.fontSize = speedText.fontSize * 0.5f;
+        tmp.fontStyle = FontStyles.Bold;
+        tmp.color = new Color(0.1f, 0.9f, 0.2f, 1f); // verde direccional
+        tmp.alignment = TextAlignmentOptions.Center;
+        RectTransform rt = tmp.GetComponent<RectTransform>();
+        RectTransform speedRt = speedText.GetComponent<RectTransform>();
+        rt.anchorMin = speedRt.anchorMin;
+        rt.anchorMax = speedRt.anchorMax;
+        rt.anchoredPosition = speedRt.anchoredPosition + new Vector2(side * speedRt.sizeDelta.x * 0.9f, 0);
+        rt.sizeDelta = new Vector2(speedRt.sizeDelta.y * 0.5f, speedRt.sizeDelta.y * 0.5f);
+        return tmp;
     }
 
     void TryFindRCCP()
@@ -91,6 +127,30 @@ public class SimpleSpeedGauge : MonoBehaviour
 
         // Mostrar gear (sin allocation: strings cacheados)
         // GearStrings: [0]=R, [1]=N, [2]=1, [3]=2, ... [7]=6
+        // Direccionales parpadeantes
+        if (playerCar != null && leftArrow != null && rightArrow != null)
+        {
+            bool anyBlink = playerCar.blinkLeft || playerCar.blinkRight;
+            if (anyBlink)
+            {
+                blinkTimer += Time.deltaTime;
+                if (blinkTimer >= BLINK_INTERVAL)
+                {
+                    blinkTimer = 0f;
+                    blinkVisible = !blinkVisible;
+                }
+                leftArrow.gameObject.SetActive(playerCar.blinkLeft && blinkVisible);
+                rightArrow.gameObject.SetActive(playerCar.blinkRight && blinkVisible);
+            }
+            else
+            {
+                leftArrow.gameObject.SetActive(false);
+                rightArrow.gameObject.SetActive(false);
+                blinkTimer = 0f;
+                blinkVisible = false;
+            }
+        }
+
         if (gearText != null && playerCar != null)
         {
             int gear = playerCar.currentGear;

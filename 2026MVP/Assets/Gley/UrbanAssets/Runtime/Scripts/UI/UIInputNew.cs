@@ -106,9 +106,9 @@ namespace Gley.UrbanSystem
                 _l3Ctrl = CacheButton(11);
                 _r3Ctrl = CacheButton(12);
 
-                // Paddles: direccionales
-                _l1Ctrl = CacheButton(5);  // L1 = paddle izquierdo
-                _r1Ctrl = CacheButton(6);  // R1 = paddle derecho
+                // Paddles: direccionales (button5=R1=der, button6=L1=izq en G923 PS)
+                _r1Ctrl = CacheButton(5);  // paddle derecho
+                _l1Ctrl = CacheButton(6);  // paddle izquierdo
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                 break;

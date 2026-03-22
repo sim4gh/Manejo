@@ -32,8 +32,8 @@ namespace Gley.UrbanSystem
         bool mainLights;
         bool brake;
         bool reverse;
-        bool blinkLeft;
-        bool blinkRifgt;
+        [HideInInspector] public bool blinkLeft;
+        [HideInInspector] public bool blinkRight;
         float realtimeSinceStartup;
         Rigidbody rb;
 
@@ -169,21 +169,21 @@ namespace Gley.UrbanSystem
                 if (indicatorInput == -1)
                 {
                     blinkLeft = !blinkLeft;
-                    blinkRifgt = false;
+                    blinkRight = false;
                     lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
                     Debug.Log("[DIRECCIONAL] Izquierda " + (blinkLeft ? "ON" : "OFF"));
                 }
                 else if (indicatorInput == 1)
                 {
-                    blinkRifgt = !blinkRifgt;
+                    blinkRight = !blinkRight;
                     blinkLeft = false;
-                    lightsComponent.SetBlinker(blinkRifgt ? BlinkType.Right : BlinkType.Stop);
-                    Debug.Log("[DIRECCIONAL] Derecha " + (blinkRifgt ? "ON" : "OFF"));
+                    lightsComponent.SetBlinker(blinkRight ? BlinkType.Right : BlinkType.Stop);
+                    Debug.Log("[DIRECCIONAL] Derecha " + (blinkRight ? "ON" : "OFF"));
                 }
                 else if (indicatorInput == 2)
                 {
                     blinkLeft = false;
-                    blinkRifgt = false;
+                    blinkRight = false;
                     lightsComponent.SetBlinker(BlinkType.StartHazard);
                     Debug.Log("[DIRECCIONAL] Hazard ON");
                 }
@@ -194,14 +194,14 @@ namespace Gley.UrbanSystem
             if (GetKeyDownQ())
             {
                 blinkLeft = !blinkLeft;
-                blinkRifgt = false;
+                blinkRight = false;
                 lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
             }
             if (GetKeyDownE())
             {
-                blinkRifgt = !blinkRifgt;
+                blinkRight = !blinkRight;
                 blinkLeft = false;
-                lightsComponent.SetBlinker(blinkRifgt ? BlinkType.Right : BlinkType.Stop);
+                lightsComponent.SetBlinker(blinkRight ? BlinkType.Right : BlinkType.Stop);
             }
 
             lightsComponent.SetBrakeLights(brake);
