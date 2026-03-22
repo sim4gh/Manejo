@@ -738,9 +738,6 @@ public class MenuScreenManager : MonoBehaviour
         {
             PrepareWheelScreen();
         }
-        if (index == 0 && codeInput != null)
-            codeInput.ActivateInputField();
-
         StartCoroutine(ShowScreenDelayed(index));
     }
 
@@ -752,8 +749,14 @@ public class MenuScreenManager : MonoBehaviour
         StartCoroutine(MenuAnimator.FadeCanvasGroup(
             screenGroups[index], 0f, 1f, MenuTheme.ScreenFadeDuration));
 
+        // Esperar a que el fade termine para que interactable=true
+        yield return new WaitForSecondsRealtime(MenuTheme.ScreenFadeDuration + 0.05f);
+
         if (index == 0 && codeInput != null)
+        {
+            codeInput.Select();
             codeInput.ActivateInputField();
+        }
     }
 
     void PrepareWheelScreen()

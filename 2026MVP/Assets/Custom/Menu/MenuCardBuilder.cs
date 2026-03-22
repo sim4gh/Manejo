@@ -415,6 +415,161 @@ public static class MenuCardBuilder
         return container;
     }
 
+    // ── PIN Input (cajas individuales estilo verificación) ─────────────
+
+    public static GameObject CreatePinInput(Transform parent, int digitCount, float boxSize, float spacing)
+    {
+        Sprite rounded = GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+
+        float totalWidth = digitCount * boxSize + (digitCount - 1) * spacing;
+        float boxHeight = boxSize * 1.15f;
+
+        GameObject container = new GameObject("PinInput");
+        container.transform.SetParent(parent, false);
+        container.AddComponent<RectTransform>().sizeDelta = new Vector2(totalWidth, boxHeight);
+
+        // Contenedor de cajas visibles
+        GameObject boxRow = new GameObject("BoxRow");
+        boxRow.transform.SetParent(container.transform, false);
+        RectTransform boxRowRt = boxRow.AddComponent<RectTransform>();
+        boxRowRt.anchorMin = Vector2.zero;
+        boxRowRt.anchorMax = Vector2.one;
+        boxRowRt.offsetMin = Vector2.zero;
+        boxRowRt.offsetMax = Vector2.zero;
+
+        // Crear cajas visuales
+        TextMeshProUGUI[] digitTexts = new TextMeshProUGUI[digitCount];
+        Image[] boxBorders = new Image[digitCount];
+
+        for (int i = 0; i < digitCount; i++)
+        {
+            float xPos = i * (boxSize + spacing);
+
+            // Caja con borde
+            GameObject border = new GameObject("Border_" + i);
+            border.transform.SetParent(boxRow.transform, false);
+            RectTransform borderRt = border.AddComponent<RectTransform>();
+            borderRt.anchorMin = new Vector2(0, 0);
+            borderRt.anchorMax = new Vector2(0, 1);
+            borderRt.pivot = new Vector2(0, 0.5f);
+            borderRt.anchoredPosition = new Vector2(xPos, 0);
+            borderRt.sizeDelta = new Vector2(boxSize, 0);
+            Image borderImg = border.AddComponent<Image>();
+            borderImg.sprite = rounded;
+            borderImg.type = Image.Type.Sliced;
+            borderImg.color = MenuTheme.InputBorder;
+            boxBorders[i] = borderImg;
+
+            // Fondo interior
+            GameObject bg = new GameObject("Bg_" + i);
+            bg.transform.SetParent(border.transform, false);
+            RectTransform bgRt = bg.AddComponent<RectTransform>();
+            bgRt.anchorMin = Vector2.zero;
+            bgRt.anchorMax = Vector2.one;
+            bgRt.offsetMin = new Vector2(3, 3);
+            bgRt.offsetMax = new Vector2(-3, -3);
+            Image bgImg = bg.AddComponent<Image>();
+            bgImg.sprite = rounded;
+            bgImg.type = Image.Type.Sliced;
+            bgImg.color = MenuTheme.InputBackground;
+
+            // Texto del dígito
+            GameObject digitObj = new GameObject("Digit_" + i);
+            digitObj.transform.SetParent(border.transform, false);
+            RectTransform digitRt = digitObj.AddComponent<RectTransform>();
+            digitRt.anchorMin = Vector2.zero;
+            digitRt.anchorMax = Vector2.one;
+            digitRt.offsetMin = Vector2.zero;
+            digitRt.offsetMax = Vector2.zero;
+            TextMeshProUGUI digitTmp = digitObj.AddComponent<TextMeshProUGUI>();
+            digitTmp.text = "";
+            digitTmp.fontSize = 36f;
+            digitTmp.color = MenuTheme.InputText;
+            digitTmp.alignment = TextAlignmentOptions.Center;
+            digitTmp.verticalAlignment = VerticalAlignmentOptions.Middle;
+            digitTexts[i] = digitTmp;
+        }
+
+        // InputField oculto que captura el teclado
+        GameObject hiddenInput = new GameObject("HiddenInputField");
+        hiddenInput.transform.SetParent(container.transform, false);
+        RectTransform hiddenRt = hiddenInput.AddComponent<RectTransform>();
+        hiddenRt.anchorMin = Vector2.zero;
+        hiddenRt.anchorMax = Vector2.one;
+        hiddenRt.offsetMin = Vector2.zero;
+        hiddenRt.offsetMax = Vector2.zero;
+
+        // Imagen transparente para recibir clicks/touch
+        Image hiddenBg = hiddenInput.AddComponent<Image>();
+        hiddenBg.color = Color.clear;
+
+        TMP_InputField inputField = hiddenInput.AddComponent<TMP_InputField>();
+        inputField.contentType = TMP_InputField.ContentType.IntegerNumber;
+        inputField.characterLimit = digitCount;
+
+        // Text area invisible
+        GameObject textArea = new GameObject("Text Area");
+        textArea.transform.SetParent(hiddenInput.transform, false);
+        RectTransform taRt = textArea.AddComponent<RectTransform>();
+        taRt.anchorMin = Vector2.zero;
+        taRt.anchorMax = Vector2.one;
+        taRt.offsetMin = Vector2.zero;
+        taRt.offsetMax = Vector2.zero;
+        textArea.AddComponent<RectMask2D>();
+
+        // Placeholder invisible
+        GameObject phObj = new GameObject("Placeholder");
+        phObj.transform.SetParent(textArea.transform, false);
+        RectTransform phRt = phObj.AddComponent<RectTransform>();
+        phRt.anchorMin = Vector2.zero;
+        phRt.anchorMax = Vector2.one;
+        phRt.offsetMin = Vector2.zero;
+        phRt.offsetMax = Vector2.zero;
+        TextMeshProUGUI phTmp = phObj.AddComponent<TextMeshProUGUI>();
+        phTmp.text = "";
+        phTmp.fontSize = 1f;
+        phTmp.color = Color.clear;
+
+        // Texto invisible (requerido por TMP_InputField)
+        GameObject txtObj = new GameObject("Text");
+        txtObj.transform.SetParent(textArea.transform, false);
+        RectTransform txtRt = txtObj.AddComponent<RectTransform>();
+        txtRt.anchorMin = Vector2.zero;
+        txtRt.anchorMax = Vector2.one;
+        txtRt.offsetMin = Vector2.zero;
+        txtRt.offsetMax = Vector2.zero;
+        TextMeshProUGUI txtTmp = txtObj.AddComponent<TextMeshProUGUI>();
+        txtTmp.fontSize = 1f;
+        txtTmp.color = Color.clear;
+
+        inputField.textViewport = taRt;
+        inputField.textComponent = txtTmp;
+        inputField.placeholder = phTmp;
+
+        // Sincronizar dígitos visibles con el input oculto
+        int dc = digitCount;
+        inputField.onValueChanged.AddListener((string val) =>
+        {
+            for (int j = 0; j < dc; j++)
+            {
+                digitTexts[j].text = j < val.Length ? val[j].ToString() : "";
+                // Estilo: llena = borde púrpura, vacía = borde gris, activa = borde púrpura
+                if (j < val.Length)
+                    boxBorders[j].color = MenuTheme.PrimaryPurple;
+                else if (j == val.Length)
+                    boxBorders[j].color = MenuTheme.PrimaryPurple;
+                else
+                    boxBorders[j].color = MenuTheme.InputBorder;
+            }
+        });
+
+        // Marcar la primera caja como activa al inicio
+        if (boxBorders.Length > 0)
+            boxBorders[0].color = MenuTheme.PrimaryPurple;
+
+        return container;
+    }
+
     // ── Toggle ─────────────────────────────────────────────────────────
 
     public static GameObject CreateToggle(Transform parent, string label, bool defaultValue = false)
