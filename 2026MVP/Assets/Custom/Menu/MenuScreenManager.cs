@@ -53,10 +53,15 @@ public class MenuScreenManager : MonoBehaviour
     // Pantalla 2
     private TextMeshProUGUI wheelPrompt;
     private Image rightIndicator;
+    private Image rightFill;
+    private RectTransform rightFillRT;
     private Image leftIndicator;
+    private Image leftFill;
+    private RectTransform leftFillRT;
     private TextMeshProUGUI examInfoText;
     private bool rightDone, leftDone;
     private Button skipButton;
+    private const float WHEEL_THRESHOLD = 0.9f;
 
     // ── Assets ─────────────────────────────────────────────────────────
     private Texture2D bgTexture;
@@ -228,34 +233,26 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
                 new Vector2(0, 0), new Vector2(0, 50));
 
-        // Fila: "TLX-" label + input
-        GameObject inputRow = new GameObject("InputRow");
-        inputRow.transform.SetParent(rightPanel.transform, false);
-        inputRow.AddComponent<RectTransform>().Set(
-            new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-            new Vector2(0, -90), new Vector2(0, 70));
-
-        // Label "TLX-"
-        MenuCardBuilder.CreateText(inputRow.transform, "Prefix", "TLX-",
+        // Label "TLX-" arriba
+        MenuCardBuilder.CreateText(rightPanel.transform, "Prefix", "TLX-",
             30f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
             .GetComponent<RectTransform>().Set(
-                new Vector2(0, 0), new Vector2(0.18f, 1), new Vector2(0, 0.5f),
-                Vector2.zero, Vector2.zero);
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
+                new Vector2(0, -80), new Vector2(0, 40));
 
-        // Input field (sin label)
-        var inputContainer = MenuCardBuilder.CreateInputField(inputRow.transform,
-            "", "XXXXXX", new Vector2(0, 60));
-        inputContainer.GetComponent<RectTransform>().Set(
-            new Vector2(0.18f, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
-            Vector2.zero, Vector2.zero);
-        codeInput = inputContainer.GetComponentInChildren<TMP_InputField>();
+        // PIN input: 5 cajas debajo del label
+        var pinContainer = MenuCardBuilder.CreatePinInput(rightPanel.transform, 5, 70f, 12f);
+        pinContainer.GetComponent<RectTransform>().Set(
+            new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
+            new Vector2(0, -125), new Vector2(5 * 70f + 4 * 12f, 80f));
+        codeInput = pinContainer.GetComponentInChildren<TMP_InputField>();
 
-        // Botón verificar — ancho completo, debajo del input
+        // Botón verificar — ancho completo, debajo del PIN
         verifyButton = MenuCardBuilder.CreateButton(rightPanel.transform, "Verificar Código", "primary",
             new Vector2(0, 70), () => OnVerifyCode()).GetComponent<Button>();
         verifyButton.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-            new Vector2(0, -185), new Vector2(0, 70));
+            new Vector2(0, -225), new Vector2(0, 70));
 
         // Error text
         errorText0 = MenuCardBuilder.CreateText(rightPanel.transform, "ErrorText", "",
@@ -264,7 +261,7 @@ public class MenuScreenManager : MonoBehaviour
         errorText0.textWrappingMode = TextWrappingModes.Normal;
         errorText0.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-            new Vector2(0, -270), new Vector2(0, 50));
+            new Vector2(0, -310), new Vector2(0, 50));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -474,6 +471,20 @@ public class MenuScreenManager : MonoBehaviour
         rightIndicator.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
         rightIndicator.type = Image.Type.Sliced;
         rightIndicator.color = MenuTheme.IndicatorPending;
+
+        // Fill dentro del track derecho
+        GameObject rightFillObj = new GameObject("RightFill");
+        rightFillObj.transform.SetParent(rightBar.transform, false);
+        rightFillRT = rightFillObj.AddComponent<RectTransform>();
+        rightFillRT.anchorMin = new Vector2(0, 0);
+        rightFillRT.anchorMax = new Vector2(0, 1);
+        rightFillRT.offsetMin = new Vector2(4, 4);
+        rightFillRT.offsetMax = new Vector2(-4, -4);
+        rightFill = rightFillObj.AddComponent<Image>();
+        rightFill.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        rightFill.type = Image.Type.Sliced;
+        rightFill.color = MenuTheme.SecondaryCrimson;
+        rightFill.raycastTarget = false;
         y -= 90;
 
         // "y después hacia la IZQUIERDA"
@@ -495,6 +506,20 @@ public class MenuScreenManager : MonoBehaviour
         leftIndicator.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
         leftIndicator.type = Image.Type.Sliced;
         leftIndicator.color = MenuTheme.IndicatorPending;
+
+        // Fill dentro del track izquierdo
+        GameObject leftFillObj = new GameObject("LeftFill");
+        leftFillObj.transform.SetParent(leftBar.transform, false);
+        leftFillRT = leftFillObj.AddComponent<RectTransform>();
+        leftFillRT.anchorMin = new Vector2(1, 0);
+        leftFillRT.anchorMax = new Vector2(1, 1);
+        leftFillRT.offsetMin = new Vector2(4, 4);
+        leftFillRT.offsetMax = new Vector2(-4, -4);
+        leftFill = leftFillObj.AddComponent<Image>();
+        leftFill.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        leftFill.type = Image.Type.Sliced;
+        leftFill.color = MenuTheme.SecondaryCrimson;
+        leftFill.raycastTarget = false;
         y -= 100;
 
         // Exam info — legible
@@ -609,10 +634,10 @@ public class MenuScreenManager : MonoBehaviour
         string code = codeInput != null ? codeInput.text.Trim().ToUpper() : "";
 
         // Demo codes para testing sin backend
-        if (code == "0000") { tramiteId = "TLX-DEMO0000"; citizenName = "Demo Automóvil"; licenseType = "particular"; OnSessionVerified(); return; }
-        if (code == "1111") { tramiteId = "TLX-DEMO1111"; citizenName = "Demo Pasajeros"; licenseType = "publico"; OnSessionVerified(); return; }
-        if (code == "2222") { tramiteId = "TLX-DEMO2222"; citizenName = "Demo Moto"; licenseType = "motocicleta"; OnSessionVerified(); return; }
-        if (code == "3333") { tramiteId = "TLX-DEMO3333"; citizenName = "Demo Carga"; licenseType = "carga"; OnSessionVerified(); return; }
+        if (code == "00000") { tramiteId = "TLX-DEMO00000"; citizenName = "Demo Automóvil"; licenseType = "particular"; OnSessionVerified(); return; }
+        if (code == "11111") { tramiteId = "TLX-DEMO11111"; citizenName = "Demo Pasajeros"; licenseType = "publico"; OnSessionVerified(); return; }
+        if (code == "22222") { tramiteId = "TLX-DEMO22222"; citizenName = "Demo Moto"; licenseType = "motocicleta"; OnSessionVerified(); return; }
+        if (code == "33333") { tramiteId = "TLX-DEMO33333"; citizenName = "Demo Carga"; licenseType = "carga"; OnSessionVerified(); return; }
 
         if (string.IsNullOrEmpty(code))
         {
@@ -713,6 +738,8 @@ public class MenuScreenManager : MonoBehaviour
         {
             PrepareWheelScreen();
         }
+        if (index == 0 && codeInput != null)
+            codeInput.ActivateInputField();
 
         StartCoroutine(ShowScreenDelayed(index));
     }
@@ -724,6 +751,9 @@ public class MenuScreenManager : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.15f);
         StartCoroutine(MenuAnimator.FadeCanvasGroup(
             screenGroups[index], 0f, 1f, MenuTheme.ScreenFadeDuration));
+
+        if (index == 0 && codeInput != null)
+            codeInput.ActivateInputField();
     }
 
     void PrepareWheelScreen()
@@ -732,6 +762,13 @@ public class MenuScreenManager : MonoBehaviour
         leftDone = false;
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
+
+        // Resetear fills a ancho 0
+        rightFillRT.anchorMax = new Vector2(0, 1);
+        rightFill.color = MenuTheme.SecondaryCrimson;
+        leftFillRT.anchorMin = new Vector2(1, 0);
+        leftFill.color = MenuTheme.SecondaryCrimson;
+
         wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la DERECHA";
         skipButton.gameObject.SetActive(false);
 
@@ -759,23 +796,46 @@ public class MenuScreenManager : MonoBehaviour
     void Update()
     {
         if (currentScreen != 2) return;
+        if (rightDone && leftDone) return;
 
-        // Leer input del volante — buscar G923 por InputAction (no es Gamepad)
         float steer = ReadSteerInput();
 
-        if (!rightDone && steer > 0.5f)
+        if (!rightDone)
         {
-            rightDone = true;
-            rightIndicator.color = MenuTheme.IndicatorDone;
-            wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la IZQUIERDA";
+            float progress = Mathf.Clamp01(steer);
+
+            if (steer >= WHEEL_THRESHOLD)
+            {
+                rightDone = true;
+                rightFillRT.anchorMax = new Vector2(1, 1);
+                rightFill.color = MenuTheme.IndicatorDone;
+                rightIndicator.color = MenuTheme.IndicatorDone;
+                wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la IZQUIERDA";
+            }
+            else if (Mathf.Abs(progress - rightFillRT.anchorMax.x) > 0.005f)
+            {
+                rightFillRT.anchorMax = new Vector2(progress, 1);
+                rightFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, progress);
+            }
+            return;
         }
 
-        if (rightDone && !leftDone && steer < -0.5f)
+        // rightDone && !leftDone
+        float leftProgress = Mathf.Clamp01(-steer);
+
+        if (-steer >= WHEEL_THRESHOLD)
         {
             leftDone = true;
+            leftFillRT.anchorMin = new Vector2(0, 0);
+            leftFill.color = MenuTheme.IndicatorDone;
             leftIndicator.color = MenuTheme.IndicatorDone;
             wheelPrompt.text = "Iniciando prueba...";
             StartCoroutine(LoadSceneDelayed(1.5f));
+        }
+        else if (Mathf.Abs(leftProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
+        {
+            leftFillRT.anchorMin = new Vector2(1 - leftProgress, 0);
+            leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, leftProgress);
         }
     }
 
