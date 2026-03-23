@@ -164,10 +164,10 @@ public class WrongWayDetector : MonoBehaviour
             Debug.LogWarning($"[WrongWay] WRONG WAY DETECTED! Dot: {dotProduct:F2}");
         }
 
-        // Deduct from score
+        // Deduct from score (usa DeductScore para no bajar de 0)
         if (violationDetector != null)
         {
-            violationDetector.totalScore -= wrongWayPenalty;
+            violationDetector.DeductScore(wrongWayPenalty);
         }
 
         // Show notification

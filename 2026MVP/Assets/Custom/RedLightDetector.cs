@@ -309,7 +309,7 @@ public class RedLightDetector : MonoBehaviour
 
         if (violationDetector != null)
         {
-            violationDetector.totalScore -= redLightPenalty;
+            violationDetector.DeductScore(redLightPenalty);
         }
 
         if (NotificationManager.Instance != null)
