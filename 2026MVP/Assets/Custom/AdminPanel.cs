@@ -173,14 +173,12 @@ public class AdminPanel : MonoBehaviour
             new Vector2(0, 0.62f), new Vector2(1, 0.75f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // PIN input
-        GameObject pinContainer = MenuCardBuilder.CreateInputField(content, "", "000000",
-            new Vector2(200f, 50f), TMP_InputField.ContentType.Pin);
+        // PIN input (6 cajas separadas, mismo estilo que el TLX code)
+        GameObject pinContainer = MenuCardBuilder.CreatePinInput(content, PIN_LENGTH, 55f, 10f);
         pinContainer.GetComponent<RectTransform>().Set(
-            new Vector2(0.5f, 0.45f), new Vector2(0.5f, 0.45f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, new Vector2(200f, 75f));
+            new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.42f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(380f, 70f));
         pinInput = pinContainer.GetComponentInChildren<TMP_InputField>();
-        if (pinInput != null) pinInput.characterLimit = PIN_LENGTH;
 
         // Botones
         GameObject enterBtn = MenuCardBuilder.CreateButton(content, "Entrar", "primary",
