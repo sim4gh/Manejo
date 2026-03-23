@@ -217,6 +217,16 @@ public class AdminPanel : MonoBehaviour
 
     void ShowConfigScreen()
     {
+        try { BuildConfigScreen(); }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[AdminPanel] Error construyendo config screen: {e.Message}\n{e.StackTrace}");
+            HidePanel();
+        }
+    }
+
+    void BuildConfigScreen()
+    {
         var config = SimulatorConfig.Instance?.data ?? new SimulatorConfig.ConfigData();
 
         configScreen = new GameObject("ConfigScreen");
