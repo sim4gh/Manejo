@@ -71,9 +71,12 @@ public class AdminPanel : MonoBehaviour
         if (kb == null) return;
         bool ctrl = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed
                   || kb.leftCommandKey.isPressed || kb.rightCommandKey.isPressed;
-        if (ctrl && kb.leftShiftKey.isPressed && kb.aKey.isPressed)
+        bool shift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
+        bool a = kb.aKey.isPressed;
+        if (ctrl && shift && a)
         {
             holdTimer += Time.unscaledDeltaTime;
+            Debug.Log($"[AdminPanel] Combo detectado: hold={holdTimer:F1}s / {HOLD_DURATION}s");
             if (holdTimer >= HOLD_DURATION)
             {
                 holdTimer = 0f;
