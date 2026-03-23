@@ -724,6 +724,9 @@ public class MenuScreenManager : MonoBehaviour
         if (pollingCoroutine != null) StopCoroutine(pollingCoroutine);
 
         GameManager.Instance.Expediente = tramiteId;
+        GameManager.Instance.TramiteId = tramiteId;
+        GameManager.Instance.CitizenName = citizenName;
+        GameManager.Instance.LicenseType = licenseType;
 
         // Determinar escena según licenseType
         switch (licenseType)
@@ -1146,7 +1149,31 @@ public class MenuScreenManager : MonoBehaviour
             Debug.LogError("[MenuScreenManager] No hay escena seleccionada");
             return;
         }
-        Debug.Log($"[MenuScreenManager] Cargando escena: {selectedSceneName} | Tramite: {tramiteId}");
+        Debug.Log($"[MenuScreenManager] Iniciando sesión y cargando: {selectedSceneName} | Tramite: {tramiteId}");
+        StartCoroutine(StartSessionAndLoadScene());
+    }
+
+    IEnumerator StartSessionAndLoadScene()
+    {
+        // Iniciar sesión en el backend (fire-and-forget: si falla, seguimos)
+        string thingName = GameManager.Instance?.ThingName ?? "sim-pc-unconfigured";
+
+        if (!string.IsNullOrEmpty(tramiteId))
+        {
+            yield return SimulatorApiClient.StartSession(tramiteId, thingName, (sid) =>
+            {
+                if (sid != null)
+                {
+                    GameManager.Instance.SessionId = sid;
+                    Debug.Log($"[MenuScreenManager] Sesión backend: {sid}");
+                }
+                else
+                {
+                    Debug.LogWarning("[MenuScreenManager] No se pudo crear sesión en backend, continuando offline");
+                }
+            });
+        }
+
         SceneManager.LoadScene(selectedSceneName);
     }
 

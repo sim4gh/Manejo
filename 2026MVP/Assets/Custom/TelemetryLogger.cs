@@ -20,9 +20,11 @@ public class TelemetryLogger : MonoBehaviour
     [System.Serializable]                                                                                                                                                  
     public class TelemetryData                                                                                                                                             
     {                                                                                                                                                                      
-        public string sessionStart;                                                                                                                                        
-        public string sessionEnd;                                                                                                                                          
-        public int finalScore;                                                                                                                                             
+        public string sessionStart;
+        public string sessionEnd;
+        public string tramiteId;
+        public float examDurationSeconds;
+        public int finalScore;
         public List<TelemetryEvent> events = new List<TelemetryEvent>();                                                                                                   
     }                                                                                                                                                                      
                                                                                                                                                                             
@@ -54,7 +56,9 @@ public class TelemetryLogger : MonoBehaviour
     {                                                                                 
         Debug.Log("ExportToJSON called with score: " + finalScore);                   
                                                                                         
-        data.sessionEnd = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");               
+        data.sessionEnd = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        data.tramiteId = GameManager.Instance?.Expediente ?? "";
+        data.examDurationSeconds = ExamTimer.Instance?.examDuration ?? 300f;
         data.finalScore = finalScore;                                                 
                                                                                         
         string json = JsonUtility.ToJson(data, true);                                 
