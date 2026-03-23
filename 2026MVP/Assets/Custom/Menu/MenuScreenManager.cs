@@ -43,6 +43,24 @@ public class MenuScreenManager : MonoBehaviour
     private Button verifyButton;
     private Button newQRButton;
 
+    // D-pad PIN navigation (volante G923)
+    private int pinCursor;
+    private int[] pinDigits;
+    private TextMeshProUGUI[] pinDigitTexts;
+    private Image[] pinBoxBorders;
+    private InputControl<float> hatUp, hatDown, hatLeft, hatRight;
+    private InputControl<float> circleBtn;
+    private InputControl<float> enterBtn;   // button10 = Options/Enter
+    private bool confirmBtnHeld;
+    private float dpadUpT, dpadDownT, dpadLeftT, dpadRightT;
+    private bool dpadUpR, dpadDownR, dpadLeftR, dpadRightR;
+    private const float DPAD_DELAY = 0.4f;
+    private const float DPAD_RATE  = 0.15f;
+
+    // D-pad Pantalla 1 — foco vs selección
+    private int screen1Row;  // 0=modelo, 1=transmisión, 2=continuar
+    private int screen1Col;  // columna de foco dentro de la fila
+
     // Pantalla 1
     private GameObject[] variantCards;
     private Image[] variantBorders;
@@ -246,6 +264,27 @@ public class MenuScreenManager : MonoBehaviour
             new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
             new Vector2(0, -125), new Vector2(5 * 70f + 4 * 12f, 80f));
         codeInput = pinContainer.GetComponentInChildren<TMP_InputField>();
+
+        // Cachear refs para d-pad (hijos creados por CreatePinInput)
+        Transform boxRow = pinContainer.transform.Find("BoxRow");
+        pinDigits = new int[] { -1, -1, -1, -1, -1 };
+        pinDigitTexts = new TextMeshProUGUI[5];
+        pinBoxBorders = new Image[5];
+        for (int i = 0; i < 5; i++)
+        {
+            Transform border = boxRow.Find("Border_" + i);
+            pinBoxBorders[i] = border.GetComponent<Image>();
+            pinDigitTexts[i] = border.Find("Digit_" + i).GetComponent<TextMeshProUGUI>();
+        }
+
+        // Sync teclado → pinDigits (coexistencia con d-pad)
+        codeInput.onValueChanged.AddListener((string val) =>
+        {
+            for (int j = 0; j < 5; j++)
+                pinDigits[j] = (j < val.Length && char.IsDigit(val[j])) ? (val[j] - '0') : -1;
+            pinCursor = Mathf.Clamp(val.Length, 0, 4);
+            RefreshPinVisuals();
+        });
 
         // Botón verificar — ancho completo, debajo del PIN
         verifyButton = MenuCardBuilder.CreateButton(rightPanel.transform, "Verificar Código", "primary",
@@ -533,7 +572,7 @@ public class MenuScreenManager : MonoBehaviour
 
         // Botón skip — más grande
         skipButton = MenuCardBuilder.CreateButton(area.transform, "Iniciar sin volante", "primary",
-            new Vector2(350, 65), () => LoadSelectedScene()).GetComponent<Button>();
+            new Vector2(350, 65), () => OnSkipWheel()).GetComponent<Button>();
         skipButton.GetComponent<RectTransform>().Set(
             new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(0, y), new Vector2(350, 65));
@@ -755,6 +794,7 @@ public class MenuScreenManager : MonoBehaviour
         {
             codeInput.Select();
             codeInput.ActivateInputField();
+            RefreshPinVisuals();
         }
     }
 
@@ -787,6 +827,11 @@ public class MenuScreenManager : MonoBehaviour
 
     void Update()
     {
+        if (currentScreen == 0)
+            UpdatePinDpad();
+        else if (currentScreen == 1)
+            UpdateOptionsDpad();
+
         if (currentScreen != 2) return;
         if (rightDone && leftDone) return;
 
@@ -821,7 +866,8 @@ public class MenuScreenManager : MonoBehaviour
             leftFillRT.anchorMin = new Vector2(0, 0);
             leftFill.color = MenuTheme.IndicatorDone;
             leftIndicator.color = MenuTheme.IndicatorDone;
-            wheelPrompt.text = "Iniciando prueba...";
+            wheelPrompt.text = "Cargando prueba...";
+            skipButton.gameObject.SetActive(false);
             StartCoroutine(LoadSceneDelayed(1.5f));
         }
         else if (Mathf.Abs(leftProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
@@ -829,6 +875,15 @@ public class MenuScreenManager : MonoBehaviour
             leftFillRT.anchorMin = new Vector2(1 - leftProgress, 0);
             leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, leftProgress);
         }
+    }
+
+    void OnSkipWheel()
+    {
+        skipButton.interactable = false;
+        wheelPrompt.text = "Cargando prueba...";
+        var txt = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+        if (txt != null) txt.text = "Cargando...";
+        StartCoroutine(LoadSceneDelayed(0.5f));
     }
 
     IEnumerator LoadSceneDelayed(float delay)
@@ -854,7 +909,14 @@ public class MenuScreenManager : MonoBehaviour
                     steerAction = new InputAction("MenuSteer", InputActionType.Value);
                     steerAction.AddBinding(path + "/stick/x");
                     steerAction.Enable();
-                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path})");
+                    // Cache d-pad hat + Circle para PIN input
+                    hatUp    = device.TryGetChildControl("hat/up")    as InputControl<float>;
+                    hatDown  = device.TryGetChildControl("hat/down")  as InputControl<float>;
+                    hatLeft  = device.TryGetChildControl("hat/left")  as InputControl<float>;
+                    hatRight = device.TryGetChildControl("hat/right") as InputControl<float>;
+                    circleBtn = device.TryGetChildControl("button3")  as InputControl<float>;
+                    enterBtn  = device.TryGetChildControl("button10") as InputControl<float>;
+                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path}) hat={hatUp != null}");
                     break;
                 }
             }
@@ -864,18 +926,217 @@ public class MenuScreenManager : MonoBehaviour
                 steerAction = new InputAction("MenuSteer", InputActionType.Value);
                 steerAction.AddBinding(Joystick.current.path + "/stick/x");
                 steerAction.Enable();
-                Debug.Log($"[MenuScreenManager] Joystick fallback: {Joystick.current.displayName}");
+                var jDev = Joystick.current;
+                hatUp    = jDev.TryGetChildControl("hat/up")    as InputControl<float>;
+                hatDown  = jDev.TryGetChildControl("hat/down")  as InputControl<float>;
+                hatLeft  = jDev.TryGetChildControl("hat/left")  as InputControl<float>;
+                hatRight = jDev.TryGetChildControl("hat/right") as InputControl<float>;
+                circleBtn = jDev.TryGetChildControl("button3")  as InputControl<float>;
+                enterBtn  = jDev.TryGetChildControl("button10") as InputControl<float>;
+                Debug.Log($"[MenuScreenManager] Joystick fallback: {jDev.displayName} hat={hatUp != null}");
             }
             if (steerAction == null && Gamepad.current != null)
             {
                 steerAction = new InputAction("MenuSteer", InputActionType.Value);
                 steerAction.AddBinding("<Gamepad>/leftStick/x");
                 steerAction.Enable();
+                var gp = Gamepad.current;
+                hatUp    = gp.TryGetChildControl("dpad/up")    as InputControl<float>;
+                hatDown  = gp.TryGetChildControl("dpad/down")  as InputControl<float>;
+                hatLeft  = gp.TryGetChildControl("dpad/left")  as InputControl<float>;
+                hatRight = gp.TryGetChildControl("dpad/right") as InputControl<float>;
+                circleBtn = gp.TryGetChildControl("buttonEast") as InputControl<float>;
+                enterBtn  = gp.TryGetChildControl("start")      as InputControl<float>;
             }
             // No encontró nada — retorna 0, intentará de nuevo el próximo frame
             if (steerAction == null) return 0f;
         }
         return steerAction.ReadValue<float>();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // D-PAD PANTALLA 1 — OPCIONES (foco + selección)
+    // ════════════════════════════════════════════════════════════════════
+
+    void UpdateOptionsDpad()
+    {
+        if (hatUp == null) ReadSteerInput();
+        if (hatUp == null) return;
+
+        float dt = Time.unscaledDeltaTime;
+        bool up    = DpadRepeat(hatUp,    ref dpadUpT,    ref dpadUpR,    dt);
+        bool down  = DpadRepeat(hatDown,  ref dpadDownT,  ref dpadDownR,  dt);
+        bool left  = DpadRepeat(hatLeft,  ref dpadLeftT,  ref dpadLeftR,  dt);
+        bool right = DpadRepeat(hatRight, ref dpadRightT, ref dpadRightR, dt);
+
+        // Circle o Enter → confirmar selección o activar Continuar
+        bool confirmPressed = (circleBtn != null && circleBtn.ReadValue() > 0.5f) ||
+                              (enterBtn  != null && enterBtn.ReadValue()  > 0.5f);
+        if (confirmPressed)
+        {
+            if (!confirmBtnHeld)
+            {
+                confirmBtnHeld = true;
+                if (screen1Row == 0) OnVariantSelected(screen1Col);
+                else if (screen1Row == 1) OnTransmissionSelected(screen1Col);
+                else if (screen1Row == 2) GoToScreen(2);
+                RefreshScreen1Visuals();
+            }
+        }
+        else confirmBtnHeld = false;
+
+        if (!up && !down && !left && !right) return;
+
+        int maxCol = screen1Row == 0 ? 2 : (screen1Row == 1 ? 1 : 0);
+
+        if (up && screen1Row > 0)
+        {
+            screen1Row--;
+            maxCol = screen1Row == 0 ? 2 : 1;
+            screen1Col = Mathf.Min(screen1Col, maxCol);
+        }
+        else if (down && screen1Row < 2)
+        {
+            screen1Row++;
+            maxCol = screen1Row == 0 ? 2 : (screen1Row == 1 ? 1 : 0);
+            screen1Col = Mathf.Min(screen1Col, maxCol);
+        }
+        else if (left && screen1Col > 0) screen1Col--;
+        else if (right && screen1Col < maxCol) screen1Col++;
+
+        RefreshScreen1Visuals();
+    }
+
+    void RefreshScreen1Visuals()
+    {
+        // Modelo cards: foco=Gold, selección=Purple, ambos=Gold+fondo morado
+        for (int i = 0; i < variantCards.Length; i++)
+        {
+            bool focused = (screen1Row == 0 && screen1Col == i);
+            bool selected = (i == selectedVariantIndex);
+            variantBorders[i].color = focused ? MenuTheme.Gold :
+                (selected ? MenuTheme.CardBorderGold : MenuTheme.CardBorder);
+            variantCards[i].transform.Find("Background").GetComponent<Image>().color =
+                selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
+        }
+
+        // Transmisión cards
+        int transIdx = isManualTransmission ? 1 : 0;
+        for (int i = 0; i < transmissionCards.Length; i++)
+        {
+            bool focused = (screen1Row == 1 && screen1Col == i);
+            bool selected = (i == transIdx);
+            transmissionBorders[i].color = focused ? MenuTheme.Gold :
+                (selected ? MenuTheme.CardBorderGold : MenuTheme.CardBorder);
+            transmissionCards[i].transform.Find("Background").GetComponent<Image>().color =
+                selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
+        }
+
+        // Continuar button
+        if (continueBtn1 != null)
+        {
+            Image img = continueBtn1.GetComponent<Image>();
+            TextMeshProUGUI txt = continueBtn1.GetComponentInChildren<TextMeshProUGUI>();
+            if (screen1Row == 2)
+            {
+                img.color = MenuTheme.Gold;
+                if (txt != null) txt.color = MenuTheme.TextPrimary;
+            }
+            else
+            {
+                img.color = MenuTheme.ButtonPrimary;
+                if (txt != null) txt.color = MenuTheme.ButtonPrimaryText;
+            }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // D-PAD PIN INPUT
+    // ════════════════════════════════════════════════════════════════════
+
+    void UpdatePinDpad()
+    {
+        // Lazy init — reutiliza detección de ReadSteerInput
+        if (hatUp == null) ReadSteerInput();
+        if (hatUp == null) return;
+
+        float dt = Time.unscaledDeltaTime;
+
+        if (DpadRepeat(hatUp, ref dpadUpT, ref dpadUpR, dt))
+            CycleDigit(+1);
+        if (DpadRepeat(hatDown, ref dpadDownT, ref dpadDownR, dt))
+            CycleDigit(-1);
+        if (DpadRepeat(hatRight, ref dpadRightT, ref dpadRightR, dt))
+            MoveCursor(+1);
+        if (DpadRepeat(hatLeft, ref dpadLeftT, ref dpadLeftR, dt))
+            MoveCursor(-1);
+
+        // Circle o Enter → confirmar código
+        bool confirmPin = (circleBtn != null && circleBtn.ReadValue() > 0.5f) ||
+                          (enterBtn  != null && enterBtn.ReadValue()  > 0.5f);
+        if (confirmPin)
+        {
+            if (!confirmBtnHeld) { confirmBtnHeld = true; OnVerifyCode(); }
+        }
+        else confirmBtnHeld = false;
+    }
+
+    bool DpadRepeat(InputControl<float> ctrl, ref float timer, ref bool repeated, float dt)
+    {
+        if (ctrl == null) return false;
+        if (ctrl.ReadValue() <= 0.5f) { timer = 0f; repeated = false; return false; }
+
+        if (timer == 0f) { timer += dt; return true; } // primer press
+
+        timer += dt;
+        float threshold = repeated ? DPAD_RATE : DPAD_DELAY;
+        if (timer >= threshold) { timer -= threshold; repeated = true; return true; }
+        return false;
+    }
+
+    void CycleDigit(int direction)
+    {
+        if (pinDigits[pinCursor] < 0)
+            pinDigits[pinCursor] = direction > 0 ? 0 : 9;
+        else
+            pinDigits[pinCursor] = (pinDigits[pinCursor] + direction + 10) % 10;
+
+        SyncPinToField();
+        RefreshPinVisuals();
+    }
+
+    void MoveCursor(int direction)
+    {
+        pinCursor = Mathf.Clamp(pinCursor + direction, 0, 4);
+        RefreshPinVisuals();
+    }
+
+    void SyncPinToField()
+    {
+        if (codeInput == null) return;
+        string text = "";
+        for (int i = 0; i < 5; i++)
+        {
+            if (pinDigits[i] < 0) break;
+            text += pinDigits[i].ToString();
+        }
+        codeInput.SetTextWithoutNotify(text);
+    }
+
+    void RefreshPinVisuals()
+    {
+        if (pinDigitTexts == null) return;
+        for (int i = 0; i < 5; i++)
+        {
+            pinDigitTexts[i].text = pinDigits[i] >= 0 ? pinDigits[i].ToString() : "";
+
+            if (i == pinCursor)
+                pinBoxBorders[i].color = MenuTheme.Gold;
+            else if (pinDigits[i] >= 0)
+                pinBoxBorders[i].color = MenuTheme.PrimaryPurple;
+            else
+                pinBoxBorders[i].color = MenuTheme.InputBorder;
+        }
     }
 
     void LoadSelectedScene()
