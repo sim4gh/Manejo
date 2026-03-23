@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using TMPro;
 using System.Collections;
 
@@ -64,8 +65,9 @@ public class AdminPanel : MonoBehaviour
         if (cachedSceneName != "MainMenu") return;
         if (panelVisible) return;
 
-        // Detectar Ctrl+Shift+A mantenido 1.5s
-        if (Input.GetKey(KeyCode.LeftControl) && Input.GetKey(KeyCode.LeftShift) && Input.GetKey(KeyCode.A))
+        // Detectar Ctrl+Shift+A mantenido 1.5s (nuevo Input System)
+        var kb = Keyboard.current;
+        if (kb != null && kb.leftCtrlKey.isPressed && kb.leftShiftKey.isPressed && kb.aKey.isPressed)
         {
             holdTimer += Time.unscaledDeltaTime;
             if (holdTimer >= HOLD_DURATION)

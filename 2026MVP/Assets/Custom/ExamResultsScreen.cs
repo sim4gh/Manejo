@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using UnityEngine.InputSystem;
 using TMPro;
 using System.Collections;
 
@@ -41,7 +42,7 @@ public class ExamResultsScreen : MonoBehaviour
         if (Time.realtimeSinceStartup - showTime < 1f) return;
 
         // Cualquier tecla o clic para saltar el countdown
-        if (Input.anyKeyDown)
+        if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
         {
             ReturnToMenu();
         }
@@ -149,16 +150,25 @@ public class ExamResultsScreen : MonoBehaviour
 
     string GetScoreLabel(int s)
     {
-        if (s >= 90) return "APTO";
-        if (s >= 80) return "APTO CONDICIONADO";
-        if (s >= 70) return "APTO CONDICIONADO\nRequiere reentrenamiento";
+        var t = ScoringConfig.Instance?.data.gradeThresholds;
+        int apto = t?.apto ?? 90;
+        int condicionado = t?.aptoCondicionado ?? 80;
+        int reentrenamiento = t?.aptoReentrenamiento ?? 70;
+
+        if (s >= apto) return "APTO";
+        if (s >= condicionado) return "APTO CONDICIONADO";
+        if (s >= reentrenamiento) return "APTO CONDICIONADO\nRequiere reentrenamiento";
         return "NO APTO";
     }
 
     Color GetScoreColor(int s)
     {
-        if (s >= 90) return MenuTheme.SuccessGreen;
-        if (s >= 70) return MenuTheme.Gold;
+        var t = ScoringConfig.Instance?.data.gradeThresholds;
+        int apto = t?.apto ?? 90;
+        int reentrenamiento = t?.aptoReentrenamiento ?? 70;
+
+        if (s >= apto) return MenuTheme.SuccessGreen;
+        if (s >= reentrenamiento) return MenuTheme.Gold;
         return MenuTheme.TextError;
     }
 
