@@ -23,7 +23,7 @@ public class GameManager : MonoBehaviour
     public string SessionId { get; set; }
 
     /// <summary>Identidad del PC (de SimulatorConfig).</summary>
-    public string ThingName { get; private set; }
+    public string ThingName { get; set; }
 
     void Awake()
     {

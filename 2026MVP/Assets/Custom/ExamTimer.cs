@@ -160,7 +160,7 @@ public class ExamTimer : MonoBehaviour
 
         // Exportar telemetría
 #pragma warning disable CS0618
-        ViolationDetector detector = Object.FindFirstObjectByType<ViolationDetector>();
+        ViolationDetector detector = Object.FindObjectOfType<ViolationDetector>();
 #pragma warning restore CS0618
         int finalScore = 100;
         if (detector != null)

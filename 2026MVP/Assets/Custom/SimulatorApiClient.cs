@@ -147,7 +147,7 @@ public static class SimulatorApiClient
         };
 
         string json = JsonUtility.ToJson(requestBody);
-        Debug.Log($"[SimulatorAPI] POST {url} score={score} passed={passed} faults={faults.Length}");
+        Debug.Log($"[SimulatorAPI] POST {url} score={score} passed={passed} faults={faults?.Length ?? 0}");
 
         using (var request = new UnityWebRequest(url, "POST"))
         {

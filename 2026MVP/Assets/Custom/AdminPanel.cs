@@ -415,7 +415,7 @@ public class AdminPanel : MonoBehaviour
 
         // Actualizar GameManager
         if (GameManager.Instance != null)
-            GameManager.Instance.GetType().GetProperty("ThingName")?.SetValue(GameManager.Instance, data.thingName);
+            GameManager.Instance.ThingName = data.thingName;
 
         // Registrar en backend
         StartCoroutine(RegisterWithBackend(data));
