@@ -272,10 +272,8 @@ public class AdminPanel : MonoBehaviour
         scroll.vertical = true;
         scroll.scrollSensitivity = 30f;
 
-        // Mask
-        Image maskImg = scrollObj.AddComponent<Image>();
-        maskImg.color = Color.clear;
-        scrollObj.AddComponent<Mask>().showMaskGraphic = false;
+        // Mask (RectMask2D no depende del alpha de Image)
+        scrollObj.AddComponent<RectMask2D>();
 
         Transform ct = contentObj.transform;
 
