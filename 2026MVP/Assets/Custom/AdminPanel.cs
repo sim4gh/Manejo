@@ -199,6 +199,8 @@ public class AdminPanel : MonoBehaviour
         string enteredPin = pinInput != null ? pinInput.text : "";
         string correctPin = SimulatorConfig.Instance?.data.adminPin ?? "202626";
 
+        Debug.Log($"[AdminPanel] PIN ingresado: '{enteredPin}' vs correcto: '{correctPin}' (input null={pinInput == null})");
+
         if (enteredPin == correctPin)
         {
             Destroy(pinScreen);
@@ -207,8 +209,7 @@ public class AdminPanel : MonoBehaviour
         else
         {
             if (pinInput != null) pinInput.text = "";
-            // Flash error visual
-            Debug.LogWarning("[AdminPanel] PIN incorrecto");
+            Debug.LogWarning($"[AdminPanel] PIN incorrecto: '{enteredPin}'");
         }
     }
 
