@@ -99,19 +99,26 @@ public class AdminPanel : MonoBehaviour
 
     // ── UI Construction ──────────────────────────────────────────────
 
-    void BuildOverlay()
+    private Canvas cachedCanvas;
+
+    Canvas FindCanvas()
     {
-        // Buscar Canvas
+        if (cachedCanvas != null) return cachedCanvas;
 #pragma warning disable CS0618
         Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
 #pragma warning restore CS0618
-        Canvas targetCanvas = null;
         foreach (var c in canvases)
         {
             if (c.renderMode == RenderMode.ScreenSpaceOverlay && c.transform.parent == null)
-            { targetCanvas = c; break; }
+            { cachedCanvas = c; return cachedCanvas; }
         }
-        if (targetCanvas == null && canvases.Length > 0) targetCanvas = canvases[0];
+        if (canvases.Length > 0) cachedCanvas = canvases[0];
+        return cachedCanvas;
+    }
+
+    void BuildOverlay()
+    {
+        Canvas targetCanvas = FindCanvas();
         if (targetCanvas == null) { panelVisible = false; return; }
 
         // Root overlay
@@ -291,6 +298,29 @@ public class AdminPanel : MonoBehaviour
         AddSectionHeader(ct, "Seguridad");
         pinInput = AddField(ct, "PIN de Admin (6 digitos)", config.adminPin, "000000").GetComponentInChildren<TMP_InputField>();
 
+        // ── Calificación (del servidor) ──
+        AddSectionHeader(ct, "Calificacion (del servidor)");
+        var scoring = ScoringConfig.Instance?.data ?? new ScoringConfig.ScoringData();
+        string syncTime = !string.IsNullOrEmpty(scoring.lastSyncedAt) ? scoring.lastSyncedAt : "Sin sincronizar";
+        AddLabel(ct, "Ultima sincronizacion", syncTime);
+        AddLabel(ct, "Calificacion minima", scoring.passingScore.ToString());
+        AddLabel(ct, "Duracion del examen", $"{scoring.examDurationSeconds}s ({scoring.examDurationSeconds / 60}min)");
+        AddSectionHeader(ct, "Penalizaciones");
+        AddLabel(ct, "Atropello (peaton)", $"-{scoring.penalties.pedestrianHit}");
+        AddLabel(ct, "Colision bicicleta", $"-{scoring.penalties.bicycleCollision}");
+        AddLabel(ct, "Colision vehiculo", $"-{scoring.penalties.vehicleCollision}");
+        AddLabel(ct, "Colision senalamiento", $"-{scoring.penalties.signCollision}");
+        AddLabel(ct, "Colision obstaculo", $"-{scoring.penalties.obstacleCollision}");
+        AddLabel(ct, "Semaforo en rojo", $"-{scoring.penalties.redLight}");
+        AddLabel(ct, "Sentido contrario", $"-{scoring.penalties.wrongWay}");
+        AddLabel(ct, "Exceso de velocidad", $"-{scoring.penalties.speeding}");
+        AddLabel(ct, "Cambio peligroso", $"-{scoring.penalties.dangerousGearChange}");
+        AddSectionHeader(ct, "Umbrales de Resultado");
+        AddLabel(ct, "APTO", $"{scoring.gradeThresholds.apto}+");
+        AddLabel(ct, "APTO CONDICIONADO", $"{scoring.gradeThresholds.aptoCondicionado}+");
+        AddLabel(ct, "Reentrenamiento", $"{scoring.gradeThresholds.aptoReentrenamiento}+");
+        AddButton(ct, "Sincronizar Ahora", "secondary", OnSyncScoring);
+
         // ── Diagnóstico ──
         AddSectionHeader(ct, "Diagnostico");
         int pendingCount = SimulatorApiClient.PendingCount;
@@ -457,6 +487,20 @@ public class AdminPanel : MonoBehaviour
             else
                 Debug.LogWarning($"[AdminPanel] Error registrando: {request.error}");
         }
+    }
+
+    void OnSyncScoring()
+    {
+        StartCoroutine(SyncScoringAndRefresh());
+    }
+
+    IEnumerator SyncScoringAndRefresh()
+    {
+        if (ScoringConfig.Instance == null) yield break;
+        yield return ScoringConfig.Instance.LoadFromBackend();
+        // Rebuild panel to show updated values
+        HidePanel();
+        ShowPanel();
     }
 
     void OnCheckUpdates()
