@@ -51,7 +51,7 @@ public class AdminPanel : MonoBehaviour
             DontDestroyOnLoad(gameObject);
             SceneManager.sceneLoaded += (scene, _) => cachedSceneName = scene.name;
             cachedSceneName = SceneManager.GetActiveScene().name;
-            Debug.Log($"[AdminPanel] Inicializado en escena: {cachedSceneName} (Ctrl/Cmd+Shift+A para abrir)");
+            Debug.Log($"[AdminPanel] Inicializado en escena: {cachedSceneName} (F10 mantenido 1.5s para abrir)");
         }
         else
         {
@@ -66,17 +66,12 @@ public class AdminPanel : MonoBehaviour
         if (cachedSceneName != "MainMenu") return;
         if (panelVisible) return;
 
-        // Detectar Ctrl+Shift+A (o Cmd+Shift+A en macOS) mantenido 1.5s
+        // F10 mantenido 1.5s — abre AdminPanel (cross-platform, no conflicta)
         var kb = Keyboard.current;
         if (kb == null) return;
-        bool ctrl = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed
-                  || kb.leftCommandKey.isPressed || kb.rightCommandKey.isPressed;
-        bool shift = kb.leftShiftKey.isPressed || kb.rightShiftKey.isPressed;
-        bool a = kb.aKey.isPressed;
-        if (ctrl && shift && a)
+        if (kb.f10Key.isPressed)
         {
             holdTimer += Time.unscaledDeltaTime;
-            Debug.Log($"[AdminPanel] Combo detectado: hold={holdTimer:F1}s / {HOLD_DURATION}s");
             if (holdTimer >= HOLD_DURATION)
             {
                 holdTimer = 0f;
