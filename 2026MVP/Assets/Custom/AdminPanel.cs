@@ -19,7 +19,6 @@ public class AdminPanel : MonoBehaviour
     // Estado de activación
     private float holdTimer;
     private bool panelVisible;
-    private bool pinVerified;
 
     // UI references
     private GameObject overlayRoot;
@@ -84,7 +83,6 @@ public class AdminPanel : MonoBehaviour
     void ShowPanel()
     {
         panelVisible = true;
-        pinVerified = false;
         BuildOverlay();
         ShowPinScreen();
     }
@@ -92,7 +90,6 @@ public class AdminPanel : MonoBehaviour
     void HidePanel()
     {
         panelVisible = false;
-        pinVerified = false;
         if (overlayRoot != null) Destroy(overlayRoot);
         overlayRoot = null;
     }
@@ -202,7 +199,6 @@ public class AdminPanel : MonoBehaviour
 
         if (enteredPin == correctPin)
         {
-            pinVerified = true;
             Destroy(pinScreen);
             ShowConfigScreen();
         }

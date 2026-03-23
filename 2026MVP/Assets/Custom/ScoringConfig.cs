@@ -148,7 +148,7 @@ public class ScoringConfig : MonoBehaviour
     public void ApplyToDetectors()
     {
         // ViolationDetector
-        var vd = Object.FindObjectOfType<ViolationDetector>();
+        var vd = Object.FindFirstObjectByType<ViolationDetector>();
         if (vd != null)
         {
             vd.speedingPenalty = data.penalties.speeding;
@@ -162,7 +162,7 @@ public class ScoringConfig : MonoBehaviour
         }
 
         // RedLightDetector
-        var rld = Object.FindObjectOfType<RedLightDetector>();
+        var rld = Object.FindFirstObjectByType<RedLightDetector>();
         if (rld != null)
         {
             rld.redLightPenalty = data.penalties.redLight;
@@ -170,7 +170,7 @@ public class ScoringConfig : MonoBehaviour
         }
 
         // WrongWayDetector
-        var wwd = Object.FindObjectOfType<WrongWayDetector>();
+        var wwd = Object.FindFirstObjectByType<WrongWayDetector>();
         if (wwd != null)
         {
             wwd.wrongWayPenalty = data.penalties.wrongWay;

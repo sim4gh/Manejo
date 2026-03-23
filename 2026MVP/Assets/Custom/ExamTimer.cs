@@ -167,9 +167,7 @@ public class ExamTimer : MonoBehaviour
         TelemetryLogger.Instance?.LogEvent("FIN_EXAMEN", "Tiempo agotado", 0, 0f);
 
         // Exportar telemetría
-#pragma warning disable CS0618
-        ViolationDetector detector = Object.FindObjectOfType<ViolationDetector>();
-#pragma warning restore CS0618
+        ViolationDetector detector = Object.FindFirstObjectByType<ViolationDetector>();
         int finalScore = 100;
         if (detector != null)
         {
