@@ -23,12 +23,15 @@ public class ExamTimer : MonoBehaviour
     private TextMeshProUGUI timerText;
     private Image bgPanel;
 
+    private int lastDisplayedSecond = -1;
+
     // Colores por fase
     private static readonly Color colorNormal  = Color.white;
     private static readonly Color colorWarning = Color.yellow;
 
     void Awake()
     {
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
     }
 
@@ -117,8 +120,13 @@ public class ExamTimer : MonoBehaviour
             return;
         }
 
-        // Actualizar display
-        timerText.text = FormatTime(remainingTime);
+        // Actualizar display solo cuando cambia el segundo (evita GC cada frame)
+        int totalSec = Mathf.CeilToInt(remainingTime);
+        if (totalSec != lastDisplayedSecond)
+        {
+            lastDisplayedSecond = totalSec;
+            timerText.text = FormatTime(remainingTime);
+        }
 
         // Feedback visual por fase
         if (remainingTime <= 10f)

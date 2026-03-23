@@ -258,7 +258,8 @@ public static class SimulatorApiClient
 
         string json = JsonUtility.ToJson(list, true);
         File.WriteAllText(PendingPath, json);
-        Debug.Log($"[SimulatorAPI] Resultado pendiente guardado ({list.results.Count} total)");
+        cachedPendingCount = list.results.Count;
+        Debug.Log($"[SimulatorAPI] Resultado pendiente guardado ({cachedPendingCount} total)");
     }
 
     public static PendingResultsList LoadPendingResults()
@@ -278,6 +279,7 @@ public static class SimulatorApiClient
     public static void ClearPendingResults()
     {
         if (File.Exists(PendingPath)) File.Delete(PendingPath);
+        cachedPendingCount = 0;
     }
 
     /// <summary>
@@ -314,10 +316,20 @@ public static class SimulatorApiClient
         {
             var newList = new PendingResultsList { results = remaining };
             File.WriteAllText(PendingPath, JsonUtility.ToJson(newList, true));
+            cachedPendingCount = remaining.Count;
             Debug.Log($"[SimulatorAPI] Quedan {remaining.Count} resultados pendientes");
         }
     }
 
-    /// <summary>Cantidad de resultados sin enviar.</summary>
-    public static int PendingCount => LoadPendingResults().results.Count;
+    /// <summary>Cantidad de resultados sin enviar (cacheado, sin file I/O).</summary>
+    private static int cachedPendingCount = -1;
+    public static int PendingCount
+    {
+        get
+        {
+            if (cachedPendingCount < 0)
+                cachedPendingCount = LoadPendingResults().results.Count;
+            return cachedPendingCount;
+        }
+    }
 }

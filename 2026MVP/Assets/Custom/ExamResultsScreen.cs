@@ -25,20 +25,32 @@ public class ExamResultsScreen : MonoBehaviour
         screen.score = finalScore;
     }
 
+    private float showTime;
+
     void Start()
     {
         Time.timeScale = 0f;
+        showTime = Time.realtimeSinceStartup;
         BuildUI();
         StartCoroutine(AutoReturnCoroutine());
     }
 
     void Update()
     {
+        // Ignorar input el primer segundo para evitar skip accidental
+        if (Time.realtimeSinceStartup - showTime < 1f) return;
+
         // Cualquier tecla o clic para saltar el countdown
         if (Input.anyKeyDown)
         {
             ReturnToMenu();
         }
+    }
+
+    void OnDestroy()
+    {
+        // Safeguard: restaurar timeScale si el objeto se destruye inesperadamente
+        Time.timeScale = 1f;
     }
 
     void BuildUI()

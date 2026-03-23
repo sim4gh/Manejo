@@ -8,10 +8,16 @@ using UnityEngine.SceneManagement;
 /// </summary>
 public static class ExamBootstrap
 {
+    static bool subscribed;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void OnSceneLoaded()
     {
-        SceneManager.sceneLoaded += OnSceneLoadedCallback;
+        if (!subscribed)
+        {
+            SceneManager.sceneLoaded += OnSceneLoadedCallback;
+            subscribed = true;
+        }
 
         // Verificar escena actual por si ya es una escena de manejo
         string current = SceneManager.GetActiveScene().name;

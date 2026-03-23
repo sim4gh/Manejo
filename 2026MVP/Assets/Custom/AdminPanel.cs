@@ -41,12 +41,16 @@ public class AdminPanel : MonoBehaviour
     private TextMeshProUGUI pendingLabel;
     private TextMeshProUGUI statusLabel;
 
+    private static string cachedSceneName = "";
+
     void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            SceneManager.sceneLoaded += (scene, _) => cachedSceneName = scene.name;
+            cachedSceneName = SceneManager.GetActiveScene().name;
         }
         else
         {
@@ -58,7 +62,7 @@ public class AdminPanel : MonoBehaviour
     void Update()
     {
         // Solo permitir activación en MainMenu
-        if (SceneManager.GetActiveScene().name != "MainMenu") return;
+        if (cachedSceneName != "MainMenu") return;
         if (panelVisible) return;
 
         // Detectar Ctrl+Shift+A mantenido 1.5s
