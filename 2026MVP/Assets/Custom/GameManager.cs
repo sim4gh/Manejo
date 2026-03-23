@@ -31,7 +31,7 @@ public class GameManager : MonoBehaviour
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
-            EnsureSimulatorConfig();
+            EnsureSingletons();
         }
         else
         {
@@ -51,12 +51,24 @@ public class GameManager : MonoBehaviour
         StartCoroutine(SimulatorApiClient.RetryPendingResults());
     }
 
-    /// <summary>Asegura que SimulatorConfig exista (se crea si no hay).</summary>
-    void EnsureSimulatorConfig()
+    /// <summary>Asegura que SimulatorConfig y AdminPanel existan.</summary>
+    void EnsureSingletons()
     {
-        if (SimulatorConfig.Instance != null) return;
-        var configObj = new GameObject("SimulatorConfig");
-        configObj.AddComponent<SimulatorConfig>();
+        if (SimulatorConfig.Instance == null)
+        {
+            var configObj = new GameObject("SimulatorConfig");
+            configObj.AddComponent<SimulatorConfig>();
+        }
+        if (AdminPanel.Instance == null)
+        {
+            var adminObj = new GameObject("AdminPanel");
+            adminObj.AddComponent<AdminPanel>();
+        }
+        if (AutoUpdater.Instance == null)
+        {
+            var updaterObj = new GameObject("AutoUpdater");
+            updaterObj.AddComponent<AutoUpdater>();
+        }
     }
 
     /// <summary>Limpia datos de sesión para el siguiente ciudadano.</summary>
