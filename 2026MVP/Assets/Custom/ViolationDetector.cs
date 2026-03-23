@@ -31,15 +31,19 @@ public class ViolationDetector : MonoBehaviour
     public bool showDebug = true;
 
     private Rigidbody rb;
-    private bool wasSpeedingLastFrame = false;
     private float lastSpeedLimitCheck = 0f;
     private Gley.UrbanSystem.PlayerCar playerCar;
     private int lastGear;
+
+    // Speeding cooldown — 5s para recuperarse antes de otra penalización
+    private float lastSpeedingTime = -999f;
+    private const float SPEEDING_COOLDOWN = 5f;
 
     // Collision cooldown — previene spam de ragdoll y objetos repetidos
     private float lastCollisionTime = -999f;
     private int lastCollisionRootId = -1;
     private const float COLLISION_COOLDOWN = 3f;
+    private const float MIN_COLLISION_SPEED = 3f;
 
     // RCCP integration
     private Component rccpController;
@@ -83,12 +87,13 @@ public class ViolationDetector : MonoBehaviour
             UpdateSpeedLimitFromWaypoint();
         }
 
-        // Check for speeding
+        // Check for speeding (cooldown 5s entre penalizaciones)
         float speed = GetSpeed();
         bool isSpeeding = speed > currentSpeedLimit;
 
-        if (isSpeeding && !wasSpeedingLastFrame)
+        if (isSpeeding && Time.time - lastSpeedingTime >= SPEEDING_COOLDOWN)
         {
+            lastSpeedingTime = Time.time;
             DeductScore(speedingPenalty);
 
             NotificationManager.Instance?.ShowNotification(
@@ -106,7 +111,6 @@ public class ViolationDetector : MonoBehaviour
                 Debug.LogWarning($"[Speeding] {speed:F0} km/h in {currentSpeedLimit} km/h zone");
             }
         }
-        wasSpeedingLastFrame = isSpeeding;
 
         // Cambio D↔R a velocidad
         if (playerCar != null)
@@ -179,8 +183,28 @@ public class ViolationDetector : MonoBehaviour
         totalScore = Mathf.Max(0, totalScore - penalty);
     }
 
+    /// <summary>Busca nombre descriptivo subiendo la jerarquía (evita "Gley").</summary>
+    string GetCollisionDisplayName(Collision collision)
+    {
+        GameObject direct = collision.gameObject;
+        if (!direct.CompareTag("Untagged")) return direct.name;
+
+        Transform t = direct.transform.parent;
+        while (t != null)
+        {
+            if (!t.CompareTag("Untagged")) return t.gameObject.name;
+            t = t.parent;
+        }
+
+        return direct.name;
+    }
+
     void OnCollisionEnter(Collision collision)
     {
+        // No penalizar si estamos parados (tráfico AI nos chocó)
+        float speed = GetSpeed();
+        if (speed < MIN_COLLISION_SPEED) return;
+
         // Cooldown global: ignorar colisiones por 3s después de la última penalización
         if (Time.time - lastCollisionTime < COLLISION_COOLDOWN) return;
 
@@ -189,9 +213,8 @@ public class ViolationDetector : MonoBehaviour
         int rootId = root.GetInstanceID();
         if (rootId == lastCollisionRootId && Time.time - lastCollisionTime < COLLISION_COOLDOWN) return;
 
-        float speed = GetSpeed();
+        string displayName = GetCollisionDisplayName(collision);
         GameObject rootObj = root.gameObject;
-        string rootName = rootObj.name;
         int layer = rootObj.layer;
 
         // Verificar tags/layers en el root (no en el hueso individual)
@@ -213,7 +236,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{pedestrianPenalty} ¡ATROPELLO!", Color.red);
             TelemetryLogger.Instance?.LogEvent(
-                "ATROPELLO", $"Atropello de peatón ({rootName})",
+                "ATROPELLO", $"Atropello de peatón ({displayName})",
                 -pedestrianPenalty, speed);
         }
         else if (isBicycle)
@@ -222,7 +245,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{bicycleCollisionPenalty} ¡COLISIÓN CON BICICLETA!", Color.red);
             TelemetryLogger.Instance?.LogEvent(
-                "COLISION_BICICLETA", $"Colisión con bicicleta ({rootName})",
+                "COLISION_BICICLETA", $"Colisión con bicicleta ({displayName})",
                 -bicycleCollisionPenalty, speed);
         }
         else if (isVehicle)
@@ -231,7 +254,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{vehicleCollisionPenalty} ¡COLISIÓN VEHICULAR!", Color.red);
             TelemetryLogger.Instance?.LogEvent(
-                "COLISION_VEHICULO", $"Colisión con vehículo ({rootName})",
+                "COLISION_VEHICULO", $"Colisión con vehículo ({displayName})",
                 -vehicleCollisionPenalty, speed);
         }
         else if (isSign)
@@ -240,7 +263,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{signCollisionPenalty} ¡COLISIÓN CON SEÑALAMIENTO!", Color.yellow);
             TelemetryLogger.Instance?.LogEvent(
-                "COLISION_SENALAMIENTO", $"Colisión con señalamiento ({rootName})",
+                "COLISION_SENALAMIENTO", $"Colisión con señalamiento ({displayName})",
                 -signCollisionPenalty, speed);
         }
         else if (layer != LayerMask.NameToLayer("Default"))
@@ -249,7 +272,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{obstacleCollisionPenalty} ¡COLISIÓN CON OBSTÁCULO!", Color.yellow);
             TelemetryLogger.Instance?.LogEvent(
-                "COLISION_OBSTACULO", $"Colisión con obstáculo ({rootName})",
+                "COLISION_OBSTACULO", $"Colisión con obstáculo ({displayName})",
                 -obstacleCollisionPenalty, speed);
         }
         else
