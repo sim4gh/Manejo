@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 /// <summary>
 /// Singleton GameManager that persists across scenes.
@@ -25,6 +26,9 @@ public class GameManager : MonoBehaviour
     /// <summary>Identidad del PC (de SimulatorConfig).</summary>
     public string ThingName { get; set; }
 
+    /// <summary>ID del simulador asignado (de backend).</summary>
+    public string SimulatorId { get; set; }
+
     void Awake()
     {
         if (Instance == null)
@@ -41,14 +45,34 @@ public class GameManager : MonoBehaviour
 
     void Start()
     {
-        // Cargar thingName desde config local
+        // Cargar identidad desde config local
         if (SimulatorConfig.Instance != null)
-            ThingName = SimulatorConfig.Instance.data.thingName;
+        {
+            ThingName = SimulatorConfig.Instance.data.pcId;
+            SimulatorId = SimulatorConfig.Instance.data.simulatorId;
+        }
         else
+        {
             ThingName = "sim-pc-unconfigured";
+        }
 
         // Reintentar resultados pendientes al iniciar
         StartCoroutine(SimulatorApiClient.RetryPendingResults());
+
+        // Heartbeat cada 3 minutos
+        StartCoroutine(HeartbeatLoop());
+    }
+
+    IEnumerator HeartbeatLoop()
+    {
+        // Primer heartbeat inmediato
+        yield return StartCoroutine(SimulatorApiClient.SendHeartbeat());
+
+        while (true)
+        {
+            yield return new WaitForSecondsRealtime(180f); // 3 minutos
+            yield return StartCoroutine(SimulatorApiClient.SendHeartbeat());
+        }
     }
 
     /// <summary>Asegura que SimulatorConfig y AdminPanel existan.</summary>
@@ -68,6 +92,11 @@ public class GameManager : MonoBehaviour
         {
             var updaterObj = new GameObject("AutoUpdater");
             updaterObj.AddComponent<AutoUpdater>();
+        }
+        if (ScoringConfig.Instance == null)
+        {
+            var scoringObj = new GameObject("ScoringConfig");
+            scoringObj.AddComponent<ScoringConfig>();
         }
     }
 

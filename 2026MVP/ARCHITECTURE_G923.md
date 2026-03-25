@@ -59,9 +59,9 @@ En el G923 version PlayStation, los paddles estan invertidos a nivel HID:
 | Boton Unity | Fisico G923 PS | Funcion |
 |-------------|---------------|---------|
 | button1 | □ (Square) | — |
-| button2 | × (Cross) | — |
+| button2 | × (Cross) | Reversa (modo automático) |
 | button3 | ○ (Circle) | — |
-| button4 | △ (Triangle) | — |
+| button4 | △ (Triangle) | Drive (modo automático) |
 | button5 | R1 (paddle der) | Toggle direccional derecha |
 | button6 | L1 (paddle izq) | Toggle direccional izquierda |
 | button7 | L2 | Combo: L2+R2 hold 1.5s = menu principal |
@@ -93,6 +93,17 @@ En el G923 version PlayStation, los paddles estan invertidos a nivel HID:
 | L3 + R3 (button11 + button12) | Reiniciar escena actual | 1.5s |
 
 **Nota:** El hold time es 1.5s (no 0.5s) para evitar loops de recarga — al recargar la escena, UIInputNew se reinicializa y si los botones siguen presionados, dispararia otra recarga.
+
+## Reversa en modo automático
+
+En modo automático, los botones del hub del G923 controlan Drive/Reversa:
+
+- **× (Cross / button2):** Poner Reversa (`_currentGear = -1`)
+- **△ (Triangle / button4):** Poner Drive (`_currentGear = 1`)
+- **Teclado fallback:** R = toggle D↔R
+- **Penalización:** Cambiar D↔R a más de 5 km/h = -20 pts ("CAMBIO DE MARCHA PELIGROSO")
+- Edge detection: solo se activa al presionar, no mientras se mantiene presionado
+- En modo manual estos botones no hacen nada (se usa el H-shifter)
 
 ## Direccionales
 

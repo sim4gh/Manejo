@@ -3,39 +3,28 @@ using System.IO;
 
 /// <summary>
 /// Configuración local del simulador — persistida en simulator_config.json.
-/// Cargado al inicio, editable desde el AdminPanel.
+/// Cargado al inicio, editable desde el AdminPanel (F10).
 /// </summary>
 public class SimulatorConfig : MonoBehaviour
 {
     public static SimulatorConfig Instance { get; private set; }
 
     [System.Serializable]
-    public class SerialNumbers
-    {
-        public string frame = "";
-        public string seat = "";
-        public string computer = "";
-        public string dofController = "";
-        public string wheel = "";
-    }
-
-    [System.Serializable]
     public class ConfigData
     {
-        public string stationId = "";
-        public string thingName = "sim-pc-unconfigured";
+        public string pcId = "";           // auto-generado (SystemInfo.deviceUniqueIdentifier), inmutable
+        public string name = "";           // configurable por el usuario
         public string apiBaseUrl = "https://d6twaegbhg.execute-api.us-east-1.amazonaws.com";
-        public string adminPin = "202626";
-        public SerialNumbers serialNumbers = new SerialNumbers();
-        public bool autoUpdate = true;
+        public string simulatorId = "";    // devuelto por el backend al registrar
+        public string simulatorName = "";  // nombre del simulador asignado
     }
 
     public ConfigData data = new ConfigData();
 
     private string ConfigPath => Path.Combine(Application.persistentDataPath, "simulator_config.json");
 
-    /// <summary>True si el simulador ya fue configurado con un stationId.</summary>
-    public bool IsConfigured => !string.IsNullOrEmpty(data.stationId);
+    /// <summary>True si la PC ya fue configurada con un nombre.</summary>
+    public bool IsConfigured => !string.IsNullOrEmpty(data.name);
 
     void Awake()
     {
@@ -44,6 +33,14 @@ public class SimulatorConfig : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
             Load();
+
+            // Auto-generar pcId si está vacío (primera ejecución)
+            if (string.IsNullOrEmpty(data.pcId))
+            {
+                data.pcId = SystemInfo.deviceUniqueIdentifier;
+                Debug.Log($"[SimulatorConfig] pcId generado: {data.pcId}");
+                Save();
+            }
         }
         else
         {
@@ -59,7 +56,7 @@ public class SimulatorConfig : MonoBehaviour
             {
                 string json = File.ReadAllText(ConfigPath);
                 data = JsonUtility.FromJson<ConfigData>(json);
-                Debug.Log($"[SimulatorConfig] Cargado: stationId={data.stationId}, thingName={data.thingName}");
+                Debug.Log($"[SimulatorConfig] Cargado: pcId={data.pcId}, name={data.name}, simulatorId={data.simulatorId}");
             }
             catch (System.Exception e)
             {

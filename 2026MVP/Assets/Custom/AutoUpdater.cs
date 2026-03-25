@@ -52,11 +52,8 @@ public class AutoUpdater : MonoBehaviour
 
     void Start()
     {
-        // Check automático si auto-update está habilitado
-        if (SimulatorConfig.Instance?.data.autoUpdate == true)
-        {
-            StartCoroutine(AutoCheckAndDownload());
-        }
+        // Check automático siempre al iniciar
+        StartCoroutine(AutoCheckAndDownload());
     }
 
     IEnumerator AutoCheckAndDownload()

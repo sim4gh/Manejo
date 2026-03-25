@@ -20,8 +20,8 @@ public static class SimulatorApiClient
     [System.Serializable]
     public class StartSessionRequest
     {
+        public string pcId;
         public string tramiteId;
-        public string thingName;
     }
 
     [System.Serializable]
@@ -82,15 +82,16 @@ public static class SimulatorApiClient
     /// POST /simulator/sessions — crea sesión en el backend.
     /// onSessionId recibe el sessionId o null si falla.
     /// </summary>
-    public static IEnumerator StartSession(string tramiteId, string thingName,
+    public static IEnumerator StartSession(string tramiteId,
         System.Action<string> onSessionId)
     {
         string url = $"{BaseUrl}/simulator/sessions";
 
+        var config = SimulatorConfig.Instance?.data;
         var requestBody = new StartSessionRequest
         {
+            pcId = config?.pcId ?? "",
             tramiteId = tramiteId,
-            thingName = thingName
         };
 
         string json = JsonUtility.ToJson(requestBody);
@@ -205,10 +206,15 @@ public static class SimulatorApiClient
         switch (eventType)
         {
             case "VELOCIDAD": return "speeding";
-            case "COLISION": return "collision";
             case "ATROPELLO": return "pedestrian-hit";
+            case "COLISION_BICICLETA": return "bicycle-collision";
+            case "COLISION_VEHICULO": return "vehicle-collision";
+            case "COLISION_SENALAMIENTO": return "sign-collision";
+            case "COLISION_OBSTACULO": return "obstacle-collision";
+            case "COLISION": return "collision";
             case "SEMAFORO_ROJO": return "red-light";
             case "SENTIDO_CONTRARIO": return "wrong-way";
+            case "CAMBIO_PELIGROSO": return "dangerous-gear-change";
             case "FIN_EXAMEN": return "exam-end";
             default: return eventType.ToLower();
         }
@@ -219,10 +225,15 @@ public static class SimulatorApiClient
         switch (eventType)
         {
             case "ATROPELLO": return "critical";
+            case "COLISION_BICICLETA":
+            case "COLISION_VEHICULO":
+            case "COLISION":
             case "SEMAFORO_ROJO":
-            case "SENTIDO_CONTRARIO":
-            case "COLISION": return "major";
-            case "VELOCIDAD": return "minor";
+            case "SENTIDO_CONTRARIO": return "major";
+            case "COLISION_SENALAMIENTO":
+            case "COLISION_OBSTACULO":
+            case "VELOCIDAD":
+            case "CAMBIO_PELIGROSO": return "minor";
             default: return "minor";
         }
     }
@@ -331,5 +342,112 @@ public static class SimulatorApiClient
                 cachedPendingCount = LoadPendingResults().results.Count;
             return cachedPendingCount;
         }
+    }
+
+    // ── Heartbeat (cada 3 minutos) ─────────────────────────────────
+
+    [System.Serializable]
+    private class HeartbeatRequest
+    {
+        public string pcId;
+    }
+
+    [System.Serializable]
+    private class HeartbeatResponse
+    {
+        public bool ok;
+        public PendingConfig pendingConfig;
+    }
+
+    [System.Serializable]
+    private class PendingConfig
+    {
+        public string apiBaseUrl;
+        public string environment;
+    }
+
+    /// <summary>
+    /// POST /simulator/heartbeat — actualiza lastSeen y recibe config remota.
+    /// Llamado periódicamente por GameManager.
+    /// </summary>
+    public static IEnumerator SendHeartbeat()
+    {
+        var config = SimulatorConfig.Instance?.data;
+        if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
+
+        string url = $"{BaseUrl}/simulator/heartbeat";
+        string json = JsonUtility.ToJson(new HeartbeatRequest { pcId = config.pcId });
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 5;
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning($"[SimulatorAPI] Heartbeat failed: {request.error}");
+                yield break;
+            }
+
+            // Check for pending config (environment promotion)
+            string newRegUrl = null;
+            string newRegJson = null;
+            string newEnv = null;
+
+            try
+            {
+                var response = JsonUtility.FromJson<HeartbeatResponse>(request.downloadHandler.text);
+                if (response?.pendingConfig != null && !string.IsNullOrEmpty(response.pendingConfig.apiBaseUrl))
+                {
+                    Debug.Log($"[SimulatorAPI] Ambiente cambiado a {response.pendingConfig.environment}: {response.pendingConfig.apiBaseUrl}");
+                    config.apiBaseUrl = response.pendingConfig.apiBaseUrl;
+                    SimulatorConfig.Instance.Save();
+
+                    newEnv = response.pendingConfig.environment;
+                    newRegUrl = $"{config.apiBaseUrl}/simulator/register";
+                    newRegJson = JsonUtility.ToJson(new RegisterRequest
+                    {
+                        pcId = config.pcId,
+                        name = config.name,
+                        appVersion = UnityEngine.Application.version,
+                        platform = "windows"
+                    });
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[SimulatorAPI] Error parseando heartbeat: {e.Message}");
+            }
+
+            // Re-register fuera del try-catch (yield no permitido dentro de try-catch)
+            if (newRegUrl != null)
+            {
+                using (var regReq = new UnityWebRequest(newRegUrl, "POST"))
+                {
+                    regReq.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(newRegJson));
+                    regReq.downloadHandler = new DownloadHandlerBuffer();
+                    regReq.SetRequestHeader("Content-Type", "application/json");
+                    regReq.timeout = 10;
+                    yield return regReq.SendWebRequest();
+
+                    if (regReq.result == UnityWebRequest.Result.Success)
+                        Debug.Log($"[SimulatorAPI] Registrado en {newEnv}");
+                    else
+                        Debug.LogWarning($"[SimulatorAPI] Error registrando en nuevo ambiente: {regReq.error}");
+                }
+            }
+        }
+    }
+
+    [System.Serializable]
+    private class RegisterRequest
+    {
+        public string pcId;
+        public string name;
+        public string appVersion;
+        public string platform;
     }
 }

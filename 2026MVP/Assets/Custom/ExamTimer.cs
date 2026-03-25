@@ -24,6 +24,7 @@ public class ExamTimer : MonoBehaviour
     private Image bgPanel;
 
     private int lastDisplayedSecond = -1;
+    private int lastKnownScore = 100;
 
     // Colores por fase
     private static readonly Color colorNormal  = Color.white;
@@ -154,6 +155,10 @@ public class ExamTimer : MonoBehaviour
             timerText.color = colorNormal;
             timerText.alpha = 1f;
         }
+
+        // Cachear score para interrupción (OnDestroy/OnApplicationQuit)
+        ViolationDetector det = Object.FindFirstObjectByType<ViolationDetector>();
+        if (det != null) lastKnownScore = det.totalScore;
     }
 
     void EndExam()
@@ -205,6 +210,35 @@ public class ExamTimer : MonoBehaviour
                 SimulatorApiClient.SavePendingResult(sessionId, passed, finalScore, faults);
             }
         }));
+    }
+
+    // ── Interrupción: guardar resultados parciales si el examen no terminó ──
+
+    void OnApplicationQuit()
+    {
+        SavePartialIfNeeded();
+    }
+
+    void OnDestroy()
+    {
+        if (!Application.isPlaying) return;
+        SavePartialIfNeeded();
+    }
+
+    void SavePartialIfNeeded()
+    {
+        if (examFinished) return;
+
+        string sessionId = GameManager.Instance?.SessionId;
+        if (string.IsNullOrEmpty(sessionId)) return;
+
+        bool passed = lastKnownScore >= 70;
+        var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
+        SimulatorApiClient.SavePendingResult(sessionId, passed, lastKnownScore, faults);
+        Debug.Log($"[ExamTimer] Examen interrumpido — resultados parciales guardados (score={lastKnownScore})");
+
+        // Marcar como finished para evitar doble guardado (OnDestroy + OnApplicationQuit)
+        examFinished = true;
     }
 
     static string FormatTime(float seconds)

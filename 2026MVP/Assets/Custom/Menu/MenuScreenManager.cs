@@ -761,16 +761,11 @@ public class MenuScreenManager : MonoBehaviour
     // ════════════════════════════════════════════════════════════════════
 
     // Admin screen refs
-    private TMP_InputField adminStationIdInput;
+    private TMP_InputField adminNameInput;
     private TMP_InputField adminApiUrlInput;
-    private TMP_InputField adminSerialFrameInput;
-    private TMP_InputField adminSerialSeatInput;
-    private TMP_InputField adminSerialComputerInput;
-    private TMP_InputField adminSerialDofInput;
-    private TMP_InputField adminSerialWheelInput;
-    private TextMeshProUGUI adminVersionLabel;
-    private TextMeshProUGUI adminPendingLabel;
+    private TextMeshProUGUI adminUidLabel;
     private TextMeshProUGUI adminNetworkLabel;
+    private TextMeshProUGUI adminSimulatorLabel;
 
     void BuildScreen3_Admin()
     {
@@ -778,27 +773,18 @@ public class MenuScreenManager : MonoBehaviour
         screens[3] = screen;
         screenGroups[3] = screen.GetComponent<CanvasGroup>();
 
-        // Scroll area (casi toda la pantalla)
-        GameObject scrollObj = new GameObject("AdminScroll");
-        scrollObj.transform.SetParent(screen.transform, false);
-        scrollObj.AddComponent<RectTransform>().Set(
-            new Vector2(0.05f, 0.02f), new Vector2(0.95f, 0.92f), new Vector2(0.5f, 0.5f),
-            Vector2.zero, Vector2.zero);
-        scrollObj.AddComponent<RectMask2D>();
-
-        // Content
+        // Content container (centrado, sin scroll necesario)
         GameObject contentObj = new GameObject("Content");
-        contentObj.transform.SetParent(scrollObj.transform, false);
+        contentObj.transform.SetParent(screen.transform, false);
         RectTransform contentRt = contentObj.AddComponent<RectTransform>();
-        contentRt.anchorMin = new Vector2(0, 1);
-        contentRt.anchorMax = new Vector2(1, 1);
-        contentRt.pivot = new Vector2(0.5f, 1f);
-        contentRt.anchoredPosition = Vector2.zero;
-        contentRt.sizeDelta = new Vector2(0, 0);
+        contentRt.anchorMin = new Vector2(0.15f, 0.15f);
+        contentRt.anchorMax = new Vector2(0.85f, 0.85f);
+        contentRt.offsetMin = Vector2.zero;
+        contentRt.offsetMax = Vector2.zero;
 
         var layout = contentObj.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 8f;
-        layout.padding = new RectOffset(40, 40, 10, 20);
+        layout.spacing = 12f;
+        layout.padding = new RectOffset(40, 40, 20, 20);
         layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
@@ -806,55 +792,40 @@ public class MenuScreenManager : MonoBehaviour
         layout.childForceExpandHeight = false;
         contentObj.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-        ScrollRect scroll = scrollObj.AddComponent<ScrollRect>();
-        scroll.content = contentRt;
-        scroll.horizontal = false;
-        scroll.vertical = true;
-        scroll.scrollSensitivity = 30f;
-
         Transform ct = contentObj.transform;
         var config = SimulatorConfig.Instance?.data ?? new SimulatorConfig.ConfigData();
 
         // ── Header ──
-        AdminAddHeader(ct, "Configuracion del Simulador");
+        AdminAddHeader(ct, "Configuracion");
 
-        // ── Identidad ──
-        AdminAddSection(ct, "Identidad");
-        adminStationIdInput = AdminAddField(ct, "Station ID", config.stationId, "SIM-001");
-        adminApiUrlInput = AdminAddField(ct, "API Base URL", config.apiBaseUrl, "https://...");
+        // ── UID (read-only) ──
+        string uidDisplay = string.IsNullOrEmpty(config.pcId)
+            ? "Generando..."
+            : config.pcId.Length > 16
+                ? config.pcId.Substring(0, 8) + "..." + config.pcId.Substring(config.pcId.Length - 4)
+                : config.pcId;
+        adminUidLabel = AdminAddLabel(ct, "UID", uidDisplay);
 
-        // ── Seriales ──
-        AdminAddSection(ct, "Numeros de Serie");
-        adminSerialFrameInput = AdminAddField(ct, "Herraje / Frame", config.serialNumbers.frame, "FRM-XXX");
-        adminSerialSeatInput = AdminAddField(ct, "Silla / Seat", config.serialNumbers.seat, "SEAT-XXX");
-        adminSerialComputerInput = AdminAddField(ct, "Computadora", config.serialNumbers.computer, "PC-XXX");
-        adminSerialDofInput = AdminAddField(ct, "DOF Controller", config.serialNumbers.dofController, "sim-2dof-XXX");
-        adminSerialWheelInput = AdminAddField(ct, "Volante / Controles", config.serialNumbers.wheel, "G923-XXX");
+        // ── Nombre (editable) ──
+        adminNameInput = AdminAddField(ct, "Nombre", config.name, "PC Simulador 1");
 
-        // ── Actualizaciones ──
-        AdminAddSection(ct, "Actualizaciones");
-        adminVersionLabel = AdminAddLabel(ct, "Version", Application.version);
+        // ── API URL (editable) ──
+        adminApiUrlInput = AdminAddField(ct, "API URL", config.apiBaseUrl, "https://...");
 
-        // ── Scoring del servidor ──
-        AdminAddSection(ct, "Calificacion (del servidor)");
-        var scoring = ScoringConfig.Instance?.data ?? new ScoringConfig.ScoringData();
-        AdminAddLabel(ct, "Calificacion minima", scoring.passingScore.ToString());
-        AdminAddLabel(ct, "Duracion del examen", $"{scoring.examDurationSeconds}s ({scoring.examDurationSeconds / 60}min)");
-        AdminAddLabel(ct, "Atropello", $"-{scoring.penalties.pedestrianHit}");
-        AdminAddLabel(ct, "Semaforo en rojo", $"-{scoring.penalties.redLight}");
-        AdminAddLabel(ct, "Sentido contrario", $"-{scoring.penalties.wrongWay}");
-        AdminAddLabel(ct, "Exceso de velocidad", $"-{scoring.penalties.speeding}");
+        AdminAddSpacer(ct, 5f);
 
-        // ── Diagnóstico ──
-        AdminAddSection(ct, "Diagnostico");
-        int pending = SimulatorApiClient.PendingCount;
-        adminPendingLabel = AdminAddLabel(ct, "Resultados pendientes", pending > 0 ? $"{pending} sin enviar" : "Ninguno");
-        adminNetworkLabel = AdminAddLabel(ct, "Red", "Sin verificar");
+        // ── Estado ──
+        adminNetworkLabel = AdminAddLabel(ct, "Estado", "Sin verificar");
 
-        // ── Botones ──
+        // ── Simulador asignado ──
+        string simDisplay = !string.IsNullOrEmpty(config.simulatorId)
+            ? $"{config.simulatorId} — {config.simulatorName}"
+            : "Sin asignar";
+        adminSimulatorLabel = AdminAddLabel(ct, "Simulador", simDisplay);
+
         AdminAddSpacer(ct, 15f);
 
-        // Fila de botones
+        // ── Botones ──
         GameObject btnRow = new GameObject("ButtonRow");
         btnRow.transform.SetParent(ct, false);
         btnRow.AddComponent<RectTransform>();
@@ -869,10 +840,11 @@ public class MenuScreenManager : MonoBehaviour
 
         MenuCardBuilder.CreateButton(btnRow.transform, "Guardar", "primary",
             new Vector2(200f, 50f), OnAdminSave);
-        MenuCardBuilder.CreateButton(btnRow.transform, "Verificar Red", "secondary",
-            new Vector2(200f, 50f), () => StartCoroutine(AdminCheckNetwork()));
         MenuCardBuilder.CreateButton(btnRow.transform, "Volver", "ghost",
             new Vector2(150f, 50f), () => GoToScreen(0));
+
+        // Auto-check network on panel open
+        StartCoroutine(AdminCheckNetwork());
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(contentRt);
     }
@@ -941,22 +913,10 @@ public class MenuScreenManager : MonoBehaviour
         if (SimulatorConfig.Instance == null) return;
         var data = SimulatorConfig.Instance.data;
 
-        data.stationId = adminStationIdInput?.text ?? data.stationId;
+        data.name = adminNameInput?.text ?? data.name;
         data.apiBaseUrl = adminApiUrlInput?.text ?? data.apiBaseUrl;
 
-        if (!string.IsNullOrEmpty(data.stationId))
-            data.thingName = "sim-pc-" + data.stationId.Replace("SIM-", "").ToLower();
-
-        data.serialNumbers.frame = adminSerialFrameInput?.text ?? "";
-        data.serialNumbers.seat = adminSerialSeatInput?.text ?? "";
-        data.serialNumbers.computer = adminSerialComputerInput?.text ?? "";
-        data.serialNumbers.dofController = adminSerialDofInput?.text ?? "";
-        data.serialNumbers.wheel = adminSerialWheelInput?.text ?? "";
-
         SimulatorConfig.Instance.Save();
-
-        if (GameManager.Instance != null)
-            GameManager.Instance.ThingName = data.thingName;
 
         // Registrar en backend
         StartCoroutine(AdminRegisterBackend(data));
@@ -970,11 +930,10 @@ public class MenuScreenManager : MonoBehaviour
         string url = $"{data.apiBaseUrl}/simulator/register";
         string json = JsonUtility.ToJson(new AdminRegisterRequest
         {
-            stationId = data.stationId,
-            thingName = data.thingName,
+            pcId = data.pcId,
+            name = data.name,
             appVersion = Application.version,
-            platform = "windows",
-            serialNumbers = data.serialNumbers
+            platform = "windows"
         });
 
         using (var req = new UnityEngine.Networking.UnityWebRequest(url, "POST"))
@@ -987,9 +946,31 @@ public class MenuScreenManager : MonoBehaviour
             yield return req.SendWebRequest();
 
             if (req.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+            {
                 Debug.Log("[Admin] Registrado en backend");
+                // Parse response to get simulatorId
+                try
+                {
+                    var response = JsonUtility.FromJson<AdminRegisterResponse>(req.downloadHandler.text);
+                    if (!string.IsNullOrEmpty(response.simulatorId))
+                    {
+                        data.simulatorId = response.simulatorId;
+                        data.simulatorName = response.simulatorName ?? "";
+                        SimulatorConfig.Instance.Save();
+
+                        if (GameManager.Instance != null)
+                            GameManager.Instance.SimulatorId = response.simulatorId;
+                    }
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[Admin] Error parseando respuesta: {e.Message}");
+                }
+            }
             else
+            {
                 Debug.LogWarning($"[Admin] Error registrando: {req.error}");
+            }
         }
     }
 
@@ -1015,11 +996,20 @@ public class MenuScreenManager : MonoBehaviour
     [System.Serializable]
     private class AdminRegisterRequest
     {
-        public string stationId;
-        public string thingName;
+        public string pcId;
+        public string name;
         public string appVersion;
         public string platform;
-        public SimulatorConfig.SerialNumbers serialNumbers;
+    }
+
+    [System.Serializable]
+    private class AdminRegisterResponse
+    {
+        public bool success;
+        public string pcId;
+        public string simulatorId;
+        public string simulatorName;
+        public bool created;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1427,11 +1417,9 @@ public class MenuScreenManager : MonoBehaviour
             yield return ScoringConfig.Instance.LoadFromBackend();
 
         // Iniciar sesión en el backend (fire-and-forget: si falla, seguimos)
-        string thingName = GameManager.Instance?.ThingName ?? "sim-pc-unconfigured";
-
         if (!string.IsNullOrEmpty(tramiteId))
         {
-            yield return SimulatorApiClient.StartSession(tramiteId, thingName, (sid) =>
+            yield return SimulatorApiClient.StartSession(tramiteId, (sid) =>
             {
                 if (sid != null)
                 {

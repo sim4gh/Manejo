@@ -18,14 +18,15 @@ public class TelemetryLogger : MonoBehaviour
     }                                                                                                                                                                      
                                                                                                                                                                             
     [System.Serializable]                                                                                                                                                  
-    public class TelemetryData                                                                                                                                             
-    {                                                                                                                                                                      
+    public class TelemetryData
+    {
+        public string sessionId;
         public string sessionStart;
         public string sessionEnd;
         public string tramiteId;
         public float examDurationSeconds;
         public int finalScore;
-        public List<TelemetryEvent> events = new List<TelemetryEvent>();                                                                                                   
+        public List<TelemetryEvent> events = new List<TelemetryEvent>();
     }                                                                                                                                                                      
                                                                                                                                                                             
     public TelemetryData data = new TelemetryData();                                                                                                                       
@@ -57,6 +58,7 @@ public class TelemetryLogger : MonoBehaviour
         Debug.Log("ExportToJSON called with score: " + finalScore);                   
                                                                                         
         data.sessionEnd = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+        data.sessionId = GameManager.Instance?.SessionId ?? "";
         data.tramiteId = GameManager.Instance?.Expediente ?? "";
         data.examDurationSeconds = ExamTimer.Instance?.examDuration ?? 300f;
         data.finalScore = finalScore;                                                 

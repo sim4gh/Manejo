@@ -47,5 +47,11 @@ public static class ExamBootstrap
         Debug.Log("[ExamBootstrap] Inyectando ExamTimer en escena de manejo");
         GameObject obj = new GameObject("ExamTimerManager");
         obj.AddComponent<ExamTimer>();
+
+        // Aplicar scoring config del backend a todos los detectores
+        if (ScoringConfig.Instance != null)
+        {
+            ScoringConfig.Instance.ApplyToDetectors();
+        }
     }
 }

@@ -38,6 +38,10 @@ namespace Gley.UrbanSystem
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
+        private InputControl<float> _crossCtrl;     // button2 = × (Cross) → Reversa
+        private InputControl<float> _triangleCtrl;   // button4 = △ (Triangle) → Drive
+        private bool _lastCrossPressed;
+        private bool _lastTrianglePressed;
         private float _menuComboTimer;
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
@@ -120,6 +124,10 @@ namespace Gley.UrbanSystem
                 _r1Ctrl = CacheButton(5);  // paddle derecho
                 _l1Ctrl = CacheButton(6);  // paddle izquierdo
 
+                // Face buttons: gear automático
+                _crossCtrl = CacheButton(2);     // × → Reversa
+                _triangleCtrl = CacheButton(4);  // △ → Drive
+
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                 break;
             }
@@ -177,6 +185,10 @@ namespace Gley.UrbanSystem
             // ---- Gas / Brake + Gear ----
             if (_isAutomaticMode)
             {
+                // Teclado: R para toggle D↔R en automático
+                if (Keyboard.current != null && Keyboard.current.rKey.wasPressedThisFrame)
+                    _currentGear = (_currentGear == -1) ? 1 : -1;
+
                 // Automático: arriba=Drive(A), abajo=Reversa(R) directa
                 if (kbInput.y > 0.01f)
                 {
@@ -198,6 +210,15 @@ namespace Gley.UrbanSystem
                     float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                     verticalInput = gas;
                     brakeInput = brake;
+
+                    // × = Reversa, △ = Drive (solo automático con volante)
+                    bool crossNow = IsPressed(_crossCtrl);
+                    if (crossNow && !_lastCrossPressed) _currentGear = -1;
+                    _lastCrossPressed = crossNow;
+
+                    bool triNow = IsPressed(_triangleCtrl);
+                    if (triNow && !_lastTrianglePressed) _currentGear = 1;
+                    _lastTrianglePressed = triNow;
                 }
                 else
                 {
