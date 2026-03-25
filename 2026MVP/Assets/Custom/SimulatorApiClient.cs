@@ -49,6 +49,7 @@ public static class SimulatorApiClient
         public bool passed;
         public int score;
         public SessionFault[] faults;
+        public bool interrupted;
     }
 
     [System.Serializable]
@@ -68,6 +69,7 @@ public static class SimulatorApiClient
         public int score;
         public SessionFault[] faults;
         public string savedAt;
+        public bool interrupted;
     }
 
     [System.Serializable]
@@ -136,7 +138,7 @@ public static class SimulatorApiClient
     /// onComplete recibe true si fue exitoso, false si falló.
     /// </summary>
     public static IEnumerator EndSession(string sessionId, bool passed, int score,
-        SessionFault[] faults, System.Action<bool> onComplete)
+        SessionFault[] faults, bool interrupted, System.Action<bool> onComplete)
     {
         string url = $"{BaseUrl}/simulator/sessions/{sessionId}/results";
 
@@ -144,7 +146,8 @@ public static class SimulatorApiClient
         {
             passed = passed,
             score = score,
-            faults = faults
+            faults = faults,
+            interrupted = interrupted
         };
 
         string json = JsonUtility.ToJson(requestBody);
@@ -255,7 +258,8 @@ public static class SimulatorApiClient
         Path.Combine(Application.persistentDataPath, "pending_results.json");
 
     /// <summary>Guarda un resultado fallido para retry posterior.</summary>
-    public static void SavePendingResult(string sessionId, bool passed, int score, SessionFault[] faults)
+    public static void SavePendingResult(string sessionId, bool passed, int score,
+        SessionFault[] faults, bool interrupted = false)
     {
         var list = LoadPendingResults();
         list.results.Add(new PendingResult
@@ -264,7 +268,8 @@ public static class SimulatorApiClient
             passed = passed,
             score = score,
             faults = faults,
-            savedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+            savedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            interrupted = interrupted
         });
 
         string json = JsonUtility.ToJson(list, true);
@@ -310,7 +315,7 @@ public static class SimulatorApiClient
         {
             bool success = false;
             yield return EndSession(pending.sessionId, pending.passed, pending.score,
-                pending.faults, (ok) => success = ok);
+                pending.faults, pending.interrupted, (ok) => success = ok);
 
             if (!success)
                 remaining.Add(pending);
@@ -357,6 +362,7 @@ public static class SimulatorApiClient
     {
         public bool ok;
         public PendingConfig pendingConfig;
+        public PendingUpdateData pendingUpdate;
     }
 
     [System.Serializable]
@@ -364,6 +370,27 @@ public static class SimulatorApiClient
     {
         public string apiBaseUrl;
         public string environment;
+    }
+
+    [System.Serializable]
+    public class PendingUpdateData
+    {
+        public string version;
+        public string sha256;
+        public long size;
+        public string releaseNotes;
+        public bool mandatory;
+        public string scheduledAfter;
+        public string status;
+    }
+
+    [System.Serializable]
+    public class UpdateUrlResponse
+    {
+        public string downloadUrl;
+        public string sha256;
+        public long size;
+        public string version;
     }
 
     /// <summary>
@@ -400,6 +427,14 @@ public static class SimulatorApiClient
             try
             {
                 var response = JsonUtility.FromJson<HeartbeatResponse>(request.downloadHandler.text);
+
+                // Procesar pending update si existe
+                if (response?.pendingUpdate != null && !string.IsNullOrEmpty(response.pendingUpdate.version))
+                {
+                    if (AutoUpdater.Instance != null)
+                        AutoUpdater.Instance.ProcessPendingUpdate(response.pendingUpdate);
+                }
+
                 if (response?.pendingConfig != null && !string.IsNullOrEmpty(response.pendingConfig.apiBaseUrl))
                 {
                     Debug.Log($"[SimulatorAPI] Ambiente cambiado a {response.pendingConfig.environment}: {response.pendingConfig.apiBaseUrl}");
@@ -449,5 +484,110 @@ public static class SimulatorApiClient
         public string name;
         public string appVersion;
         public string platform;
+    }
+
+    // ── API: Solicitar URL de descarga de update ──────────────────────
+
+    [System.Serializable]
+    private class RequestUpdateRequest
+    {
+        public string pcId;
+        public string version;
+    }
+
+    /// <summary>
+    /// POST /simulator/request-update — solicita presigned URL para descargar el build.
+    /// </summary>
+    public static IEnumerator RequestUpdateUrl(string version, System.Action<UpdateUrlResponse> onResult)
+    {
+        var config = SimulatorConfig.Instance?.data;
+        if (config == null || string.IsNullOrEmpty(config.pcId))
+        {
+            onResult?.Invoke(null);
+            yield break;
+        }
+
+        string url = $"{BaseUrl}/simulator/request-update";
+        string json = JsonUtility.ToJson(new RequestUpdateRequest
+        {
+            pcId = config.pcId,
+            version = version,
+        });
+
+        Debug.Log($"[SimulatorAPI] POST {url} version={version}");
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 15;
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                try
+                {
+                    var response = JsonUtility.FromJson<UpdateUrlResponse>(request.downloadHandler.text);
+                    Debug.Log($"[SimulatorAPI] URL de descarga recibida para v{response.version}");
+                    onResult?.Invoke(response);
+                }
+                catch (System.Exception e)
+                {
+                    Debug.LogWarning($"[SimulatorAPI] Error parseando request-update: {e.Message}");
+                    onResult?.Invoke(null);
+                }
+            }
+            else
+            {
+                Debug.LogWarning($"[SimulatorAPI] Error request-update: {request.error} ({request.responseCode})");
+                onResult?.Invoke(null);
+            }
+        }
+    }
+
+    // ── API: Reportar status de update ────────────────────────────────
+
+    [System.Serializable]
+    private class UpdateStatusRequest
+    {
+        public string pcId;
+        public string status;
+        public string error;
+    }
+
+    /// <summary>
+    /// POST /simulator/update-status — reporta progreso de la actualización.
+    /// </summary>
+    public static IEnumerator ReportUpdateStatus(string status, string error, System.Action<bool> onComplete)
+    {
+        var config = SimulatorConfig.Instance?.data;
+        if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
+
+        string url = $"{BaseUrl}/simulator/update-status";
+        string json = JsonUtility.ToJson(new UpdateStatusRequest
+        {
+            pcId = config.pcId,
+            status = status,
+            error = error ?? "",
+        });
+
+        Debug.Log($"[SimulatorAPI] POST {url} status={status}");
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 10;
+            yield return request.SendWebRequest();
+
+            bool success = request.result == UnityWebRequest.Result.Success;
+            if (!success)
+            {
+                Debug.LogWarning($"[SimulatorAPI] Error update-status: {request.error}");
+            }
+            onComplete?.Invoke(success);
+        }
     }
 }

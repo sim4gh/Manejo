@@ -202,12 +202,12 @@ public class ExamTimer : MonoBehaviour
         bool passed = finalScore >= 70;
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
 
-        StartCoroutine(SimulatorApiClient.EndSession(sessionId, passed, finalScore, faults, (success) =>
+        StartCoroutine(SimulatorApiClient.EndSession(sessionId, passed, finalScore, faults, false, (success) =>
         {
             if (!success)
             {
                 Debug.LogWarning("[ExamTimer] Fallo al enviar resultados — guardando para retry");
-                SimulatorApiClient.SavePendingResult(sessionId, passed, finalScore, faults);
+                SimulatorApiClient.SavePendingResult(sessionId, passed, finalScore, faults, false);
             }
         }));
     }
@@ -232,10 +232,10 @@ public class ExamTimer : MonoBehaviour
         string sessionId = GameManager.Instance?.SessionId;
         if (string.IsNullOrEmpty(sessionId)) return;
 
-        bool passed = lastKnownScore >= 70;
+        // Interrumpido: siempre passed=false, interrupted=true
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
-        SimulatorApiClient.SavePendingResult(sessionId, passed, lastKnownScore, faults);
-        Debug.Log($"[ExamTimer] Examen interrumpido — resultados parciales guardados (score={lastKnownScore})");
+        SimulatorApiClient.SavePendingResult(sessionId, false, lastKnownScore, faults, true);
+        Debug.Log($"[ExamTimer] Examen interrumpido (score={lastKnownScore}, interrupted=true)");
 
         // Marcar como finished para evitar doble guardado (OnDestroy + OnApplicationQuit)
         examFinished = true;
