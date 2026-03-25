@@ -45,7 +45,7 @@ MonoBehaviour:
   PathFindingRoutes:
     Id: 000000000500000014000000
     RoutesColor:
-    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 0.3328459, g: 0.8018868, b: 0.10969208, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     Active: 010101
@@ -56,7 +56,7 @@ MonoBehaviour:
     - {r: 0.14901958, g: 0.19764556, b: 0.8, a: 1}
     - {r: 0, g: 1, b: 0.122285604, a: 1}
     Active: 010101
-  ShowConnections: 0
+  ShowConnections: 1
   ShowPriority: 0
   ShowVehicles: 0
   ViewOtherRoads: 0
@@ -68,16 +68,14 @@ MonoBehaviour:
   LaneWidth: 4
   MoveTool: 1
   speedRoutes:
-    Id: 0a00000012000000140000001e000000320000005a0000006e000000
+    Id: 1200000014000000320000005a0000006e000000
     RoutesColor:
-    - {r: 1, g: 1, b: 1, a: 1}
     - {r: 0.8461076, g: 1, b: 0, a: 1}
     - {r: 0.788378, g: 0.0046724924, b: 0.990566, a: 1}
-    - {r: 1, g: 1, b: 1, a: 1}
     - {r: 0.0141509175, g: 0.094611906, b: 1, a: 1}
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 0.053014517, g: 1, b: 0, a: 1}
-    Active: 01010101010101
+    Active: 0101010101
   showOtherLanes: 0
   showSpeed: 0
   viewRoadLaneChanges: 1
@@ -86,7 +84,7 @@ MonoBehaviour:
   nrOfLanes: 4
   otherLaneLinkDistance: 3
   globalCarList: 00000000
-  showAllIntersections: 0
+  showAllIntersections: 1
   showExitWaypoints: 1
   showPedestrianWaypoints: 1
   showDirectionWaypoints: 1
