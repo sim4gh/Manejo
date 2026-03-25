@@ -228,6 +228,7 @@ public class ExamTimer : MonoBehaviour
     void SavePartialIfNeeded()
     {
         if (examFinished) return;
+        examFinished = true; // Primero — cerrar race window (OnDestroy + OnApplicationQuit)
 
         string sessionId = GameManager.Instance?.SessionId;
         if (string.IsNullOrEmpty(sessionId)) return;
@@ -236,9 +237,6 @@ public class ExamTimer : MonoBehaviour
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
         SimulatorApiClient.SavePendingResult(sessionId, false, lastKnownScore, faults, true);
         Debug.Log($"[ExamTimer] Examen interrumpido (score={lastKnownScore}, interrupted=true)");
-
-        // Marcar como finished para evitar doble guardado (OnDestroy + OnApplicationQuit)
-        examFinished = true;
     }
 
     static string FormatTime(float seconds)

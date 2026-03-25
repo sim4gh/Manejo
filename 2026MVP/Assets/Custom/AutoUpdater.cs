@@ -2,40 +2,34 @@ using UnityEngine;
 using UnityEngine.Networking;
 using System.Collections;
 using System.IO;
+using System.Security.Cryptography;
 
 /// <summary>
 /// Auto-updater para el simulador Unity.
-/// - Al iniciar: verifica si hay nueva versión disponible.
-/// - Si hay: descarga ZIP en background.
-/// - Al final del día (o en siguiente arranque): instala y reinicia.
+/// Flujo heartbeat-driven:
+/// 1. Heartbeat devuelve pendingUpdate → se almacena aquí.
+/// 2. Al llegar scheduledAfter → solicita presigned URL vía /simulator/request-update.
+/// 3. Descarga ZIP, verifica SHA256.
+/// 4. Genera update.bat, reinicia.
+/// 5. Al reiniciar, register envía nuevo appVersion → backend limpia pendingUpdate.
 /// </summary>
 public class AutoUpdater : MonoBehaviour
 {
     public static AutoUpdater Instance { get; private set; }
 
-    [System.Serializable]
-    public class UpdateCheckResponse
-    {
-        public bool updateAvailable;
-        public string currentVersion;
-        public string latestVersion;
-        public string downloadUrl;
-        public string sha256;
-        public long size;
-        public string releaseNotes;
-        public bool mandatory;
-    }
-
-    // Estado
+    // ── Estado público ────────────────────────────────────────────────
     public bool UpdateAvailable { get; private set; }
     public bool UpdateDownloaded { get; private set; }
     public string LatestVersion { get; private set; }
     public string ReleaseNotes { get; private set; }
     public float DownloadProgress { get; private set; }
+    public string CurrentStatus { get; private set; } = "IDLE";
 
+    // ── Estado interno ────────────────────────────────────────────────
+    private SimulatorApiClient.PendingUpdateData pendingData;
     private string downloadedZipPath;
-    private bool isChecking;
     private bool isDownloading;
+    private bool isProcessing;
 
     void Awake()
     {
@@ -52,122 +46,115 @@ public class AutoUpdater : MonoBehaviour
 
     void Start()
     {
-        // Check automático siempre al iniciar
-        StartCoroutine(AutoCheckAndDownload());
-    }
-
-    IEnumerator AutoCheckAndDownload()
-    {
-        // Esperar un frame para que todo se inicialice
-        yield return null;
-
-        yield return CheckForUpdate(null);
-
-        if (UpdateAvailable && !UpdateDownloaded)
-        {
-            Debug.Log($"[AutoUpdater] Nueva versión {LatestVersion} disponible, descargando...");
-            yield return DownloadUpdate();
-        }
-
-        // Si hay update pendiente de una sesión anterior, verificar si es hora de instalar
-        CheckPendingInstall();
+        // Limpiar archivos residuales de updates anteriores
+        CleanupOldUpdates();
     }
 
     /// <summary>
-    /// Verifica si hay una nueva versión disponible.
-    /// El callback recibe (updateAvailable, latestVersion).
+    /// Llamado por SendHeartbeat() cuando el heartbeat devuelve pendingUpdate.
     /// </summary>
-    public IEnumerator CheckForUpdate(System.Action<bool, string> onResult)
+    public void ProcessPendingUpdate(SimulatorApiClient.PendingUpdateData data)
     {
-        if (isChecking) yield break;
-        isChecking = true;
+        if (data == null) return;
 
-        string baseUrl = SimulatorConfig.Instance?.data.apiBaseUrl
-            ?? "https://d6twaegbhg.execute-api.us-east-1.amazonaws.com";
-        string url = $"{baseUrl}/simulator/update-check?currentVersion={Application.version}";
+        // Si ya se instaló o estamos en medio de un proceso, ignorar
+        if (data.status == "INSTALLED") return;
+        if (isDownloading || isProcessing) return;
 
-        Debug.Log($"[AutoUpdater] Verificando actualizaciones: {url}");
+        pendingData = data;
+        UpdateAvailable = true;
+        LatestVersion = data.version;
+        ReleaseNotes = data.releaseNotes;
+        CurrentStatus = data.status;
 
-        using (var request = UnityWebRequest.Get(url))
+        // Si el status ya es DOWNLOADING/DOWNLOADED del lado del backend (retry), permitir re-descarga
+        if (data.status == "PENDING" || data.status == "FAILED")
         {
-            request.timeout = 10;
-            yield return request.SendWebRequest();
-
-            if (request.result == UnityWebRequest.Result.Success)
+            // Verificar si ya llegó la hora de scheduledAfter
+            if (IsScheduledTimeReached(data.scheduledAfter))
             {
-                try
-                {
-                    var response = JsonUtility.FromJson<UpdateCheckResponse>(request.downloadHandler.text);
-                    UpdateAvailable = response.updateAvailable;
-                    LatestVersion = response.latestVersion;
-                    ReleaseNotes = response.releaseNotes;
-
-                    if (response.updateAvailable)
-                    {
-                        Debug.Log($"[AutoUpdater] Actualización disponible: {response.latestVersion}");
-                        // Guardar URL para descarga
-                        PlayerPrefs.SetString("PendingUpdateUrl", response.downloadUrl ?? "");
-                        PlayerPrefs.SetString("PendingUpdateVersion", response.latestVersion ?? "");
-                        PlayerPrefs.Save();
-                    }
-                    else
-                    {
-                        Debug.Log("[AutoUpdater] El simulador está al día");
-                    }
-
-                    onResult?.Invoke(response.updateAvailable, response.latestVersion);
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"[AutoUpdater] Error parseando respuesta: {e.Message}");
-                    onResult?.Invoke(false, null);
-                }
+                Debug.Log($"[AutoUpdater] Update v{data.version} programado, iniciando descarga...");
+                StartCoroutine(RequestAndDownload());
             }
             else
             {
-                Debug.LogWarning($"[AutoUpdater] Error verificando: {request.error}");
-                onResult?.Invoke(false, null);
+                Debug.Log($"[AutoUpdater] Update v{data.version} pendiente, esperando horario: {data.scheduledAfter}");
+            }
+        }
+    }
+
+    bool IsScheduledTimeReached(string scheduledAfter)
+    {
+        if (string.IsNullOrEmpty(scheduledAfter)) return true;
+
+        if (System.DateTime.TryParse(scheduledAfter, null,
+            System.Globalization.DateTimeStyles.RoundtripKind, out System.DateTime scheduled))
+        {
+            return System.DateTime.UtcNow >= scheduled.ToUniversalTime();
+        }
+
+        // Si no se puede parsear, proceder de inmediato
+        return true;
+    }
+
+    /// <summary>
+    /// Solicita URL de descarga y descarga el ZIP.
+    /// </summary>
+    IEnumerator RequestAndDownload()
+    {
+        if (isDownloading || pendingData == null) yield break;
+        isDownloading = true;
+        isProcessing = true;
+
+        // 1. Solicitar presigned URL
+        Debug.Log($"[AutoUpdater] Solicitando URL de descarga para v{pendingData.version}...");
+        SimulatorApiClient.UpdateUrlResponse urlResponse = null;
+
+        yield return SimulatorApiClient.RequestUpdateUrl(pendingData.version, (resp) => urlResponse = resp);
+
+        if (urlResponse == null || string.IsNullOrEmpty(urlResponse.downloadUrl))
+        {
+            Debug.LogWarning("[AutoUpdater] No se pudo obtener URL de descarga");
+            yield return SimulatorApiClient.ReportUpdateStatus("FAILED", "No se pudo obtener URL de descarga", null);
+            isDownloading = false;
+            isProcessing = false;
+            CurrentStatus = "FAILED";
+            yield break;
+        }
+
+        // 2. Reportar DOWNLOADING
+        yield return SimulatorApiClient.ReportUpdateStatus("DOWNLOADING", null, null);
+        CurrentStatus = "DOWNLOADING";
+
+        // 3. Descargar ZIP
+        string tempDir = Path.Combine(Application.persistentDataPath, "updates");
+        if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
+        downloadedZipPath = Path.Combine(tempDir, $"Tlax2026MVP-v{pendingData.version}.zip");
+
+        // Si ya existe el archivo (descarga previa), verificar hash
+        if (File.Exists(downloadedZipPath))
+        {
+            string existingHash = ComputeFileSHA256(downloadedZipPath);
+            if (!string.IsNullOrEmpty(urlResponse.sha256) && existingHash == urlResponse.sha256)
+            {
+                Debug.Log("[AutoUpdater] ZIP ya descargado y verificado previamente");
+                UpdateDownloaded = true;
+                DownloadProgress = 1f;
+                yield return OnDownloadComplete(urlResponse.sha256);
+                yield break;
+            }
+            else
+            {
+                File.Delete(downloadedZipPath);
             }
         }
 
-        isChecking = false;
-    }
+        Debug.Log($"[AutoUpdater] Descargando: {urlResponse.downloadUrl.Substring(0, 100)}...");
 
-    /// <summary>Descarga el ZIP de la nueva versión en background.</summary>
-    public IEnumerator DownloadUpdate()
-    {
-        if (isDownloading) yield break;
-
-        string downloadUrl = PlayerPrefs.GetString("PendingUpdateUrl", "");
-        if (string.IsNullOrEmpty(downloadUrl))
+        using (var request = UnityWebRequest.Get(urlResponse.downloadUrl))
         {
-            Debug.LogWarning("[AutoUpdater] No hay URL de descarga");
-            yield break;
-        }
-
-        isDownloading = true;
-        DownloadProgress = 0f;
-
-        string tempDir = Path.Combine(Application.persistentDataPath, "updates");
-        if (!Directory.Exists(tempDir)) Directory.CreateDirectory(tempDir);
-
-        string version = PlayerPrefs.GetString("PendingUpdateVersion", "unknown");
-        downloadedZipPath = Path.Combine(tempDir, $"Tlax2026MVP-v{version}.zip");
-
-        // Si ya se descargó previamente, no re-descargar
-        if (File.Exists(downloadedZipPath))
-        {
-            Debug.Log("[AutoUpdater] ZIP ya descargado previamente");
-            UpdateDownloaded = true;
-            isDownloading = false;
-            yield break;
-        }
-
-        Debug.Log($"[AutoUpdater] Descargando: {downloadUrl}");
-
-        using (var request = UnityWebRequest.Get(downloadUrl))
-        {
-            request.timeout = 600; // 10 min para archivos grandes
+            request.timeout = 1200; // 20 min para archivos grandes (>500MB)
+            request.downloadHandler = new DownloadHandlerFile(downloadedZipPath);
 
             var op = request.SendWebRequest();
 
@@ -179,48 +166,69 @@ public class AutoUpdater : MonoBehaviour
 
             if (request.result == UnityWebRequest.Result.Success)
             {
-                File.WriteAllBytes(downloadedZipPath, request.downloadHandler.data);
-                UpdateDownloaded = true;
                 DownloadProgress = 1f;
-                Debug.Log($"[AutoUpdater] Descarga completada: {downloadedZipPath} ({request.downloadHandler.data.Length / 1048576}MB)");
+                long fileSize = new FileInfo(downloadedZipPath).Length;
+                Debug.Log($"[AutoUpdater] Descarga completada: {downloadedZipPath} ({fileSize / 1048576}MB)");
 
-                PlayerPrefs.SetString("PendingUpdateZip", downloadedZipPath);
-                PlayerPrefs.Save();
+                yield return OnDownloadComplete(urlResponse.sha256);
             }
             else
             {
                 Debug.LogWarning($"[AutoUpdater] Error descargando: {request.error}");
-                DownloadProgress = 0f;
+                yield return SimulatorApiClient.ReportUpdateStatus("FAILED", $"Download error: {request.error}", null);
+                CurrentStatus = "FAILED";
+                isDownloading = false;
+                isProcessing = false;
             }
         }
-
-        isDownloading = false;
     }
 
-    /// <summary>
-    /// Verifica si hay un update descargado pendiente de instalar.
-    /// Se instala automáticamente si es hora (>= 17:00) o si es mandatory.
-    /// </summary>
-    void CheckPendingInstall()
+    IEnumerator OnDownloadComplete(string expectedSha256)
     {
-        string pendingZip = PlayerPrefs.GetString("PendingUpdateZip", "");
-        if (string.IsNullOrEmpty(pendingZip) || !File.Exists(pendingZip)) return;
-
-        downloadedZipPath = pendingZip;
-        UpdateDownloaded = true;
-
-        // Instalar automáticamente si es después de las 17:00
-        int hour = System.DateTime.Now.Hour;
-        if (hour >= 17)
+        // 4. Verificar SHA256
+        if (!string.IsNullOrEmpty(expectedSha256))
         {
-            Debug.Log("[AutoUpdater] Es después de las 17:00, instalando actualización pendiente...");
-            InstallUpdate();
+            Debug.Log("[AutoUpdater] Verificando SHA256...");
+            string actualHash = ComputeFileSHA256(downloadedZipPath);
+
+            if (actualHash != expectedSha256)
+            {
+                Debug.LogWarning($"[AutoUpdater] SHA256 no coincide! Esperado: {expectedSha256}, Actual: {actualHash}");
+                File.Delete(downloadedZipPath);
+                yield return SimulatorApiClient.ReportUpdateStatus("FAILED", "SHA256 mismatch", null);
+                CurrentStatus = "FAILED";
+                isDownloading = false;
+                isProcessing = false;
+                yield break;
+            }
+
+            Debug.Log("[AutoUpdater] SHA256 verificado correctamente");
+        }
+
+        UpdateDownloaded = true;
+        yield return SimulatorApiClient.ReportUpdateStatus("DOWNLOADED", null, null);
+        CurrentStatus = "DOWNLOADED";
+        isDownloading = false;
+
+        // 5. Instalar inmediatamente (ya pasó el scheduledAfter)
+        Debug.Log("[AutoUpdater] Procediendo a instalar...");
+        InstallUpdate();
+    }
+
+    string ComputeFileSHA256(string filePath)
+    {
+        using (var sha256 = SHA256.Create())
+        using (var stream = File.OpenRead(filePath))
+        {
+            byte[] hash = sha256.ComputeHash(stream);
+            var sb = new System.Text.StringBuilder(64);
+            foreach (byte b in hash) sb.Append(b.ToString("x2"));
+            return sb.ToString();
         }
     }
 
     /// <summary>
     /// Instala la actualización: escribe update.bat, lo ejecuta y cierra Unity.
-    /// Llamado por AdminPanel o automáticamente al final del día.
     /// </summary>
     public void InstallUpdate()
     {
@@ -230,38 +238,48 @@ public class AutoUpdater : MonoBehaviour
             return;
         }
 
-        string appDir = Path.GetDirectoryName(Application.dataPath); // Parent of _Data
+        // Reportar INSTALLING (fire and forget — no yield porque vamos a cerrar)
+        StartCoroutine(SimulatorApiClient.ReportUpdateStatus("INSTALLING", null, null));
+        CurrentStatus = "INSTALLING";
+
+        string appDir = Path.GetDirectoryName(Application.dataPath);
         string exeName = Path.GetFileName(System.Environment.GetCommandLineArgs()[0]);
         string exePath = Path.Combine(appDir, exeName);
         string stagingDir = Path.Combine(Application.persistentDataPath, "updates", "staging");
         string batPath = Path.Combine(Application.persistentDataPath, "update.bat");
 
-        // Escribir batch script
         string batContent = $@"@echo off
-echo Instalando actualizacion del simulador...
+echo Instalando actualizacion del simulador v{LatestVersion}...
 timeout /t 3 /nobreak >nul
 
 echo Extrayendo archivos...
 powershell -Command ""Expand-Archive -Path '{downloadedZipPath}' -DestinationPath '{stagingDir}' -Force""
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: Fallo la extraccion del ZIP
+    exit /b 1
+)
 
 echo Copiando archivos nuevos...
 for /d %%D in (""{stagingDir}\*"") do (
     xcopy /s /e /y ""%%D\*"" ""{appDir}\""
 )
 
-echo Limpiando...
+echo Limpiando archivos temporales...
 rmdir /s /q ""{stagingDir}""
 del ""{downloadedZipPath}""
 
 echo Reiniciando simulador...
 start """" ""{exePath}""
+
+echo Borrando este script...
+del ""%~f0""
 exit
 ";
 
         File.WriteAllText(batPath, batContent);
         Debug.Log($"[AutoUpdater] Batch escrito en: {batPath}");
 
-        // Limpiar prefs de update pendiente
+        // Limpiar PlayerPrefs de sistema antiguo
         PlayerPrefs.DeleteKey("PendingUpdateUrl");
         PlayerPrefs.DeleteKey("PendingUpdateVersion");
         PlayerPrefs.DeleteKey("PendingUpdateZip");
@@ -277,5 +295,35 @@ exit
 
         System.Diagnostics.Process.Start(processInfo);
         Application.Quit();
+    }
+
+    /// <summary>
+    /// Limpia archivos residuales de updates anteriores al iniciar.
+    /// </summary>
+    void CleanupOldUpdates()
+    {
+        string updatesDir = Path.Combine(Application.persistentDataPath, "updates");
+        if (Directory.Exists(updatesDir))
+        {
+            try
+            {
+                Directory.Delete(updatesDir, true);
+                Debug.Log("[AutoUpdater] Directorio updates limpiado");
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[AutoUpdater] Error limpiando updates: {e.Message}");
+            }
+        }
+
+        // Limpiar PlayerPrefs del sistema antiguo
+        if (!string.IsNullOrEmpty(PlayerPrefs.GetString("PendingUpdateZip", "")))
+        {
+            PlayerPrefs.DeleteKey("PendingUpdateUrl");
+            PlayerPrefs.DeleteKey("PendingUpdateVersion");
+            PlayerPrefs.DeleteKey("PendingUpdateZip");
+            PlayerPrefs.Save();
+            Debug.Log("[AutoUpdater] PlayerPrefs de update antiguo limpiados");
+        }
     }
 }
