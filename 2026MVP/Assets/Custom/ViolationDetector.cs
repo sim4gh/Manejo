@@ -140,7 +140,7 @@ public class ViolationDetector : MonoBehaviour
 
         TrafficWaypoint waypoint = API.GetClosestWaypoint(transform.position);
 
-        if (waypoint != null && waypoint.MaxSpeed > 0)
+        if (waypoint != null && waypoint.MaxSpeed > 18)
         {
             float newLimit = waypoint.MaxSpeed;
 
