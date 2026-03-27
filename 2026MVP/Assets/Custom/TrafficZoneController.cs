@@ -1,5 +1,6 @@
 using UnityEngine;
 using Gley.TrafficSystem;
+using Unity.VisualScripting;
 
 public class TrafficZoneController : MonoBehaviour
 {
@@ -9,16 +10,18 @@ public class TrafficZoneController : MonoBehaviour
 
 
 
-
     private void OnTriggerEnter(Collider other)
     {
         if (other.gameObject.GetComponent<PlayerComponent>())
         {
-            Debug.Log("si entra");
+            
             API.SetActiveSquares(_CuadrosActivos);
             API.SetTrafficDensity(_maxVehiculos);
-            Debug.Log($"[Traffic Zone] cuadros = {_CuadrosActivos} vehiculos Ahora ={_maxVehiculos}");
-
-        }
+            
+        } 
+       
     }
+
+
+
 }
