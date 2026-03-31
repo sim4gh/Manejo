@@ -37,7 +37,7 @@ public class ParadaManager : MonoBehaviour
         aumenta = true;
         tiempo += Time.deltaTime;
 
-        if (tiempo >= 5f)
+        if (tiempo >= 2f)
         {
             _Estacionado = true;
         }
@@ -69,7 +69,7 @@ public class ParadaManager : MonoBehaviour
         for (int i = 0; i < pasajero.Count; i++)
         {
            
-            yield return new WaitForSeconds(5);
+            yield return new WaitForSeconds(3);
             pasajero[i]._Activo = true;
         }
         _colaActiva = false;

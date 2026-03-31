@@ -170,7 +170,7 @@ public class Pasajero : MonoBehaviour
     }
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("puerta")&& !_Activo)
+        if (other.CompareTag("puerta")&&  _Activo== false)
         {
             RagDollPasajeroManager.ActivoRagdoll(true);
         }
