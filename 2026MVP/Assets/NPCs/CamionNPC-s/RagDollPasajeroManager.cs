@@ -39,4 +39,17 @@ public class RagDollPasajeroManager : MonoBehaviour
             }
         }
     }
+
+    private void OnTriggerEnter(Collider other)
+    {
+
+        if (other.gameObject.CompareTag("automovil"))
+        {
+            Pasajero pasajero = GetComponent<Pasajero>();
+
+            if (pasajero != null) return;
+            
+            ActivoRagdoll (true);
+        }
+    }
 }
