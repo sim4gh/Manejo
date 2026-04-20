@@ -64,8 +64,8 @@ MonoBehaviour:
   ViewRoadWaypoints: 1
   ViewLabels: 1
   PathFindingEnabled: 0
-  WaypointDistance: 10
-  LaneWidth: 4.5
+  WaypointDistance: 4
+  LaneWidth: 4
   MoveTool: 1
   speedRoutes:
     Id: 0a00000012000000140000001a0000001e000000320000005a0000006e000000
@@ -84,8 +84,8 @@ MonoBehaviour:
   viewRoadLaneChanges: 1
   leftSideTraffic: 0
   maxSpeed: 110
-  nrOfLanes: 2
-  otherLaneLinkDistance: 2
+  nrOfLanes: 1
+  otherLaneLinkDistance: 3
   globalCarList: 00000000
   showAllIntersections: 1
   showExitWaypoints: 1
