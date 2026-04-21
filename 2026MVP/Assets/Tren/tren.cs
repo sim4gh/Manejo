@@ -11,6 +11,17 @@ public class tren : MonoBehaviour
     public Transform pluma;
     public bool abajo = false;
     public Transform pluma2;
+    public GameObject luzVerde;
+    public GameObject luzVerde2;
+    public GameObject luzRoja;
+    public GameObject luzRoja2;
+
+    private void Start()
+    {
+        luzVerde.SetActive(true);
+        luzVerde2.SetActive(true);
+        
+    }
     void OnTriggerStay(Collider other)
     {
         if (other.GetComponent<PlayerCar>())
@@ -25,6 +36,8 @@ public class tren : MonoBehaviour
             anguloActual = Mathf.MoveTowards(anguloActual, angulofinal, velocidad * Time.deltaTime);
             pluma.localEulerAngles = new Vector3(0f, 0f, anguloActual);
             pluma2.localEulerAngles = new Vector3(0f, 0f, anguloActual);
+            luzVerde.SetActive(false);
+            luzVerde2.SetActive(false);
             if (anguloActual==0) 
             {
                 abajo = true;
@@ -38,6 +51,8 @@ public class tren : MonoBehaviour
             anguloActual = Mathf.MoveTowards(anguloActual, -90, velocidad * Time.deltaTime);
             pluma.localEulerAngles = new Vector3(0f, 0f, anguloActual);
             pluma2.localEulerAngles = new Vector3(0f, 0f, anguloActual);
+            luzVerde.SetActive(true);
+            luzVerde2.SetActive(true);
         }
 
     }
