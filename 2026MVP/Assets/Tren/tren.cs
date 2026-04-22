@@ -13,9 +13,7 @@ public class tren : MonoBehaviour
     public Transform pluma2;
     public GameObject luzVerde;
     public GameObject luzVerde2;
-    public GameObject luzRoja;
-    public GameObject luzRoja2;
-
+   
     private void Start()
     {
         luzVerde.SetActive(true);
@@ -55,6 +53,14 @@ public class tren : MonoBehaviour
             luzVerde2.SetActive(true);
         }
 
+
+        yield return new WaitForSeconds(8f);
+
+        if (anguloActual == -90) 
+        {
+            abajo=false;        
+        
+        }
     }
 
     
