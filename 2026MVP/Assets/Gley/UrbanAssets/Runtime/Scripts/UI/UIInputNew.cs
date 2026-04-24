@@ -53,14 +53,30 @@ namespace Gley.UrbanSystem
         //   a = 0.45 → f(0.1)=0.20, f(0.3)=0.49, f(0.5)=0.69 (muy sensible)
         // El usuario pidió respuesta lineal — raw 0→0.2 = cambio de carril ligero,
         // raw 0.2→1.0 = dar vuelta progresivamente. A=1.0 cumple eso exactamente.
-        private const float STEER_CURVE_A = 1.0f;
+        // Parámetros tuneable en runtime via AdvancedInputPanel (F9 hold 1.5s).
+        // Se persisten en PlayerPrefs con prefijo "Adv_". ReloadTuning() los relee.
+        private float _steerCurveA = 1.0f;
+        private float _brakeSoftEnd = 0.8f;
+        private float _brakeSoftMaxOutput = 0.3f;
+        // Defaults de fábrica (constantes, no cambian)
+        public const float DEFAULT_STEER_CURVE_A = 1.0f;
+        public const float DEFAULT_BRAKE_SOFT_END = 0.8f;
+        public const float DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.3f;
+        // Keys PlayerPrefs
+        public const string PREF_STEER_CURVE_A = "Adv_SteerCurveA";
+        public const string PREF_BRAKE_SOFT_END = "Adv_BrakeSoftEnd";
+        public const string PREF_BRAKE_SOFT_MAX_OUTPUT = "Adv_BrakeSoftMaxOutput";
 
-        // Curva del freno por tramos lineales:
-        //   [0, BRAKE_SOFT_END]  → freno suave, llega a BRAKE_SOFT_MAX_OUTPUT
-        //   [BRAKE_SOFT_END, 1]  → freno de poder, sube rápido a 1.0
-        // Defaults: 80% del pedal da 30% de freno; el 20% restante lleva 30%→100%.
-        private const float BRAKE_SOFT_END = 0.8f;
-        private const float BRAKE_SOFT_MAX_OUTPUT = 0.3f;
+        /// <summary>
+        /// Relee los parámetros de tuning desde PlayerPrefs. Llamar al iniciar
+        /// y cuando el AdvancedInputPanel modifique valores (efecto en vivo).
+        /// </summary>
+        public void ReloadTuning()
+        {
+            _steerCurveA = PlayerPrefs.GetFloat(PREF_STEER_CURVE_A, DEFAULT_STEER_CURVE_A);
+            _brakeSoftEnd = PlayerPrefs.GetFloat(PREF_BRAKE_SOFT_END, DEFAULT_BRAKE_SOFT_END);
+            _brakeSoftMaxOutput = PlayerPrefs.GetFloat(PREF_BRAKE_SOFT_MAX_OUTPUT, DEFAULT_BRAKE_SOFT_MAX_OUTPUT);
+        }
 
         // Calibración del steering por rango físico alcanzable (center/max/min).
         // Guardada en PlayerPrefs al completar las fases 1 y 2 del menú.
@@ -200,6 +216,9 @@ namespace Gley.UrbanSystem
                 _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
                 _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
 
+                // Parámetros tuneable (panel F9)
+                ReloadTuning();
+
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
                     + " | steer=" + (_steerCtrl != null)
                     + " gas[" + gasPath + "]=" + (_gasCtrl != null)
@@ -218,16 +237,17 @@ namespace Gley.UrbanSystem
             return Mathf.Clamp01((raw - rest) / span);
         }
 
-        // Curva del freno: tramo 1 suave (0..BRAKE_SOFT_END pedal →
-        // 0..BRAKE_SOFT_MAX_OUTPUT freno), tramo 2 fuerte ("freno de poder").
+        // Curva del freno: tramo 1 suave (0.._brakeSoftEnd pedal →
+        // 0.._brakeSoftMaxOutput freno), tramo 2 fuerte ("freno de poder").
+        // Parámetros tuneable via AdvancedInputPanel.
         private float BrakeCurve(float x)
         {
             if (x <= 0f) return 0f;
             if (x >= 1f) return 1f;
-            if (x < BRAKE_SOFT_END)
-                return (x / BRAKE_SOFT_END) * BRAKE_SOFT_MAX_OUTPUT;
-            float hard = (x - BRAKE_SOFT_END) / (1f - BRAKE_SOFT_END);
-            return BRAKE_SOFT_MAX_OUTPUT + hard * (1f - BRAKE_SOFT_MAX_OUTPUT);
+            if (x < _brakeSoftEnd)
+                return (x / _brakeSoftEnd) * _brakeSoftMaxOutput;
+            float hard = (x - _brakeSoftEnd) / (1f - _brakeSoftEnd);
+            return _brakeSoftMaxOutput + hard * (1f - _brakeSoftMaxOutput);
         }
 
         // Normaliza steering a [-1, 1] mapeando el rango físico (center, max, min)
@@ -322,7 +342,7 @@ namespace Gley.UrbanSystem
                 {
                     float absN = Mathf.Abs(norm);
                     // f(x) = x / (a + (1-a)x) — agresiva en pequeños, aplanada arriba
-                    float curved = absN / (STEER_CURVE_A + (1f - STEER_CURVE_A) * absN);
+                    float curved = absN / (_steerCurveA + (1f - _steerCurveA) * absN);
                     horizontalInput = Mathf.Sign(norm) * curved;
                 }
                 else
