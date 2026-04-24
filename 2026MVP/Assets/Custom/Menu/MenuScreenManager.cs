@@ -53,13 +53,16 @@ public class MenuScreenManager : MonoBehaviour
     private InputControl<float> gasCtrl;    // eje /z — acelerador (para calibración)
     private InputControl<float> brakeCtrl;  // eje /rz — freno (para calibración)
 
-    // Detección dinámica del eje de cada pedal (algunos volantes mapean distinto)
-    private static readonly string[] GAS_AXIS_CANDIDATES   = { "z", "stick/y", "ry" };
-    private static readonly string[] BRAKE_AXIS_CANDIDATES = { "rz", "stick/z", "rx" };
-    private InputControl<float>[] gasCandidates;
-    private InputControl<float>[] brakeCandidates;
-    private float[] gasCandidateMins;
-    private float[] brakeCandidateMins;
+    // Detección dinámica del eje de cada pedal — lista unificada de candidatos.
+    // En la fase gas gana el que más caiga; en la fase brake se excluye el
+    // elegido para gas y gana otro distinto. Cubre mapeos cruzados (ej. en
+    // este G923 Xbox: gas=stick/y, brake=z).
+    private static readonly string[] PEDAL_AXIS_CANDIDATES = {
+        "z", "rz", "stick/y", "stick/z", "ry", "rx"
+    };
+    private InputControl<float>[] pedalCandidates;
+    private float[] pedalCandidateMins;
+    private int gasChosenIdx = -1; // índice elegido en fase 3; excluir de fase 4
     private bool confirmBtnHeld;
     private float dpadUpT, dpadDownT, dpadLeftT, dpadRightT;
     private bool dpadUpR, dpadDownR, dpadLeftR, dpadRightR;
@@ -83,6 +86,13 @@ public class MenuScreenManager : MonoBehaviour
     private Image leftIndicator;
     private Image leftFill;
     private RectTransform leftFillRT;
+    // Fases 3 y 4: barras dedicadas para acelerador y freno
+    private Image gasIndicator;
+    private Image gasFill;
+    private RectTransform gasFillRT;
+    private Image brakeIndicator;
+    private Image brakeFill;
+    private RectTransform brakeFillRT;
     private TextMeshProUGUI examInfoText;
     private TextMeshProUGUI debugText; // DEBUG temporal — telemetría en vivo del volante
     private bool rightDone, leftDone;
@@ -444,77 +454,34 @@ public class MenuScreenManager : MonoBehaviour
 
         float y = 0;
 
-        // Prompt principal — grande y claro
+        // Prompt principal — más compacto para dejar espacio a las 4 barras
         wheelPrompt = MenuCardBuilder.CreateText(area.transform, "Prompt",
-            "Para comenzar tu prueba de manejo,\ngira el volante hacia la DERECHA",
-            44f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            "Gira el volante hacia la DERECHA",
+            38f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
             .GetComponent<TextMeshProUGUI>();
         wheelPrompt.textWrappingMode = TextWrappingModes.Normal;
         wheelPrompt.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-            new Vector2(0, y), new Vector2(0, 120));
-        y -= 150;
-
-        // Indicador derecha — más alto
-        GameObject rightBar = new GameObject("RightIndicator");
-        rightBar.transform.SetParent(area.transform, false);
-        rightBar.AddComponent<RectTransform>().Set(
-            new Vector2(0.15f, 1), new Vector2(0.85f, 1), new Vector2(0.5f, 1),
-            new Vector2(0, y), new Vector2(0, 60));
-        rightIndicator = rightBar.AddComponent<Image>();
-        rightIndicator.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
-        rightIndicator.type = Image.Type.Sliced;
-        rightIndicator.color = MenuTheme.IndicatorPending;
-
-        // Fill dentro del track derecho
-        GameObject rightFillObj = new GameObject("RightFill");
-        rightFillObj.transform.SetParent(rightBar.transform, false);
-        rightFillRT = rightFillObj.AddComponent<RectTransform>();
-        rightFillRT.anchorMin = new Vector2(0, 0);
-        rightFillRT.anchorMax = new Vector2(0, 1);
-        rightFillRT.offsetMin = new Vector2(4, 4);
-        rightFillRT.offsetMax = new Vector2(-4, -4);
-        rightFill = rightFillObj.AddComponent<Image>();
-        rightFill.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
-        rightFill.type = Image.Type.Sliced;
-        rightFill.color = MenuTheme.SecondaryCrimson;
-        rightFill.raycastTarget = false;
-        y -= 90;
-
-        // "y después hacia la IZQUIERDA"
-        MenuCardBuilder.CreateText(area.transform, "ThenLabel",
-            "y después hacia la IZQUIERDA",
-            36f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
-            .GetComponent<RectTransform>().Set(
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-                new Vector2(0, y), new Vector2(0, 50));
-        y -= 70;
-
-        // Indicador izquierda
-        GameObject leftBar = new GameObject("LeftIndicator");
-        leftBar.transform.SetParent(area.transform, false);
-        leftBar.AddComponent<RectTransform>().Set(
-            new Vector2(0.15f, 1), new Vector2(0.85f, 1), new Vector2(0.5f, 1),
-            new Vector2(0, y), new Vector2(0, 60));
-        leftIndicator = leftBar.AddComponent<Image>();
-        leftIndicator.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
-        leftIndicator.type = Image.Type.Sliced;
-        leftIndicator.color = MenuTheme.IndicatorPending;
-
-        // Fill dentro del track izquierdo
-        GameObject leftFillObj = new GameObject("LeftFill");
-        leftFillObj.transform.SetParent(leftBar.transform, false);
-        leftFillRT = leftFillObj.AddComponent<RectTransform>();
-        leftFillRT.anchorMin = new Vector2(1, 0);
-        leftFillRT.anchorMax = new Vector2(1, 1);
-        leftFillRT.offsetMin = new Vector2(4, 4);
-        leftFillRT.offsetMax = new Vector2(-4, -4);
-        leftFill = leftFillObj.AddComponent<Image>();
-        leftFill.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
-        leftFill.type = Image.Type.Sliced;
-        leftFill.color = MenuTheme.SecondaryCrimson;
-        leftFill.raycastTarget = false;
+            new Vector2(0, y), new Vector2(0, 80));
         y -= 100;
+
+        // Barra DERECHA (fill izquierda → derecha)
+        BuildLabeledBar(area.transform, "DERECHA", ref y, true,
+            out rightIndicator, out rightFill, out rightFillRT);
+
+        // Barra IZQUIERDA (fill derecha → izquierda)
+        BuildLabeledBar(area.transform, "IZQUIERDA", ref y, false,
+            out leftIndicator, out leftFill, out leftFillRT);
+
+        // Barra ACELERADOR (fill izquierda → derecha)
+        BuildLabeledBar(area.transform, "ACELERADOR", ref y, true,
+            out gasIndicator, out gasFill, out gasFillRT);
+
+        // Barra FRENO (fill izquierda → derecha)
+        BuildLabeledBar(area.transform, "FRENO", ref y, true,
+            out brakeIndicator, out brakeFill, out brakeFillRT);
+
+        y -= 15; // separación antes de info
 
         // Exam info — legible
         var infoObj = MenuCardBuilder.CreateText(area.transform, "ExamInfo2", "",
@@ -534,7 +501,7 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── DEBUG: label de versión del fix (esquina superior derecha) ──
         // TEMPORAL: incrementar manualmente al pushear builds de debug.
-        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#5",
+        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#6",
             24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
         var verRT = verObj.GetComponent<RectTransform>();
         verRT.anchorMin = new Vector2(0.7f, 0.92f);
@@ -734,6 +701,59 @@ public class MenuScreenManager : MonoBehaviour
     void ShowError0(string msg)
     {
         if (errorText0 != null) errorText0.text = msg;
+    }
+
+    // Helper: construye una fila con etiqueta + barra de progreso.
+    // fillLeftToRight=true → rightFill (crece desde la izquierda).
+    // fillLeftToRight=false → leftFill (crece desde la derecha).
+    void BuildLabeledBar(Transform parent, string label, ref float y, bool fillLeftToRight,
+        out Image indicator, out Image fill, out RectTransform fillRT)
+    {
+        const float labelHeight = 22f;
+        const float barHeight = 38f;
+
+        // Etiqueta
+        MenuCardBuilder.CreateText(parent, label + "_Label", label,
+            18f, FontStyles.Bold, MenuTheme.TextSecondary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
+                new Vector2(0, y), new Vector2(0, labelHeight));
+        y -= labelHeight + 2;
+
+        // Track de la barra
+        GameObject bar = new GameObject(label + "_Bar");
+        bar.transform.SetParent(parent, false);
+        bar.AddComponent<RectTransform>().Set(
+            new Vector2(0.15f, 1), new Vector2(0.85f, 1), new Vector2(0.5f, 1),
+            new Vector2(0, y), new Vector2(0, barHeight));
+        indicator = bar.AddComponent<Image>();
+        indicator.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        indicator.type = Image.Type.Sliced;
+        indicator.color = MenuTheme.IndicatorPending;
+
+        // Fill dentro del track
+        GameObject fillObj = new GameObject(label + "_Fill");
+        fillObj.transform.SetParent(bar.transform, false);
+        fillRT = fillObj.AddComponent<RectTransform>();
+        if (fillLeftToRight)
+        {
+            fillRT.anchorMin = new Vector2(0, 0);
+            fillRT.anchorMax = new Vector2(0, 1);
+        }
+        else
+        {
+            fillRT.anchorMin = new Vector2(1, 0);
+            fillRT.anchorMax = new Vector2(1, 1);
+        }
+        fillRT.offsetMin = new Vector2(4, 4);
+        fillRT.offsetMax = new Vector2(-4, -4);
+        fill = fillObj.AddComponent<Image>();
+        fill.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        fill.type = Image.Type.Sliced;
+        fill.color = MenuTheme.SecondaryCrimson;
+        fill.raycastTarget = false;
+
+        y -= barHeight + 10; // separación entre filas
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1053,22 +1073,30 @@ public class MenuScreenManager : MonoBehaviour
         gasMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_GasMin") : 1f;
         brakeMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_BrakeMin") : 1f;
 
-        // Reset mins de candidatos para esta sesión de calibración
-        if (gasCandidateMins != null)
-            for (int i = 0; i < gasCandidateMins.Length; i++) gasCandidateMins[i] = 1f;
-        if (brakeCandidateMins != null)
-            for (int i = 0; i < brakeCandidateMins.Length; i++) brakeCandidateMins[i] = 1f;
+        // Reset mins de candidatos de pedal para esta sesión de calibración
+        if (pedalCandidateMins != null)
+            for (int i = 0; i < pedalCandidateMins.Length; i++) pedalCandidateMins[i] = 1f;
+        gasChosenIdx = -1;
 
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
+        // Si ya calibrado previamente, las 2 barras de pedales quedan en verde (done).
+        Color gasColor = throttleDone ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        Color brakeColor = brakeDone ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        gasIndicator.color = gasColor;
+        brakeIndicator.color = brakeColor;
 
-        // Resetear fills a ancho 0
+        // Resetear fills a ancho 0 (giros) o 100% (pedales si ya calibrados)
         rightFillRT.anchorMax = new Vector2(0, 1);
         rightFill.color = MenuTheme.SecondaryCrimson;
         leftFillRT.anchorMin = new Vector2(1, 0);
         leftFill.color = MenuTheme.SecondaryCrimson;
+        gasFillRT.anchorMax = new Vector2(throttleDone ? 1f : 0f, 1);
+        gasFill.color = throttleDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
+        brakeFillRT.anchorMax = new Vector2(brakeDone ? 1f : 0f, 1);
+        brakeFill.color = brakeDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
 
-        wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la DERECHA";
+        wheelPrompt.text = "Gira el volante hacia la DERECHA";
         string examType = licenseType switch
         {
             "particular" => "Vehículo Particular",
@@ -1107,7 +1135,7 @@ public class MenuScreenManager : MonoBehaviour
                 rightFillRT.anchorMax = new Vector2(1, 1);
                 rightFill.color = MenuTheme.IndicatorDone;
                 rightIndicator.color = MenuTheme.IndicatorDone;
-                wheelPrompt.text = "Para comenzar tu prueba de manejo,\ngira el volante hacia la IZQUIERDA";
+                wheelPrompt.text = "Gira el volante hacia la IZQUIERDA";
             }
             else if (Mathf.Abs(progress - rightFillRT.anchorMax.x) > 0.005f)
             {
@@ -1154,56 +1182,54 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
 
-        // ── Fase 3: calibración dinámica del ACELERADOR (reusa rightFill) ──
-        // Samplea todos los candidatos (z, stick/y, ry) y gana el que más caiga.
+        // ── Fase 3: calibración dinámica del ACELERADOR (barra gasFill) ──
+        // Samplea la lista unificada de candidatos y gana el que más caiga.
         if (!throttleDone)
         {
-            int bestIdx = SampleCandidates(gasCandidates, gasCandidateMins, out float bestDrop);
+            int bestIdx = SamplePedalCandidates(-1, out float bestDrop);
             float gasProgress = Mathf.Clamp01(bestDrop);
 
             if (gasProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
             {
                 throttleDone = true;
-                gasMinSeen = gasCandidateMins[bestIdx];
-                string gasAxisPath = GAS_AXIS_CANDIDATES[bestIdx];
+                gasChosenIdx = bestIdx;
+                gasMinSeen = pedalCandidateMins[bestIdx];
+                string gasAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
 
-                rightFillRT.anchorMax = new Vector2(1, 1);
-                rightFill.color = MenuTheme.IndicatorDone;
-                rightIndicator.color = MenuTheme.IndicatorDone;
+                gasFillRT.anchorMax = new Vector2(1, 1);
+                gasFill.color = MenuTheme.IndicatorDone;
+                gasIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_GasAxis", gasAxisPath);
                 PlayerPrefs.SetFloat("G923_GasMin", gasMinSeen);
                 Debug.Log($"[MenuScreenManager] Acelerador → eje '{gasAxisPath}' min={gasMinSeen:F3}");
 
-                // Reset leftFill para fase de freno
-                leftFillRT.anchorMin = new Vector2(1, 0);
-                leftFill.color = MenuTheme.SecondaryCrimson;
-                leftIndicator.color = MenuTheme.IndicatorPending;
                 wheelPrompt.text = "Pisa el FRENO a fondo";
             }
-            else if (Mathf.Abs(gasProgress - rightFillRT.anchorMax.x) > 0.005f)
+            else if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f)
             {
-                rightFillRT.anchorMax = new Vector2(gasProgress, 1);
-                rightFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+                gasFillRT.anchorMax = new Vector2(gasProgress, 1);
+                gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
             }
             return;
         }
 
-        // ── Fase 4: calibración dinámica del FRENO (reusa leftFill) ──
+        // ── Fase 4: calibración dinámica del FRENO (barra brakeFill) ──
+        // Excluye el eje que ya se eligió para acelerador.
         if (!brakeDone)
         {
-            int bestIdx = SampleCandidates(brakeCandidates, brakeCandidateMins, out float bestDrop);
+            int bestIdx = SamplePedalCandidates(gasChosenIdx, out float bestDrop);
             float brakeProgress = Mathf.Clamp01(bestDrop);
 
             if (brakeProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
             {
                 brakeDone = true;
-                brakeMinSeen = brakeCandidateMins[bestIdx];
-                string brakeAxisPath = BRAKE_AXIS_CANDIDATES[bestIdx];
+                brakeMinSeen = pedalCandidateMins[bestIdx];
+                string brakeAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
 
-                leftFillRT.anchorMin = new Vector2(0, 0);
-                leftFill.color = MenuTheme.IndicatorDone;
-                leftIndicator.color = MenuTheme.IndicatorDone;
+                brakeFillRT.anchorMax = new Vector2(1, 1);
+                brakeFill.color = MenuTheme.IndicatorDone;
+                brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
                 PlayerPrefs.SetFloat("G923_BrakeMin", brakeMinSeen);
@@ -1214,10 +1240,10 @@ public class MenuScreenManager : MonoBehaviour
                 skipButton.gameObject.SetActive(false);
                 StartCoroutine(LoadSceneDelayed(1.5f));
             }
-            else if (Mathf.Abs(brakeProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
+            else if (Mathf.Abs(brakeProgress - brakeFillRT.anchorMax.x) > 0.005f)
             {
-                leftFillRT.anchorMin = new Vector2(1 - brakeProgress, 0);
-                leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, brakeProgress);
+                brakeFillRT.anchorMax = new Vector2(brakeProgress, 1);
+                brakeFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, brakeProgress);
             }
         }
     }
@@ -1244,7 +1270,7 @@ public class MenuScreenManager : MonoBehaviour
         if (debugText == null) return;
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
-        sb.Append("── DEBUG VOLANTE [FIX#5] ──\n");
+        sb.Append("── DEBUG VOLANTE [FIX#6] ──\n");
 
         // PlayerPrefs (calibración previa)
         string gasAxisPref = PlayerPrefs.GetString("G923_GasAxis", "-");
@@ -1279,27 +1305,17 @@ public class MenuScreenManager : MonoBehaviour
             float steer = steerAction.ReadValue<float>();
             sb.Append($"RAW steer={steer:F3}\n");
 
-            // Candidatos de gas (los 3 ejes): raw y min observado
-            sb.Append("GAS candidatos:\n");
-            if (gasCandidates != null)
+            // Candidatos de pedal (lista unificada): raw, min y marca del eje elegido
+            sb.Append("Pedal candidatos:\n");
+            if (pedalCandidates != null)
             {
-                for (int i = 0; i < gasCandidates.Length; i++)
+                for (int i = 0; i < pedalCandidates.Length; i++)
                 {
-                    string path = GAS_AXIS_CANDIDATES[i];
-                    if (gasCandidates[i] == null) { sb.Append($"  {path}= null\n"); continue; }
-                    float v = gasCandidates[i].ReadValue();
-                    sb.Append($"  {path}= {v:F3}  min={gasCandidateMins[i]:F3}\n");
-                }
-            }
-            sb.Append("FRENO candidatos:\n");
-            if (brakeCandidates != null)
-            {
-                for (int i = 0; i < brakeCandidates.Length; i++)
-                {
-                    string path = BRAKE_AXIS_CANDIDATES[i];
-                    if (brakeCandidates[i] == null) { sb.Append($"  {path}= null\n"); continue; }
-                    float v = brakeCandidates[i].ReadValue();
-                    sb.Append($"  {path}= {v:F3}  min={brakeCandidateMins[i]:F3}\n");
+                    string path = PEDAL_AXIS_CANDIDATES[i];
+                    string tag = (i == gasChosenIdx) ? " [GAS]" : "";
+                    if (pedalCandidates[i] == null) { sb.Append($"  {path}= null{tag}\n"); continue; }
+                    float v = pedalCandidates[i].ReadValue();
+                    sb.Append($"  {path}= {v:F3}  min={pedalCandidateMins[i]:F3}{tag}\n");
                 }
             }
         }
@@ -1316,39 +1332,33 @@ public class MenuScreenManager : MonoBehaviour
         debugText.text = sb.ToString();
     }
 
-    // Cachea los candidatos a eje de pedal y resetea los mínimos observados.
-    // Durante la fase de calibración, el código observa todos los candidatos
-    // y selecciona como "el pedal" el eje con mayor caída desde el reposo.
+    // Cachea los candidatos de eje de pedal (lista unificada).
     void CachePedalCandidates(InputDevice device)
     {
-        gasCandidates = new InputControl<float>[GAS_AXIS_CANDIDATES.Length];
-        gasCandidateMins = new float[GAS_AXIS_CANDIDATES.Length];
-        for (int i = 0; i < GAS_AXIS_CANDIDATES.Length; i++)
+        pedalCandidates = new InputControl<float>[PEDAL_AXIS_CANDIDATES.Length];
+        pedalCandidateMins = new float[PEDAL_AXIS_CANDIDATES.Length];
+        for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
         {
-            gasCandidates[i] = device.TryGetChildControl(GAS_AXIS_CANDIDATES[i]) as InputControl<float>;
-            gasCandidateMins[i] = 1f;
-        }
-        brakeCandidates = new InputControl<float>[BRAKE_AXIS_CANDIDATES.Length];
-        brakeCandidateMins = new float[BRAKE_AXIS_CANDIDATES.Length];
-        for (int i = 0; i < BRAKE_AXIS_CANDIDATES.Length; i++)
-        {
-            brakeCandidates[i] = device.TryGetChildControl(BRAKE_AXIS_CANDIDATES[i]) as InputControl<float>;
-            brakeCandidateMins[i] = 1f;
+            pedalCandidates[i] = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
+            pedalCandidateMins[i] = 1f;
         }
     }
 
-    // Actualiza los mins de un grupo de candidatos y devuelve el índice del
-    // candidato con mayor caída (drop = 1 - min) y su magnitud.
-    int SampleCandidates(InputControl<float>[] candidates, float[] mins, out float bestDrop)
+    // Actualiza los mins de todos los candidatos y devuelve el que más cayó
+    // (out bestDrop), con opción de excluir un índice (para que brake no elija
+    // el mismo eje que ya ganó gas).
+    int SamplePedalCandidates(int excludeIdx, out float bestDrop)
     {
         bestDrop = 0f;
         int bestIdx = -1;
-        for (int i = 0; i < candidates.Length; i++)
+        if (pedalCandidates == null) return -1;
+        for (int i = 0; i < pedalCandidates.Length; i++)
         {
-            if (candidates[i] == null) continue;
-            float v = candidates[i].ReadValue();
-            if (v < mins[i]) mins[i] = v;
-            float drop = 1f - mins[i];
+            if (pedalCandidates[i] == null) continue;
+            float v = pedalCandidates[i].ReadValue();
+            if (v < pedalCandidateMins[i]) pedalCandidateMins[i] = v;
+            if (i == excludeIdx) continue;
+            float drop = 1f - pedalCandidateMins[i];
             if (drop > bestDrop) { bestDrop = drop; bestIdx = i; }
         }
         return bestIdx;
