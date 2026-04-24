@@ -76,6 +76,7 @@ public class MenuScreenManager : MonoBehaviour
     private Image leftFill;
     private RectTransform leftFillRT;
     private TextMeshProUGUI examInfoText;
+    private TextMeshProUGUI debugText; // DEBUG temporal — telemetría en vivo del volante
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
     private float gasMinSeen = 1f;   // rest=1; cae al pisar
@@ -522,6 +523,32 @@ public class MenuScreenManager : MonoBehaviour
         skipButton.GetComponent<RectTransform>().Set(
             new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(0, y), new Vector2(350, 65));
+
+        // ── DEBUG: label de versión del fix (esquina superior derecha) ──
+        // TEMPORAL: incrementar manualmente al pushear builds de debug.
+        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#4",
+            24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
+        var verRT = verObj.GetComponent<RectTransform>();
+        verRT.anchorMin = new Vector2(0.7f, 0.92f);
+        verRT.anchorMax = new Vector2(1f, 1f);
+        verRT.pivot = new Vector2(1, 1);
+        verRT.anchoredPosition = new Vector2(-20, -20);
+        verRT.sizeDelta = Vector2.zero;
+        verObj.GetComponent<TextMeshProUGUI>().raycastTarget = false;
+
+        // ── DEBUG: telemetría en vivo del volante (esquina inferior izquierda) ──
+        // TEMPORAL: quitar cuando el input quede estable.
+        var debugObj = MenuCardBuilder.CreateText(screen.transform, "DebugTelemetry", "",
+            18f, FontStyles.Normal, new Color(0.6f, 1f, 0.6f, 0.95f), TextAlignmentOptions.TopLeft);
+        var debugRT = debugObj.GetComponent<RectTransform>();
+        debugRT.anchorMin = new Vector2(0, 0);
+        debugRT.anchorMax = new Vector2(0.55f, 0.5f);
+        debugRT.pivot = new Vector2(0, 0);
+        debugRT.anchoredPosition = new Vector2(20, 20);
+        debugRT.sizeDelta = Vector2.zero;
+        debugText = debugObj.GetComponent<TextMeshProUGUI>();
+        debugText.textWrappingMode = TextWrappingModes.Normal;
+        debugText.raycastTarget = false;
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1046,9 +1073,12 @@ public class MenuScreenManager : MonoBehaviour
             UpdateOptionsDpad();
 
         if (currentScreen != 2) return;
-        if (rightDone && leftDone && throttleDone && brakeDone) return;
 
+        // Leer input (dispara detección+cacheo de device/pedales) antes de pintar debug
         float steer = ReadSteerInput();
+        UpdateDebugText();
+
+        if (rightDone && leftDone && throttleDone && brakeDone) return;
 
         if (!rightDone)
         {
@@ -1180,6 +1210,63 @@ public class MenuScreenManager : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         LoadSelectedScene();
+    }
+
+    // DEBUG temporal: telemetría visible en la propia pantalla del volante.
+    // Remover cuando el mapeo/pedales queden validados en el kiosko.
+    void UpdateDebugText()
+    {
+        if (debugText == null) return;
+
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
+        sb.Append("── DEBUG VOLANTE [FIX#4] ──\n");
+
+        // PlayerPrefs (calibración previa)
+        string gasPref = PlayerPrefs.HasKey("G923_GasMin") ? PlayerPrefs.GetFloat("G923_GasMin").ToString("F3") : "-";
+        string brakePref = PlayerPrefs.HasKey("G923_BrakeMin") ? PlayerPrefs.GetFloat("G923_BrakeMin").ToString("F3") : "-";
+        sb.Append($"Prefs: gas={gasPref}  brake={brakePref}\n");
+
+        // Device
+        if (steerAction == null)
+        {
+            sb.Append("DEVICE: no detectado aún\n");
+            sb.Append("Enumerados:\n");
+            foreach (var d in InputSystem.devices)
+                sb.Append($"  - {d.displayName}\n");
+        }
+        else
+        {
+            // Probar a detectar nombre del device en uso
+            string devName = "(?)";
+            foreach (var d in InputSystem.devices)
+            {
+                string nm = d.displayName ?? "";
+                if (nm.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || nm.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || d == Joystick.current || d == Gamepad.current)
+                { devName = nm; break; }
+            }
+            sb.Append($"DEVICE: {devName}\n");
+
+            float steer = steerAction.ReadValue<float>();
+            string gasStr = gasCtrl != null ? gasCtrl.ReadValue().ToString("F3") : "null";
+            string brakeStr = brakeCtrl != null ? brakeCtrl.ReadValue().ToString("F3") : "null";
+            sb.Append($"RAW steer={steer:F3}\n");
+            sb.Append($"RAW gas  ={gasStr}\n");
+            sb.Append($"RAW brake={brakeStr}\n");
+            sb.Append($"MIN gas={gasMinSeen:F3}  brake={brakeMinSeen:F3}\n");
+        }
+
+        // Fase actual
+        string phase = !rightDone ? "1/4 Girar DERECHA"
+                     : !leftDone ? "2/4 Girar IZQUIERDA"
+                     : !throttleDone ? "3/4 Pisar ACELERADOR"
+                     : !brakeDone ? "4/4 Pisar FRENO"
+                     : "COMPLETO";
+        sb.Append($"Fase: {phase}\n");
+        sb.Append($"Estado: R={rightDone} L={leftDone} T={throttleDone} B={brakeDone}\n");
+
+        debugText.text = sb.ToString();
     }
 
     float ReadSteerInput()
