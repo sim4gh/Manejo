@@ -104,13 +104,88 @@ namespace Gley.UrbanSystem
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
-        private InputControl<float> _crossCtrl;     // button2 = × (Cross) → Reversa
-        private InputControl<float> _triangleCtrl;   // button4 = △ (Triangle) → Drive
+        private InputControl<float> _crossCtrl;     // reversa
+        private InputControl<float> _triangleCtrl;   // drive
+        private InputControl<float> _restartCtrl;    // botón único de reinicio (nuevo)
         private bool _lastCrossPressed;
         private bool _lastTrianglePressed;
+        private bool _lastRestartPressed;
         private float _menuComboTimer;
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
+
+        // Bindings configurables via BindingsPanel (F8 hold 1.5s).
+        // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
+        // sobreescribir para otros volantes.
+        private string _bindReverse = "button2";
+        private string _bindDrive = "button4";
+        private string _bindPaddleLeft = "button6";
+        private string _bindPaddleRight = "button5";
+        private string _bindRestart = "";           // vacío = deshabilitado
+        private string _bindMenuA = "button7";      // L2
+        private string _bindMenuB = "button8";      // R2
+        private string _bindRestartA = "button11";  // L3
+        private string _bindRestartB = "button12";  // R3
+
+        public const string PREF_BIND_REVERSE = "Bind_reverse";
+        public const string PREF_BIND_DRIVE = "Bind_drive";
+        public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
+        public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
+        public const string PREF_BIND_RESTART = "Bind_restart";
+        public const string PREF_BIND_MENU_A = "Bind_menuA";
+        public const string PREF_BIND_MENU_B = "Bind_menuB";
+        public const string PREF_BIND_RESTART_A = "Bind_restartA";
+        public const string PREF_BIND_RESTART_B = "Bind_restartB";
+
+        public const string DEFAULT_BIND_REVERSE = "button2";
+        public const string DEFAULT_BIND_DRIVE = "button4";
+        public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
+        public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
+        public const string DEFAULT_BIND_RESTART = "";
+        public const string DEFAULT_BIND_MENU_A = "button7";
+        public const string DEFAULT_BIND_MENU_B = "button8";
+        public const string DEFAULT_BIND_RESTART_A = "button11";
+        public const string DEFAULT_BIND_RESTART_B = "button12";
+
+        /// <summary>
+        /// Relee los bindings configurables desde PlayerPrefs y re-cachea los
+        /// controles del device activo. Llamar tras detectar volante y cada vez
+        /// que BindingsPanel modifica algo.
+        /// </summary>
+        public void ReloadBindings()
+        {
+            _bindReverse      = PlayerPrefs.GetString(PREF_BIND_REVERSE, DEFAULT_BIND_REVERSE);
+            _bindDrive        = PlayerPrefs.GetString(PREF_BIND_DRIVE, DEFAULT_BIND_DRIVE);
+            _bindPaddleLeft   = PlayerPrefs.GetString(PREF_BIND_PADDLE_LEFT, DEFAULT_BIND_PADDLE_LEFT);
+            _bindPaddleRight  = PlayerPrefs.GetString(PREF_BIND_PADDLE_RIGHT, DEFAULT_BIND_PADDLE_RIGHT);
+            _bindRestart      = PlayerPrefs.GetString(PREF_BIND_RESTART, DEFAULT_BIND_RESTART);
+            _bindMenuA        = PlayerPrefs.GetString(PREF_BIND_MENU_A, DEFAULT_BIND_MENU_A);
+            _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
+            _bindRestartA     = PlayerPrefs.GetString(PREF_BIND_RESTART_A, DEFAULT_BIND_RESTART_A);
+            _bindRestartB     = PlayerPrefs.GetString(PREF_BIND_RESTART_B, DEFAULT_BIND_RESTART_B);
+            if (_wheelDevice != null) ReCacheButtonBindings();
+        }
+
+        void ReCacheButtonBindings()
+        {
+            _crossCtrl    = CacheBindingCtrl(_bindReverse);
+            _triangleCtrl = CacheBindingCtrl(_bindDrive);
+            _l1Ctrl       = CacheBindingCtrl(_bindPaddleLeft);
+            _r1Ctrl       = CacheBindingCtrl(_bindPaddleRight);
+            _restartCtrl  = CacheBindingCtrl(_bindRestart);
+            _l2Ctrl       = CacheBindingCtrl(_bindMenuA);
+            _r2Ctrl       = CacheBindingCtrl(_bindMenuB);
+            _l3Ctrl       = CacheBindingCtrl(_bindRestartA);
+            _r3Ctrl       = CacheBindingCtrl(_bindRestartB);
+        }
+
+        InputControl<float> CacheBindingCtrl(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            return _wheelDevice.TryGetChildControl(path) as InputControl<float>;
+        }
+
+        public InputDevice WheelDevice => _wheelDevice;
 
         // Mapeo gear: indice 0-6 → gear 1-6, R(-1)
         private static readonly int[] GearValues = { 1, 2, 3, 4, 5, 6, -1 };
@@ -188,24 +263,13 @@ namespace Gley.UrbanSystem
                 _gasCtrl   = CacheControl(gasPath);
                 _brakeCtrl = CacheControl(brakePath);
 
-                // H-shifter: buttons 13-19
+                // H-shifter: buttons 13-19 (no configurable — hardcoded)
                 _gearControls = new InputControl<float>[7];
                 for (int i = 0; i < 7; i++)
                     _gearControls[i] = CacheButton(13 + i);
 
-                // Combos: L2(7), R2(8), L3(11), R3(12)
-                _l2Ctrl = CacheButton(7);
-                _r2Ctrl = CacheButton(8);
-                _l3Ctrl = CacheButton(11);
-                _r3Ctrl = CacheButton(12);
-
-                // Paddles: direccionales (button5=R1=der, button6=L1=izq en G923 PS)
-                _r1Ctrl = CacheButton(5);
-                _l1Ctrl = CacheButton(6);
-
-                // Face buttons: gear automático
-                _crossCtrl   = CacheButton(2); // × → Reversa
-                _triangleCtrl = CacheButton(4); // △ → Drive
+                // Bindings configurables (reversa, paddles, combos, restart)
+                ReloadBindings();
 
                 // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
                 _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
@@ -515,6 +579,18 @@ namespace Gley.UrbanSystem
                 }
             }
             else { _restartComboTimer = 0f; }
+
+            // ---- Botón único de reinicio (configurable en BindingsPanel F8) ----
+            if (_hasWheel && _restartCtrl != null)
+            {
+                bool restartNow = IsPressed(_restartCtrl);
+                if (restartNow && !_lastRestartPressed)
+                {
+                    Time.timeScale = 1f;
+                    SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                }
+                _lastRestartPressed = restartNow;
+            }
 
             // ---- Log periódico de valores crudos/calculados (diagnóstico kiosko) ----
             if (_hasWheel)
