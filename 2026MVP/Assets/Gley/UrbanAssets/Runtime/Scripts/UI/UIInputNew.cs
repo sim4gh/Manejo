@@ -31,6 +31,21 @@ namespace Gley.UrbanSystem
         private InputDevice _wheelDevice;
         private bool _hasWheel;
 
+        // Polling (el HID del volante puede registrarse después de Initialize)
+        private float _detectionTimer = 999f; // primer intento en el primer frame
+        private float _redetectLogTimer = 0f;
+        private float _debugLogTimer = 0f;
+        private bool _debugOverlay = false;
+
+        // Auto-calibración del rango de pedales.
+        // Asumimos axis.rest = +1.0 y se mueve hacia minSeen al presionar.
+        // Rango 0..1 (Xbox HID común): minSeen tiende a 0.
+        // Rango -1..1 (PS HID común):  minSeen tiende a -1.
+        // Arrancamos con -1 para no sobre-saturar en rangos signed; si el HID
+        // es 0..1, al primer pisotón minSeen cae a ~0 y se recalibra.
+        private float _minGasSeen = -1f;
+        private float _minBrakeSeen = -1f;
+
         // Ejes cacheados (lectura directa del device — sin InputAction binding,
         // porque el layout HID del G923 trae "::" y espacios que a veces no resuelve)
         private InputControl<float> _steerCtrl; // stick/x
@@ -88,13 +103,20 @@ namespace Gley.UrbanSystem
             _moveAction.AddBinding("<Gamepad>/leftStick");
             _moveAction.Enable();
 
-            // ---- Volante G923/G920: busqueda dinamica ----
-            // El G923 reporta distinto segun el modo (PS/Xbox) y el driver:
-            //   - Modo PS:    "Logitech G923 Racing Wheel for PS4"
-            //   - Modo Xbox:  "Logitech G923 Racing Wheel for Xbox One and PC"
-            //                 o a veces solo "Steering Wheel for Xbox One and PC"
-            //                 / "Driving Wheel for Xbox One and PC" (GHUB no instalado)
-            //   - G920:       "Logitech G920 Driving Force Racing Wheel"
+            TryDetectWheel(); // primer intento; Update() hace polling si aún no está
+        }
+
+        // Detecta el volante y cachea todos los controles. Idempotente:
+        // llamar múltiples veces es barato si ya se encontró.
+        // El G923 reporta distinto según el modo (PS/Xbox) y el driver:
+        //   - PS:    "Logitech G923 Racing Wheel for PS4"
+        //   - Xbox:  "Logitech G923 Racing Wheel for Xbox One and PC"
+        //            o "Steering Wheel for Xbox One and PC" (sin GHUB)
+        //   - G920:  "Logitech G920 Driving Force Racing Wheel"
+        private bool TryDetectWheel()
+        {
+            if (_hasWheel) return true;
+
             foreach (var device in InputSystem.devices)
             {
                 string name = device.displayName ?? string.Empty;
@@ -110,12 +132,11 @@ namespace Gley.UrbanSystem
                 _hasWheel = true;
                 _wheelDevice = device;
 
-                // Ejes: lectura directa del device (evita problemas con layout HID)
+                // Ejes
                 _steerCtrl = CacheControl("stick/x");
                 _gasCtrl   = CacheControl("z");
                 _brakeCtrl = CacheControl("rz");
 
-                // Botones via acceso directo al device (cachear una sola vez)
                 // H-shifter: buttons 13-19
                 _gearControls = new InputControl<float>[7];
                 for (int i = 0; i < 7; i++)
@@ -128,25 +149,32 @@ namespace Gley.UrbanSystem
                 _r3Ctrl = CacheButton(12);
 
                 // Paddles: direccionales (button5=R1=der, button6=L1=izq en G923 PS)
-                _r1Ctrl = CacheButton(5);  // paddle derecho
-                _l1Ctrl = CacheButton(6);  // paddle izquierdo
+                _r1Ctrl = CacheButton(5);
+                _l1Ctrl = CacheButton(6);
 
                 // Face buttons: gear automático
-                _crossCtrl = CacheButton(2);     // × → Reversa
-                _triangleCtrl = CacheButton(4);  // △ → Drive
+                _crossCtrl   = CacheButton(2); // × → Reversa
+                _triangleCtrl = CacheButton(4); // △ → Drive
+
+                // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
+                _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
+                if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
                     + " | steer=" + (_steerCtrl != null) + " gas=" + (_gasCtrl != null) + " brake=" + (_brakeCtrl != null));
-                break;
+                return true;
             }
+            return false;
+        }
 
-            if (!_hasWheel)
-            {
-                string all = "";
-                foreach (var d in InputSystem.devices)
-                    all += "\n  - " + d.displayName + " [" + d.layout + "]";
-                Debug.LogWarning("[UIInputNew] No se detecto volante. Dispositivos disponibles:" + all);
-            }
+        // Normaliza pedal a [0,1] agnóstico al rango del HID.
+        // axis.rest = +1 (convención del G923); minSeen se ajusta al mínimo observado.
+        private float NormalizePedal(float raw, ref float minSeen)
+        {
+            if (raw < minSeen) minSeen = raw;
+            float span = 1f - minSeen;
+            if (span < 0.05f) return 0f;
+            return Mathf.Clamp01((1f - raw) / span);
         }
 
         private InputControl<float> CacheButton(int num)
@@ -185,6 +213,32 @@ namespace Gley.UrbanSystem
             else verticalInput = 0;
             verticalInput = Mathf.Clamp(verticalInput, -1f, 1f);
 #else
+            // ---- Polling del volante (puede aparecer después de Initialize) ----
+            if (!_hasWheel)
+            {
+                _detectionTimer += Time.deltaTime;
+                if (_detectionTimer >= 0.5f)
+                {
+                    _detectionTimer = 0f;
+                    if (!TryDetectWheel())
+                    {
+                        _redetectLogTimer += 0.5f;
+                        if (_redetectLogTimer >= 3f)
+                        {
+                            _redetectLogTimer = 0f;
+                            string all = "";
+                            foreach (var d in InputSystem.devices)
+                                all += "\n  - " + d.displayName + " [" + d.layout + "]";
+                            Debug.LogWarning("[UIInputNew] Sin volante aún. Devices:" + all);
+                        }
+                    }
+                }
+            }
+
+            // ---- Toggle debug overlay (F10) ----
+            if (Keyboard.current != null && Keyboard.current.f10Key.wasPressedThisFrame)
+                _debugOverlay = !_debugOverlay;
+
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
             // ---- Steering ----
@@ -223,8 +277,8 @@ namespace Gley.UrbanSystem
                     // Sin teclado: pedales del volante, mantener último gear
                     float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
-                    float gas = (1f - gasRaw) / 2f;
-                    float brakeLinear = (1f - brakeRaw) / 2f;
+                    float gas = NormalizePedal(gasRaw, ref _minGasSeen);
+                    float brakeLinear = NormalizePedal(brakeRaw, ref _minBrakeSeen);
                     float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                     verticalInput = gas;
                     brakeInput = brake;
@@ -256,8 +310,8 @@ namespace Gley.UrbanSystem
                 {
                     float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
-                    float gas = (1f - gasRaw) / 2f;
-                    float brakeLinear = (1f - brakeRaw) / 2f;
+                    float gas = NormalizePedal(gasRaw, ref _minGasSeen);
+                    float brakeLinear = NormalizePedal(brakeRaw, ref _minBrakeSeen);
                     float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                     verticalInput = gas;
                     brakeInput = brake;
@@ -341,8 +395,57 @@ namespace Gley.UrbanSystem
                 }
             }
             else { _restartComboTimer = 0f; }
+
+            // ---- Log periódico de valores crudos/calculados (diagnóstico kiosko) ----
+            if (_hasWheel)
+            {
+                _debugLogTimer += Time.deltaTime;
+                if (_debugLogTimer >= 2f)
+                {
+                    _debugLogTimer = 0f;
+                    float st = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
+                    float gr = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
+                    float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | minG={_minGasSeen:F3} minB={_minBrakeSeen:F3} | auto={_isAutomaticMode} gear={_currentGear}");
+                }
+            }
 #endif
         }
+
+#if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
+        private void OnGUI()
+        {
+            if (!_debugOverlay) return;
+            GUIStyle style = new GUIStyle(GUI.skin.box);
+            style.alignment = TextAnchor.UpperLeft;
+            style.fontSize = 13;
+            style.normal.textColor = Color.white;
+
+            string info = "[G923 Debug] F10=toggle\n";
+            info += "Wheel: " + (_hasWheel ? "DETECTADO" : "NO DETECTADO") + "\n";
+            if (_hasWheel && _wheelDevice != null)
+                info += "Device: " + _wheelDevice.displayName + "\n";
+            info += "Mode: " + (_isAutomaticMode ? "AUTO" : "MANUAL") + "\n";
+            if (_hasWheel)
+            {
+                float st = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
+                float gr = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
+                float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3}\n";
+                info += $"CALC V={verticalInput:F3} B={brakeInput:F3} gear={_currentGear}\n";
+                info += $"CAL  minGas={_minGasSeen:F3} minBrake={_minBrakeSeen:F3}\n";
+                info += "(presiona pedales al tope p/ calibrar)";
+            }
+            else
+            {
+                info += "Devices enumerados:\n";
+                foreach (var d in InputSystem.devices)
+                    info += "  - " + d.displayName + "\n";
+            }
+
+            GUI.Box(new Rect(10, 10, 520, 260), info, style);
+        }
+#endif
 
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
         private void PointerDown(string name)
