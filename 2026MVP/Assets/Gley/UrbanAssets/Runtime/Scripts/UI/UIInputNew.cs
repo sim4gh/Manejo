@@ -46,16 +46,14 @@ namespace Gley.UrbanSystem
         private float _brakePress = -1f;
 
         // Curva de respuesta del volante: f(x) = x / (a + (1-a)*x)  para x ∈ [0,1]
-        // Amplifica mucho los ángulos pequeños (cambio de carril ≈ 5-10% del
-        // rango físico del G923), y se aplana al acercarse al 100% — NO satura
-        // prematuramente. Propiedades:
         //   f(0) = 0, f(1) = 1 siempre
-        //   a ∈ (0, 1); menor a → más agresivo en pequeños giros
-        //   a = 0.5 → f(0.1)=0.18, f(0.3)=0.46, f(0.5)=0.67 (moderado)
-        //   a = 0.45 → f(0.1)=0.20, f(0.3)=0.49, f(0.5)=0.69 (mejor para carril)
-        //   a = 1.0 → lineal (sin curva)
-        // Pow(x, N) no sirve: o amplifica todo por igual o nada en pequeños.
-        private const float STEER_CURVE_A = 0.45f;
+        //   a = 1.0 → lineal puro (output = raw normalizado)
+        //   a < 1.0 → amplifica ángulos pequeños, aplana grandes
+        //   a = 0.5 → f(0.1)=0.18, f(0.3)=0.46, f(0.5)=0.67
+        //   a = 0.45 → f(0.1)=0.20, f(0.3)=0.49, f(0.5)=0.69 (muy sensible)
+        // El usuario pidió respuesta lineal — raw 0→0.2 = cambio de carril ligero,
+        // raw 0.2→1.0 = dar vuelta progresivamente. A=1.0 cumple eso exactamente.
+        private const float STEER_CURVE_A = 1.0f;
 
         // Curva del freno por tramos lineales:
         //   [0, BRAKE_SOFT_END]  → freno suave, llega a BRAKE_SOFT_MAX_OUTPUT
