@@ -116,7 +116,8 @@ namespace Gley.UrbanSystem
 
         // Bindings configurables via BindingsPanel (F8 hold 1.5s).
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
-        // sobreescribir para otros volantes.
+        // sobreescribir para otros volantes (ej. G923 Xbox usa otros paths).
+        private string _bindSteerAxis = "stick/x";  // eje del volante
         private string _bindReverse = "button2";
         private string _bindDrive = "button4";
         private string _bindPaddleLeft = "button6";
@@ -127,6 +128,7 @@ namespace Gley.UrbanSystem
         private string _bindRestartA = "button11";  // L3
         private string _bindRestartB = "button12";  // R3
 
+        public const string PREF_BIND_STEER_AXIS = "Bind_steerAxis";
         public const string PREF_BIND_REVERSE = "Bind_reverse";
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
@@ -137,6 +139,7 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_RESTART_A = "Bind_restartA";
         public const string PREF_BIND_RESTART_B = "Bind_restartB";
 
+        public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
         public const string DEFAULT_BIND_REVERSE = "button2";
         public const string DEFAULT_BIND_DRIVE = "button4";
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
@@ -154,6 +157,7 @@ namespace Gley.UrbanSystem
         /// </summary>
         public void ReloadBindings()
         {
+            _bindSteerAxis    = PlayerPrefs.GetString(PREF_BIND_STEER_AXIS, DEFAULT_BIND_STEER_AXIS);
             _bindReverse      = PlayerPrefs.GetString(PREF_BIND_REVERSE, DEFAULT_BIND_REVERSE);
             _bindDrive        = PlayerPrefs.GetString(PREF_BIND_DRIVE, DEFAULT_BIND_DRIVE);
             _bindPaddleLeft   = PlayerPrefs.GetString(PREF_BIND_PADDLE_LEFT, DEFAULT_BIND_PADDLE_LEFT);
@@ -163,11 +167,12 @@ namespace Gley.UrbanSystem
             _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
             _bindRestartA     = PlayerPrefs.GetString(PREF_BIND_RESTART_A, DEFAULT_BIND_RESTART_A);
             _bindRestartB     = PlayerPrefs.GetString(PREF_BIND_RESTART_B, DEFAULT_BIND_RESTART_B);
-            if (_wheelDevice != null) ReCacheButtonBindings();
+            if (_wheelDevice != null) ReCacheBindings();
         }
 
-        void ReCacheButtonBindings()
+        void ReCacheBindings()
         {
+            _steerCtrl    = CacheBindingCtrl(_bindSteerAxis);
             _crossCtrl    = CacheBindingCtrl(_bindReverse);
             _triangleCtrl = CacheBindingCtrl(_bindDrive);
             _l1Ctrl       = CacheBindingCtrl(_bindPaddleLeft);
@@ -255,9 +260,8 @@ namespace Gley.UrbanSystem
                 _hasWheel = true;
                 _wheelDevice = device;
 
-                // Ejes — paths calibrados dinámicamente en la pantalla del menú.
-                // Si no hay pref, defaults razonables (algunos volantes funcionan así).
-                _steerCtrl = CacheControl("stick/x");
+                // Ejes — paths calibrados dinámicamente en la pantalla del menú
+                // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
                 string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
                 string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
                 _gasCtrl   = CacheControl(gasPath);

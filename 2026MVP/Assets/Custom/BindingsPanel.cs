@@ -23,12 +23,15 @@ public class BindingsPanel : MonoBehaviour
 
     const float HOLD_TIME = 1.5f;
 
+    enum ActionKind { Button, Axis }
+
     class ActionEntry
     {
         public string id;            // nombre corto p/debug
         public string prefKey;       // PlayerPrefs key
         public string defaultValue;  // default binding
         public string displayName;   // visible en UI
+        public ActionKind kind = ActionKind.Button;
         public TextMeshProUGUI valueLabel;
         public Image rowBg;
     }
@@ -40,8 +43,14 @@ public class BindingsPanel : MonoBehaviour
     float prevTimeScale = 1f;
     TextMeshProUGUI liveInputsLabel;
 
+    // Snapshot de ejes al iniciar escucha de axis → detectar delta > threshold
+    Dictionary<string, float> axisBaseline;
+    const float AXIS_DETECT_DELTA = 0.35f;
+
     void Awake()
     {
+        // Eje del volante (primero, es el más crítico)
+        actions.Add(new ActionEntry { id = "steerAxis",   prefKey = UIInputNew.PREF_BIND_STEER_AXIS,    defaultValue = UIInputNew.DEFAULT_BIND_STEER_AXIS,    displayName = "Eje del volante", kind = ActionKind.Axis });
         // Catálogo de acciones configurables
         actions.Add(new ActionEntry { id = "reverse",     prefKey = UIInputNew.PREF_BIND_REVERSE,       defaultValue = UIInputNew.DEFAULT_BIND_REVERSE,       displayName = "Reversa" });
         actions.Add(new ActionEntry { id = "drive",       prefKey = UIInputNew.PREF_BIND_DRIVE,         defaultValue = UIInputNew.DEFAULT_BIND_DRIVE,         displayName = "Drive" });
@@ -81,23 +90,50 @@ public class BindingsPanel : MonoBehaviour
         // Refrescar inputs en vivo
         RefreshLiveInputs();
 
-        // Modo escucha: cualquier botón presionado se asigna a la acción activa
+        // Modo escucha: detectar input según el tipo de acción
         if (listening != null)
         {
             InputDevice dev = FindWheelDevice();
             if (dev == null) return;
-            foreach (var ctrl in dev.allControls)
+
+            if (listening.kind == ActionKind.Button)
             {
-                if (!(ctrl is ButtonControl btn)) continue;
-                if (btn.wasPressedThisFrame)
+                foreach (var ctrl in dev.allControls)
                 {
+                    if (!(ctrl is ButtonControl btn)) continue;
+                    if (btn.wasPressedThisFrame)
+                    {
+                        string path = GetDeviceRelativePath(ctrl, dev);
+                        AssignBinding(listening, path);
+                        StopListening();
+                        break;
+                    }
+                }
+            }
+            else // Axis
+            {
+                foreach (var ctrl in dev.allControls)
+                {
+                    if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
-                    AssignBinding(listening, path);
-                    StopListening();
-                    break;
+                    float cur = ReadAxis(ctrl);
+                    if (!axisBaseline.ContainsKey(path)) axisBaseline[path] = cur;
+                    float baseline = axisBaseline[path];
+                    if (Mathf.Abs(cur - baseline) >= AXIS_DETECT_DELTA)
+                    {
+                        AssignBinding(listening, path);
+                        StopListening();
+                        break;
+                    }
                 }
             }
         }
+    }
+
+    static float ReadAxis(InputControl ctrl)
+    {
+        if (ctrl is AxisControl a) return a.ReadValue();
+        return 0f;
     }
 
     void Open()
@@ -147,11 +183,11 @@ public class BindingsPanel : MonoBehaviour
         cardRt.anchorMax = new Vector2(0.5f, 0.5f);
         cardRt.pivot = new Vector2(0.5f, 0.5f);
         cardRt.anchoredPosition = Vector2.zero;
-        cardRt.sizeDelta = new Vector2(900, 820);
+        cardRt.sizeDelta = new Vector2(960, 900);
         Image cardImg = card.AddComponent<Image>();
         cardImg.color = new Color(0.1f, 0.12f, 0.16f, 0.98f);
 
-        float y = 370f;
+        float y = 410f;
         CreateText(card.transform, "Mapeo de controles del volante", 26f, FontStyles.Bold, Color.white, y);
         y -= 42f;
         CreateText(card.transform, "Click en [Detectar] y presiona el botón que quieras asignar · Esc o F8 cierra", 12f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.7f), y);
@@ -176,15 +212,16 @@ public class BindingsPanel : MonoBehaviour
         liveRt.anchorMax = new Vector2(0.95f, 0.5f);
         liveRt.pivot = new Vector2(0.5f, 1);
         liveRt.anchoredPosition = new Vector2(0, y);
-        liveRt.sizeDelta = new Vector2(0, 80);
+        liveRt.sizeDelta = new Vector2(0, 110);
         liveInputsLabel = liveObj.AddComponent<TextMeshProUGUI>();
         liveInputsLabel.fontSize = 15;
         liveInputsLabel.color = new Color(0.4f, 1f, 0.5f);
         liveInputsLabel.alignment = TextAlignmentOptions.TopLeft;
         liveInputsLabel.textWrappingMode = TextWrappingModes.Normal;
         liveInputsLabel.raycastTarget = false;
-        liveInputsLabel.text = "(presiona algo en el volante)";
-        y -= 90f;
+        liveInputsLabel.richText = true;
+        liveInputsLabel.text = "(mueve el volante o presiona botones)";
+        y -= 120f;
 
         // Botones
         CreateButton(card.transform, "Restaurar defaults", -220f, y, new Color(0.5f, 0.35f, 0.1f), OnRestoreDefaults);
@@ -265,8 +302,25 @@ public class BindingsPanel : MonoBehaviour
     {
         StopListening(); // apagar el anterior si hay
         listening = a;
-        if (a.valueLabel != null) a.valueLabel.text = "← presiona un botón...";
+        string hint = a.kind == ActionKind.Axis ? "← mueve el volante/eje..." : "← presiona un botón...";
+        if (a.valueLabel != null) a.valueLabel.text = hint;
         if (a.rowBg != null) a.rowBg.color = new Color(0.5f, 0.35f, 0.0f, 0.9f);
+
+        // Si es axis, snapshot baseline de todos los axes para detectar delta
+        if (a.kind == ActionKind.Axis)
+        {
+            axisBaseline = new Dictionary<string, float>();
+            InputDevice dev = FindWheelDevice();
+            if (dev != null)
+            {
+                foreach (var ctrl in dev.allControls)
+                {
+                    if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
+                    string path = GetDeviceRelativePath(ctrl, dev);
+                    axisBaseline[path] = ReadAxis(ctrl);
+                }
+            }
+        }
     }
 
     void StopListening()
@@ -331,19 +385,40 @@ public class BindingsPanel : MonoBehaviour
             return;
         }
 
-        System.Text.StringBuilder sb = new System.Text.StringBuilder(256);
-        bool anyPressed = false;
+        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
+        sb.Append("<b>Device:</b> ");
+        sb.Append(dev.displayName ?? "?");
+        sb.Append("\n<b>Botones:</b> ");
+        bool anyBtn = false;
         foreach (var ctrl in dev.allControls)
         {
             if (!(ctrl is ButtonControl btn)) continue;
             if (btn.isPressed)
             {
-                if (anyPressed) sb.Append("  ·  ");
+                if (anyBtn) sb.Append(" · ");
                 sb.Append(GetDeviceRelativePath(ctrl, dev));
-                anyPressed = true;
+                anyBtn = true;
             }
         }
-        if (!anyPressed) sb.Append("(presiona botones del volante para verlos aquí)");
+        if (!anyBtn) sb.Append("(ninguno)");
+
+        sb.Append("\n<b>Ejes activos (|v|>0.1):</b> ");
+        bool anyAxis = false;
+        foreach (var ctrl in dev.allControls)
+        {
+            if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
+            float v = ReadAxis(ctrl);
+            if (Mathf.Abs(v) > 0.1f)
+            {
+                if (anyAxis) sb.Append(" · ");
+                sb.Append(GetDeviceRelativePath(ctrl, dev));
+                sb.Append("=");
+                sb.Append(v.ToString("F2"));
+                anyAxis = true;
+            }
+        }
+        if (!anyAxis) sb.Append("(ninguno)");
+
         liveInputsLabel.text = sb.ToString();
     }
 
