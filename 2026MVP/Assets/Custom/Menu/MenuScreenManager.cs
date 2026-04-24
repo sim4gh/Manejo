@@ -317,6 +317,15 @@ public class MenuScreenManager : MonoBehaviour
             RefreshPinVisuals();
         });
 
+        // Enter con código completo → verificar (equivalente a click en "Verificar Código")
+        codeInput.onSubmit.AddListener((string val) =>
+        {
+            if (val != null && val.Trim().Length == 5)
+                OnVerifyCode();
+            else
+                codeInput.ActivateInputField(); // mantener foco si aún faltan dígitos
+        });
+
         // Botón verificar — ancho completo, debajo del PIN
         verifyButton = MenuCardBuilder.CreateButton(rightPanel.transform, "Verificar Código", "primary",
             new Vector2(0, 70), () => OnVerifyCode()).GetComponent<Button>();
