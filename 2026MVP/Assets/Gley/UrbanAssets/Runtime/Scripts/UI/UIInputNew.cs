@@ -337,8 +337,8 @@ namespace Gley.UrbanSystem
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
                     float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
-                    // 2.5 (antes 2.0) → freno ~25% más sensible: pedal al ~63% = freno full
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.5f);
+                    // 2.2 = intermedio: pedal al ~67% = freno full (vs 71% original / 63% excesivo)
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.2f);
                     verticalInput = gas;
                     brakeInput = brake;
 
@@ -371,7 +371,7 @@ namespace Gley.UrbanSystem
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
                     float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.5f);
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.2f);
                     verticalInput = gas;
                     brakeInput = brake;
                 }
