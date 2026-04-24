@@ -45,11 +45,24 @@ namespace Gley.UrbanSystem
         private float _brakeRest = 1f;
         private float _brakePress = -1f;
 
-        // Curva de sensibilidad del volante: output = sign(x) * |x|^STEER_CURVE
-        // < 1 → más sensible en centro (más rápido a valores altos), 1 = lineal.
-        // 0.70 se sintió MUY sensible sobre el steering ya calibrado.
-        // 0.85 = leve boost en centro, casi lineal en extremos.
-        private const float STEER_CURVE = 0.85f;
+        // Curva de respuesta del volante: f(x) = x / (a + (1-a)*x)  para x ∈ [0,1]
+        // Amplifica mucho los ángulos pequeños (cambio de carril ≈ 5-10% del
+        // rango físico del G923), y se aplana al acercarse al 100% — NO satura
+        // prematuramente. Propiedades:
+        //   f(0) = 0, f(1) = 1 siempre
+        //   a ∈ (0, 1); menor a → más agresivo en pequeños giros
+        //   a = 0.5 → f(0.1)=0.18, f(0.3)=0.46, f(0.5)=0.67 (moderado)
+        //   a = 0.45 → f(0.1)=0.20, f(0.3)=0.49, f(0.5)=0.69 (mejor para carril)
+        //   a = 1.0 → lineal (sin curva)
+        // Pow(x, N) no sirve: o amplifica todo por igual o nada en pequeños.
+        private const float STEER_CURVE_A = 0.45f;
+
+        // Curva del freno por tramos lineales:
+        //   [0, BRAKE_SOFT_END]  → freno suave, llega a BRAKE_SOFT_MAX_OUTPUT
+        //   [BRAKE_SOFT_END, 1]  → freno de poder, sube rápido a 1.0
+        // Defaults: 80% del pedal da 30% de freno; el 20% restante lleva 30%→100%.
+        private const float BRAKE_SOFT_END = 0.8f;
+        private const float BRAKE_SOFT_MAX_OUTPUT = 0.3f;
 
         // Calibración del steering por rango físico alcanzable (center/max/min).
         // Guardada en PlayerPrefs al completar las fases 1 y 2 del menú.
@@ -207,6 +220,18 @@ namespace Gley.UrbanSystem
             return Mathf.Clamp01((raw - rest) / span);
         }
 
+        // Curva del freno: tramo 1 suave (0..BRAKE_SOFT_END pedal →
+        // 0..BRAKE_SOFT_MAX_OUTPUT freno), tramo 2 fuerte ("freno de poder").
+        private float BrakeCurve(float x)
+        {
+            if (x <= 0f) return 0f;
+            if (x >= 1f) return 1f;
+            if (x < BRAKE_SOFT_END)
+                return (x / BRAKE_SOFT_END) * BRAKE_SOFT_MAX_OUTPUT;
+            float hard = (x - BRAKE_SOFT_END) / (1f - BRAKE_SOFT_END);
+            return BRAKE_SOFT_MAX_OUTPUT + hard * (1f - BRAKE_SOFT_MAX_OUTPUT);
+        }
+
         // Normaliza steering a [-1, 1] mapeando el rango físico (center, max, min)
         // alcanzable por el volante. Si el volante solo llega a raw=+0.9, giro
         // completo derecha → 1.0. Preserva la dirección del signo al convertir.
@@ -290,7 +315,7 @@ namespace Gley.UrbanSystem
 
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
-            // ---- Steering: calibrado (rango físico) + curva (sensibilidad centro) ----
+            // ---- Steering: calibrado (rango físico) + curva racional (respuesta) ----
             if (_hasWheel)
             {
                 float rawSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : _steerCenter;
@@ -298,7 +323,9 @@ namespace Gley.UrbanSystem
                 if (Mathf.Abs(norm) > 0.01f)
                 {
                     float absN = Mathf.Abs(norm);
-                    horizontalInput = Mathf.Sign(norm) * Mathf.Pow(absN, STEER_CURVE);
+                    // f(x) = x / (a + (1-a)x) — agresiva en pequeños, aplanada arriba
+                    float curved = absN / (STEER_CURVE_A + (1f - STEER_CURVE_A) * absN);
+                    horizontalInput = Mathf.Sign(norm) * curved;
                 }
                 else
                 {
@@ -337,8 +364,8 @@ namespace Gley.UrbanSystem
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
                     float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
-                    // 2.2 = intermedio: pedal al ~67% = freno full (vs 71% original / 63% excesivo)
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.2f);
+                    // Curva por tramos: suave hasta 80% pedal, "freno de poder" en el último 20%
+                    float brake = BrakeCurve(brakeLinear);
                     verticalInput = gas;
                     brakeInput = brake;
 
@@ -371,7 +398,7 @@ namespace Gley.UrbanSystem
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
                     float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.2f);
+                    float brake = BrakeCurve(brakeLinear);
                     verticalInput = gas;
                     brakeInput = brake;
                 }

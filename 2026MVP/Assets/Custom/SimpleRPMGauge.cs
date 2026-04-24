@@ -28,6 +28,14 @@ public class SimpleRPMGauge : MonoBehaviour
 
     void Start()
     {
+        // Forzar el Canvas del RPM gauge a la pantalla principal (Display 1, target=0).
+        Canvas parentCanvas = GetComponentInParent<Canvas>();
+        if (parentCanvas != null && parentCanvas.targetDisplay != 0)
+        {
+            Debug.Log($"[SimpleRPMGauge] Moviendo Canvas '{parentCanvas.name}' targetDisplay {parentCanvas.targetDisplay} → 0 (principal)");
+            parentCanvas.targetDisplay = 0;
+        }
+
         if (vehicle == null)
             vehicle = GameObject.Find("Player");
 

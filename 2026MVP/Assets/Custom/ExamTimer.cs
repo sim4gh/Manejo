@@ -40,6 +40,27 @@ public class ExamTimer : MonoBehaviour
     {
         startTime = Time.time;
         CreateTimerUI();
+        HideExportTelemetryButton();
+    }
+
+    // Oculta el botón "Exportar Telemetría" (residuo de debug, hoy inútil
+    // porque ExamTimer.EndExam() ya dispara ExportTelemetry() automáticamente).
+    // Busca por texto del label en hijos activos+inactivos de la escena.
+    void HideExportTelemetryButton()
+    {
+#pragma warning disable CS0618
+        TextMeshProUGUI[] allTexts = Object.FindObjectsOfType<TextMeshProUGUI>(true);
+#pragma warning restore CS0618
+        foreach (var t in allTexts)
+        {
+            if (t == null || string.IsNullOrEmpty(t.text)) continue;
+            if (t.text.IndexOf("Exportar Telemetr", System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+
+            Button btn = t.GetComponentInParent<Button>(true);
+            GameObject target = btn != null ? btn.gameObject : t.transform.parent.gameObject;
+            target.SetActive(false);
+            Debug.Log($"[ExamTimer] Botón 'Exportar Telemetría' oculto: {target.name}");
+        }
     }
 
     void CreateTimerUI()
