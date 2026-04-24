@@ -85,11 +85,24 @@ namespace Gley.UrbanSystem
             _moveAction.AddBinding("<Gamepad>/leftStick");
             _moveAction.Enable();
 
-            // ---- Volante G923: busqueda dinamica ----
+            // ---- Volante G923/G920: busqueda dinamica ----
+            // El G923 reporta distinto segun el modo (PS/Xbox) y el driver:
+            //   - Modo PS:    "Logitech G923 Racing Wheel for PS4"
+            //   - Modo Xbox:  "Logitech G923 Racing Wheel for Xbox One and PC"
+            //                 o a veces solo "Steering Wheel for Xbox One and PC"
+            //                 / "Driving Wheel for Xbox One and PC" (GHUB no instalado)
+            //   - G920:       "Logitech G920 Driving Force Racing Wheel"
             foreach (var device in InputSystem.devices)
             {
-                if (device.displayName.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) < 0)
-                    continue;
+                string name = device.displayName ?? string.Empty;
+                bool isWheel =
+                    name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("G920", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Driving Force", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Racing Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Steering Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
+                    || name.IndexOf("Driving Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                if (!isWheel) continue;
 
                 string wheel = "<" + device.layout + ">";
                 _hasWheel = true;
@@ -130,6 +143,14 @@ namespace Gley.UrbanSystem
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
                 break;
+            }
+
+            if (!_hasWheel)
+            {
+                string all = "";
+                foreach (var d in InputSystem.devices)
+                    all += "\n  - " + d.displayName + " [" + d.layout + "]";
+                Debug.LogWarning("[UIInputNew] No se detecto volante. Dispositivos disponibles:" + all);
             }
         }
 
