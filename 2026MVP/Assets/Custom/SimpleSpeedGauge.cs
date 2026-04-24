@@ -46,8 +46,8 @@ public class SimpleSpeedGauge : MonoBehaviour
         Canvas parentCanvas = GetComponentInParent<Canvas>();
         if (parentCanvas != null && parentCanvas.targetDisplay != 0)
         {
-            Debug.Log($"[SimpleSpeedGauge] Moviendo Canvas '{parentCanvas.name}' targetDisplay {parentCanvas.targetDisplay} → 0 (principal)");
-            parentCanvas.targetDisplay = 0;
+            //Debug.Log($"[SimpleSpeedGauge] Moviendo Canvas '{parentCanvas.name}' targetDisplay {parentCanvas.targetDisplay} → 0 (principal)");
+            //parentCanvas.targetDisplay = 0;
         }
 
         if (vehicle == null)
