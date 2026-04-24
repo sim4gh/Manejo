@@ -65,21 +65,35 @@ public class ExamTimer : MonoBehaviour
 
     void CreateTimerUI()
     {
-        // Buscar Canvas root (ScreenSpaceOverlay) — mismo patrón que MenuBootstrap
+        // Buscar Canvas root — priorizar el que renderiza en el display principal
 #pragma warning disable CS0618
         Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
 #pragma warning restore CS0618
 
         Canvas targetCanvas = null;
+        // Primera pasada: Canvas overlay root en display principal (targetDisplay == 0)
         foreach (var canvas in canvases)
         {
-            if (canvas.renderMode == RenderMode.ScreenSpaceOverlay && canvas.transform.parent == null)
+            if (canvas.renderMode == RenderMode.ScreenSpaceOverlay
+                && canvas.transform.parent == null
+                && canvas.targetDisplay == 0)
             {
                 targetCanvas = canvas;
                 break;
             }
         }
-
+        // Fallback: cualquier overlay root
+        if (targetCanvas == null)
+        {
+            foreach (var canvas in canvases)
+            {
+                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay && canvas.transform.parent == null)
+                {
+                    targetCanvas = canvas;
+                    break;
+                }
+            }
+        }
         if (targetCanvas == null && canvases.Length > 0)
             targetCanvas = canvases[0];
 
