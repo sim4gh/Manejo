@@ -56,16 +56,22 @@ namespace Gley.UrbanSystem
         // Parámetros tuneable en runtime via AdvancedInputPanel (F9 hold 1.5s).
         // Se persisten en PlayerPrefs con prefijo "Adv_". ReloadTuning() los relee.
         private float _steerCurveA = 1.0f;
+        private float _steerDeadzone = 0.02f;
         private float _brakeSoftEnd = 0.8f;
         private float _brakeSoftMaxOutput = 0.3f;
-        // Defaults de fábrica (constantes, no cambian)
+        private float _gasCurveN = 1.0f; // exponente: <1 más respuesta inicial, >1 más control fino
+        // Defaults de fábrica
         public const float DEFAULT_STEER_CURVE_A = 1.0f;
+        public const float DEFAULT_STEER_DEADZONE = 0.02f;
         public const float DEFAULT_BRAKE_SOFT_END = 0.8f;
         public const float DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.3f;
+        public const float DEFAULT_GAS_CURVE_N = 1.0f;
         // Keys PlayerPrefs
         public const string PREF_STEER_CURVE_A = "Adv_SteerCurveA";
+        public const string PREF_STEER_DEADZONE = "Adv_SteerDeadzone";
         public const string PREF_BRAKE_SOFT_END = "Adv_BrakeSoftEnd";
         public const string PREF_BRAKE_SOFT_MAX_OUTPUT = "Adv_BrakeSoftMaxOutput";
+        public const string PREF_GAS_CURVE_N = "Adv_GasCurveN";
 
         /// <summary>
         /// Relee los parámetros de tuning desde PlayerPrefs. Llamar al iniciar
@@ -74,8 +80,10 @@ namespace Gley.UrbanSystem
         public void ReloadTuning()
         {
             _steerCurveA = PlayerPrefs.GetFloat(PREF_STEER_CURVE_A, DEFAULT_STEER_CURVE_A);
+            _steerDeadzone = PlayerPrefs.GetFloat(PREF_STEER_DEADZONE, DEFAULT_STEER_DEADZONE);
             _brakeSoftEnd = PlayerPrefs.GetFloat(PREF_BRAKE_SOFT_END, DEFAULT_BRAKE_SOFT_END);
             _brakeSoftMaxOutput = PlayerPrefs.GetFloat(PREF_BRAKE_SOFT_MAX_OUTPUT, DEFAULT_BRAKE_SOFT_MAX_OUTPUT);
+            _gasCurveN = PlayerPrefs.GetFloat(PREF_GAS_CURVE_N, DEFAULT_GAS_CURVE_N);
         }
 
         // Calibración del steering por rango físico alcanzable (center/max/min).
@@ -333,11 +341,15 @@ namespace Gley.UrbanSystem
 
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
-            // ---- Steering: calibrado (rango físico) + curva racional (respuesta) ----
+            // ---- Steering: calibrado + deadzone + curva racional ----
             if (_hasWheel)
             {
                 float rawSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : _steerCenter;
                 float norm = NormalizeSteer(rawSteer); // [-1, 1] sobre rango físico real
+
+                // Deadzone: si |norm| < deadzone, considerar centro (elimina micro-ruido)
+                if (Mathf.Abs(norm) < _steerDeadzone) norm = 0f;
+
                 if (Mathf.Abs(norm) > 0.01f)
                 {
                     float absN = Mathf.Abs(norm);
@@ -380,7 +392,9 @@ namespace Gley.UrbanSystem
                     // Sin teclado: pedales del volante, mantener último gear
                     float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
-                    float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
+                    float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
                     // Curva por tramos: suave hasta 80% pedal, "freno de poder" en el último 20%
                     float brake = BrakeCurve(brakeLinear);
@@ -414,7 +428,9 @@ namespace Gley.UrbanSystem
                 {
                     float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
                     float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
-                    float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
+                    float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
                     float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
                     float brake = BrakeCurve(brakeLinear);
                     verticalInput = gas;

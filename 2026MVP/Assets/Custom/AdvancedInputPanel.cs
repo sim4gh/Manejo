@@ -22,15 +22,17 @@ public class AdvancedInputPanel : MonoBehaviour
 
     // Rangos de los sliders
     const float STEER_MIN = 0.3f, STEER_MAX = 1.0f;
+    const float STEER_DZ_MIN = 0.0f, STEER_DZ_MAX = 0.15f;
     const float BRAKE_END_MIN = 0.5f, BRAKE_END_MAX = 0.95f;
     const float BRAKE_OUT_MIN = 0.1f, BRAKE_OUT_MAX = 0.6f;
+    const float GAS_CURVE_MIN = 0.5f, GAS_CURVE_MAX = 1.8f;
 
     float holdTimer = 0f;
     GameObject panelRoot;
     float prevTimeScale = 1f;
 
-    Slider sliderSteer, sliderBrakeEnd, sliderBrakeOut;
-    TextMeshProUGUI valueSteer, valueBrakeEnd, valueBrakeOut;
+    Slider sliderSteer, sliderSteerDz, sliderBrakeEnd, sliderBrakeOut, sliderGasCurve;
+    TextMeshProUGUI valueSteer, valueSteerDz, valueBrakeEnd, valueBrakeOut, valueGasCurve;
 
     void Update()
     {
@@ -113,56 +115,74 @@ public class AdvancedInputPanel : MonoBehaviour
         cardRt.anchorMax = new Vector2(0.5f, 0.5f);
         cardRt.pivot = new Vector2(0.5f, 0.5f);
         cardRt.anchoredPosition = Vector2.zero;
-        cardRt.sizeDelta = new Vector2(720, 620);
+        cardRt.sizeDelta = new Vector2(760, 760);
         Image cardImg = card.AddComponent<Image>();
         cardImg.color = new Color(0.1f, 0.12f, 0.16f, 0.98f);
 
-        float y = 260f;
+        float y = 335f;
 
-        CreateText(card.transform, "Configuración avanzada de input", 28f, FontStyles.Bold, Color.white, y);
-        y -= 50f;
-        CreateText(card.transform, "Cambios en vivo · Esc o F9 para cerrar", 13f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.7f), y);
-        y -= 45f;
+        CreateText(card.transform, "Configuración avanzada de input", 26f, FontStyles.Bold, Color.white, y);
+        y -= 42f;
+        CreateText(card.transform, "Cambios en vivo · Esc o F9 para cerrar", 12f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.7f), y);
+        y -= 38f;
 
         // Sección Volante
-        CreateText(card.transform, "VOLANTE", 18f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f), y);
-        y -= 32f;
+        CreateText(card.transform, "VOLANTE", 17f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f), y);
+        y -= 28f;
         sliderSteer = CreateSliderRow(card.transform, "Curva respuesta", STEER_MIN, STEER_MAX,
             PlayerPrefs.GetFloat(UIInputNew_PREF_STEER_CURVE_A, UIInputNew_DEFAULT_STEER_CURVE_A),
             y, OnSteerChanged, out valueSteer);
-        y -= 40f;
-        CreateText(card.transform, "1.00 = lineal · menor = más sensible en pequeños giros", 12f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
-        y -= 45f;
+        y -= 36f;
+        CreateText(card.transform, "1.00 = lineal · menor = más sensible en pequeños giros", 11f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
+        y -= 28f;
+        sliderSteerDz = CreateSliderRow(card.transform, "Deadzone", STEER_DZ_MIN, STEER_DZ_MAX,
+            PlayerPrefs.GetFloat(UIInputNew_PREF_STEER_DEADZONE, UIInputNew_DEFAULT_STEER_DEADZONE),
+            y, OnSteerDzChanged, out valueSteerDz);
+        y -= 36f;
+        CreateText(card.transform, "Ignora micro-giros cerca del centro (estabilidad recta)", 11f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
+        y -= 34f;
 
         // Sección Freno
-        CreateText(card.transform, "FRENO", 18f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f), y);
-        y -= 32f;
+        CreateText(card.transform, "FRENO", 17f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f), y);
+        y -= 28f;
         sliderBrakeEnd = CreateSliderRow(card.transform, "Punto de quiebre", BRAKE_END_MIN, BRAKE_END_MAX,
             PlayerPrefs.GetFloat(UIInputNew_PREF_BRAKE_SOFT_END, UIInputNew_DEFAULT_BRAKE_SOFT_END),
             y, OnBrakeEndChanged, out valueBrakeEnd);
-        y -= 40f;
-        CreateText(card.transform, "% del pedal donde cambia de suave a fuerte", 12f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
-        y -= 32f;
+        y -= 36f;
         sliderBrakeOut = CreateSliderRow(card.transform, "Freno en quiebre", BRAKE_OUT_MIN, BRAKE_OUT_MAX,
             PlayerPrefs.GetFloat(UIInputNew_PREF_BRAKE_SOFT_MAX_OUTPUT, UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT),
             y, OnBrakeOutChanged, out valueBrakeOut);
-        y -= 40f;
-        CreateText(card.transform, "Freno aplicado al llegar al punto de quiebre (ej. 0.30 = 30%)", 12f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
-        y -= 55f;
+        y -= 36f;
+        CreateText(card.transform, "Ej: 0.80/0.30 → pedal al 80% = freno al 30%, luego sube a 100%", 11f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
+        y -= 34f;
+
+        // Sección Acelerador
+        CreateText(card.transform, "ACELERADOR", 17f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f), y);
+        y -= 28f;
+        sliderGasCurve = CreateSliderRow(card.transform, "Curva (pow N)", GAS_CURVE_MIN, GAS_CURVE_MAX,
+            PlayerPrefs.GetFloat(UIInputNew_PREF_GAS_CURVE_N, UIInputNew_DEFAULT_GAS_CURVE_N),
+            y, OnGasCurveChanged, out valueGasCurve);
+        y -= 36f;
+        CreateText(card.transform, "1.00 = lineal · <1 arranque más vivo · >1 control fino", 11f, FontStyles.Italic, new Color(0.6f, 0.7f, 0.7f), y);
+        y -= 48f;
 
         // Botones
-        CreateButton(card.transform, "Restaurar defaults", -170f, y, new Color(0.5f, 0.35f, 0.1f), OnRestoreDefaults);
-        CreateButton(card.transform, "Cerrar", 170f, y, new Color(0.12f, 0.4f, 0.6f), ClosePanel);
+        CreateButton(card.transform, "Restaurar defaults", -180f, y, new Color(0.5f, 0.35f, 0.1f), OnRestoreDefaults);
+        CreateButton(card.transform, "Cerrar", 180f, y, new Color(0.12f, 0.4f, 0.6f), ClosePanel);
     }
 
     // Wrappers porque la clase UIInputNew está en namespace Gley.UrbanSystem
     // y C# no permite const imports en scope de clase.
     const string UIInputNew_PREF_STEER_CURVE_A        = "Adv_SteerCurveA";
+    const string UIInputNew_PREF_STEER_DEADZONE       = "Adv_SteerDeadzone";
     const string UIInputNew_PREF_BRAKE_SOFT_END       = "Adv_BrakeSoftEnd";
     const string UIInputNew_PREF_BRAKE_SOFT_MAX_OUTPUT = "Adv_BrakeSoftMaxOutput";
+    const string UIInputNew_PREF_GAS_CURVE_N          = "Adv_GasCurveN";
     const float  UIInputNew_DEFAULT_STEER_CURVE_A        = 1.0f;
+    const float  UIInputNew_DEFAULT_STEER_DEADZONE       = 0.02f;
     const float  UIInputNew_DEFAULT_BRAKE_SOFT_END       = 0.8f;
     const float  UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.3f;
+    const float  UIInputNew_DEFAULT_GAS_CURVE_N          = 1.0f;
 
     TextMeshProUGUI CreateText(Transform parent, string text, float size, FontStyles style, Color color, float yOffset)
     {
@@ -322,6 +342,13 @@ public class AdvancedInputPanel : MonoBehaviour
         NotifyInputReload();
     }
 
+    void OnSteerDzChanged(float v)
+    {
+        PlayerPrefs.SetFloat(UIInputNew_PREF_STEER_DEADZONE, v);
+        PlayerPrefs.Save();
+        NotifyInputReload();
+    }
+
     void OnBrakeEndChanged(float v)
     {
         PlayerPrefs.SetFloat(UIInputNew_PREF_BRAKE_SOFT_END, v);
@@ -336,12 +363,49 @@ public class AdvancedInputPanel : MonoBehaviour
         NotifyInputReload();
     }
 
+    void OnGasCurveChanged(float v)
+    {
+        PlayerPrefs.SetFloat(UIInputNew_PREF_GAS_CURVE_N, v);
+        PlayerPrefs.Save();
+        NotifyInputReload();
+    }
+
     void OnRestoreDefaults()
     {
-        // Cambiar los sliders — sus listeners guardan automáticamente
-        if (sliderSteer != null) sliderSteer.value = UIInputNew_DEFAULT_STEER_CURVE_A;
-        if (sliderBrakeEnd != null) sliderBrakeEnd.value = UIInputNew_DEFAULT_BRAKE_SOFT_END;
-        if (sliderBrakeOut != null) sliderBrakeOut.value = UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT;
+        Debug.Log("[AdvancedInputPanel] Restaurando defaults");
+        // Setear sliders + llamar handlers explícitamente: si el valor ya era
+        // el default, Slider.value = x no dispara onValueChanged y PlayerPrefs
+        // quedaría con el valor anterior.
+        if (sliderSteer != null)
+        {
+            sliderSteer.value = UIInputNew_DEFAULT_STEER_CURVE_A;
+            if (valueSteer != null) valueSteer.text = UIInputNew_DEFAULT_STEER_CURVE_A.ToString("F2");
+            OnSteerChanged(UIInputNew_DEFAULT_STEER_CURVE_A);
+        }
+        if (sliderSteerDz != null)
+        {
+            sliderSteerDz.value = UIInputNew_DEFAULT_STEER_DEADZONE;
+            if (valueSteerDz != null) valueSteerDz.text = UIInputNew_DEFAULT_STEER_DEADZONE.ToString("F2");
+            OnSteerDzChanged(UIInputNew_DEFAULT_STEER_DEADZONE);
+        }
+        if (sliderBrakeEnd != null)
+        {
+            sliderBrakeEnd.value = UIInputNew_DEFAULT_BRAKE_SOFT_END;
+            if (valueBrakeEnd != null) valueBrakeEnd.text = UIInputNew_DEFAULT_BRAKE_SOFT_END.ToString("F2");
+            OnBrakeEndChanged(UIInputNew_DEFAULT_BRAKE_SOFT_END);
+        }
+        if (sliderBrakeOut != null)
+        {
+            sliderBrakeOut.value = UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT;
+            if (valueBrakeOut != null) valueBrakeOut.text = UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT.ToString("F2");
+            OnBrakeOutChanged(UIInputNew_DEFAULT_BRAKE_SOFT_MAX_OUTPUT);
+        }
+        if (sliderGasCurve != null)
+        {
+            sliderGasCurve.value = UIInputNew_DEFAULT_GAS_CURVE_N;
+            if (valueGasCurve != null) valueGasCurve.text = UIInputNew_DEFAULT_GAS_CURVE_N.ToString("F2");
+            OnGasCurveChanged(UIInputNew_DEFAULT_GAS_CURVE_N);
+        }
     }
 
     void NotifyInputReload()

@@ -518,7 +518,7 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── DEBUG: label de versión del fix (esquina superior derecha) ──
         // TEMPORAL: incrementar manualmente al pushear builds de debug.
-        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#13",
+        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#14",
             24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
         var verRT = verObj.GetComponent<RectTransform>();
         verRT.anchorMin = new Vector2(0.7f, 0.92f);
@@ -1317,7 +1317,7 @@ public class MenuScreenManager : MonoBehaviour
         if (debugText == null) return;
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
-        sb.Append("── DEBUG VOLANTE [FIX#13] ──\n");
+        sb.Append("── DEBUG VOLANTE [FIX#14] ──\n");
 
         // PlayerPrefs (calibración previa con rest+press)
         string gasAxisPref = PlayerPrefs.GetString("G923_GasAxis", "-");
