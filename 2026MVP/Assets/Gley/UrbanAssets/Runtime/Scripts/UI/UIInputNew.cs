@@ -47,7 +47,9 @@ namespace Gley.UrbanSystem
 
         // Curva de sensibilidad del volante: output = sign(x) * |x|^STEER_CURVE
         // < 1 → más sensible en centro (más rápido a valores altos), 1 = lineal.
-        private const float STEER_CURVE = 0.7f;
+        // 0.70 se sintió MUY sensible sobre el steering ya calibrado.
+        // 0.85 = leve boost en centro, casi lineal en extremos.
+        private const float STEER_CURVE = 0.85f;
 
         // Calibración del steering por rango físico alcanzable (center/max/min).
         // Guardada en PlayerPrefs al completar las fases 1 y 2 del menú.
