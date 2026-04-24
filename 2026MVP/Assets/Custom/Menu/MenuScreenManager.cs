@@ -24,7 +24,6 @@ public class MenuScreenManager : MonoBehaviour
     private string licenseType;
     private string selectedSceneName;
     private int selectedVariantIndex = -1;
-    private bool isManualTransmission;
     private Coroutine pollingCoroutine;
 
     // ── Escenas por licenseType ────────────────────────────────────────
@@ -58,14 +57,12 @@ public class MenuScreenManager : MonoBehaviour
     private const float DPAD_RATE  = 0.15f;
 
     // D-pad Pantalla 1 — foco vs selección
-    private int screen1Row;  // 0=modelo, 1=transmisión, 2=continuar
+    private int screen1Row;  // 0=modelo, 1=continuar
     private int screen1Col;  // columna de foco dentro de la fila
 
     // Pantalla 1
     private GameObject[] variantCards;
     private Image[] variantBorders;
-    private GameObject[] transmissionCards;
-    private Image[] transmissionBorders;
     private Button continueBtn1;
 
     // Pantalla 2
@@ -378,58 +375,15 @@ public class MenuScreenManager : MonoBehaviour
             variantBorders[i] = card.transform.Find("Border").GetComponent<Image>();
         }
 
-        // ── Fila 3: Transmisión label + 2 cards (15%-40%) ──
-        MenuCardBuilder.CreateText(area.transform, "TransLabel", "Transmisión",
-            24f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
-            .GetComponent<RectTransform>().Set(
-                new Vector2(0, 0.33f), new Vector2(1, 0.41f), new Vector2(0.5f, 0.5f),
-                Vector2.zero, Vector2.zero);
+        // Transmisión automática por defecto (modo manual no disponible)
+        PlayerPrefs.SetInt("TransmisionManual", 0);
+        PlayerPrefs.Save();
 
-        string[] transNames = { "Automática", "Manual" };
-        transmissionCards = new GameObject[2];
-        transmissionBorders = new Image[2];
-
-        for (int i = 0; i < 2; i++)
-        {
-            int idx = i;
-            float cardW = 0.35f;
-            float gap = 0.04f;
-            float totalW = cardW * 2 + gap;
-            float startX = (1f - totalW) / 2f;
-            float left = startX + i * (cardW + gap);
-
-            GameObject card = MenuCardBuilder.CreateCard(area.transform, new Vector2(100, 100));
-            card.GetComponent<RectTransform>().Set(
-                new Vector2(left, 0.22f), new Vector2(left + cardW, 0.33f),
-                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
-
-            Transform content = card.transform.Find("Content");
-            MenuCardBuilder.CreateText(content, "Text", transNames[i],
-                24f, FontStyles.Bold, MenuTheme.TextOnCard, TextAlignmentOptions.Center)
-                .GetComponent<RectTransform>().Set(
-                    Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
-                    Vector2.zero, Vector2.zero);
-
-            Button btn = card.AddComponent<Button>();
-            btn.targetGraphic = card.transform.Find("Background").GetComponent<Image>();
-            btn.onClick.AddListener(() => OnTransmissionSelected(idx));
-            ColorBlock cb = btn.colors;
-            cb.normalColor = Color.white;
-            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
-            cb.pressedColor = new Color(0.9f, 0.9f, 0.9f, 1f);
-            cb.fadeDuration = 0.12f;
-            btn.colors = cb;
-
-            transmissionCards[i] = card;
-            transmissionBorders[i] = card.transform.Find("Border").GetComponent<Image>();
-        }
-        OnTransmissionSelected(0);
-
-        // ── Fila 4: Continuar (bottom, más arriba) ──
+        // ── Fila 3: Continuar ──
         continueBtn1 = MenuCardBuilder.CreateButton(area.transform, "Continuar", "primary",
             new Vector2(100, 100), () => GoToScreen(2)).GetComponent<Button>();
         continueBtn1.GetComponent<RectTransform>().Set(
-            new Vector2(0.3f, 0.06f), new Vector2(0.7f, 0.19f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.3f, 0.22f), new Vector2(0.7f, 0.35f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
         // Defaults DESPUÉS de crear el botón
@@ -454,21 +408,6 @@ public class MenuScreenManager : MonoBehaviour
         }
 
         EnableButton(continueBtn1, true);
-    }
-
-    void OnTransmissionSelected(int idx)
-    {
-        isManualTransmission = (idx == 1);
-        PlayerPrefs.SetInt("TransmisionManual", isManualTransmission ? 1 : 0);
-        PlayerPrefs.Save();
-
-        for (int i = 0; i < transmissionCards.Length; i++)
-        {
-            bool sel = (i == idx);
-            transmissionBorders[i].color = sel ? MenuTheme.CardBorderGold : MenuTheme.CardBorder;
-            transmissionCards[i].transform.Find("Background").GetComponent<Image>().color =
-                sel ? MenuTheme.CardSelected : MenuTheme.CardBackground;
-        }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1238,8 +1177,7 @@ public class MenuScreenManager : MonoBehaviour
             {
                 confirmBtnHeld = true;
                 if (screen1Row == 0) OnVariantSelected(screen1Col);
-                else if (screen1Row == 1) OnTransmissionSelected(screen1Col);
-                else if (screen1Row == 2) GoToScreen(2);
+                else if (screen1Row == 1) GoToScreen(2);
                 RefreshScreen1Visuals();
             }
         }
@@ -1247,18 +1185,18 @@ public class MenuScreenManager : MonoBehaviour
 
         if (!up && !down && !left && !right) return;
 
-        int maxCol = screen1Row == 0 ? 2 : (screen1Row == 1 ? 1 : 0);
+        int maxCol = screen1Row == 0 ? 2 : 0;
 
         if (up && screen1Row > 0)
         {
             screen1Row--;
-            maxCol = screen1Row == 0 ? 2 : 1;
+            maxCol = screen1Row == 0 ? 2 : 0;
             screen1Col = Mathf.Min(screen1Col, maxCol);
         }
-        else if (down && screen1Row < 2)
+        else if (down && screen1Row < 1)
         {
             screen1Row++;
-            maxCol = screen1Row == 0 ? 2 : (screen1Row == 1 ? 1 : 0);
+            maxCol = screen1Row == 0 ? 2 : 0;
             screen1Col = Mathf.Min(screen1Col, maxCol);
         }
         else if (left && screen1Col > 0) screen1Col--;
@@ -1280,24 +1218,12 @@ public class MenuScreenManager : MonoBehaviour
                 selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
         }
 
-        // Transmisión cards
-        int transIdx = isManualTransmission ? 1 : 0;
-        for (int i = 0; i < transmissionCards.Length; i++)
-        {
-            bool focused = (screen1Row == 1 && screen1Col == i);
-            bool selected = (i == transIdx);
-            transmissionBorders[i].color = focused ? MenuTheme.Gold :
-                (selected ? MenuTheme.CardBorderGold : MenuTheme.CardBorder);
-            transmissionCards[i].transform.Find("Background").GetComponent<Image>().color =
-                selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
-        }
-
         // Continuar button
         if (continueBtn1 != null)
         {
             Image img = continueBtn1.GetComponent<Image>();
             TextMeshProUGUI txt = continueBtn1.GetComponentInChildren<TextMeshProUGUI>();
-            if (screen1Row == 2)
+            if (screen1Row == 1)
             {
                 img.color = MenuTheme.Gold;
                 if (txt != null) txt.color = MenuTheme.TextPrimary;
