@@ -95,6 +95,9 @@ public class ExamResultsScreen : MonoBehaviour
             return;
         }
 
+        // Garantizar pantalla principal (cubre caso ScreenSpaceCamera en display lateral)
+        DisplayHelper.EnsureOnMainDisplay(targetCanvas, "[ExamResultsScreen]");
+
         // Backdrop oscuro fullscreen
         GameObject backdrop = new GameObject("Backdrop");
         backdrop.transform.SetParent(targetCanvas.transform, false);

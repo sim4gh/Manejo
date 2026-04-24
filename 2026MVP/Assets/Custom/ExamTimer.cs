@@ -103,6 +103,9 @@ public class ExamTimer : MonoBehaviour
             return;
         }
 
+        // Garantizar que el Canvas elegido renderice en pantalla principal
+        DisplayHelper.EnsureOnMainDisplay(targetCanvas, "[ExamTimer]");
+
         // Contenedor del timer
         GameObject container = new GameObject("ExamTimerHUD");
         container.transform.SetParent(targetCanvas.transform, false);

@@ -41,14 +41,9 @@ public class SimpleSpeedGauge : MonoBehaviour
 
     void Start()
     {
-        // Forzar el Canvas del velocímetro a la pantalla principal (Display 1, target=0).
-        // En setup de 3 monitores, la escena a veces asigna este Canvas al display lateral.
-        Canvas parentCanvas = GetComponentInParent<Canvas>();
-        if (parentCanvas != null && parentCanvas.targetDisplay != 0)
-        {
-            //Debug.Log($"[SimpleSpeedGauge] Moviendo Canvas '{parentCanvas.name}' targetDisplay {parentCanvas.targetDisplay} → 0 (principal)");
-            //parentCanvas.targetDisplay = 0;
-        }
+        // Mover el Canvas del velocímetro a la pantalla principal.
+        // Maneja ambos modos: Overlay (targetDisplay) y ScreenSpaceCamera (worldCamera).
+        DisplayHelper.EnsureOnMainDisplay(GetComponentInParent<Canvas>(), "[SimpleSpeedGauge]");
 
         if (vehicle == null)
             vehicle = GameObject.Find("Player");
