@@ -52,6 +52,14 @@ public class MenuScreenManager : MonoBehaviour
     private InputControl<float> enterBtn;   // button10 = Options/Enter
     private InputControl<float> gasCtrl;    // eje /z — acelerador (para calibración)
     private InputControl<float> brakeCtrl;  // eje /rz — freno (para calibración)
+
+    // Detección dinámica del eje de cada pedal (algunos volantes mapean distinto)
+    private static readonly string[] GAS_AXIS_CANDIDATES   = { "z", "stick/y", "ry" };
+    private static readonly string[] BRAKE_AXIS_CANDIDATES = { "rz", "stick/z", "rx" };
+    private InputControl<float>[] gasCandidates;
+    private InputControl<float>[] brakeCandidates;
+    private float[] gasCandidateMins;
+    private float[] brakeCandidateMins;
     private bool confirmBtnHeld;
     private float dpadUpT, dpadDownT, dpadLeftT, dpadRightT;
     private bool dpadUpR, dpadDownR, dpadLeftR, dpadRightR;
@@ -526,7 +534,7 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── DEBUG: label de versión del fix (esquina superior derecha) ──
         // TEMPORAL: incrementar manualmente al pushear builds de debug.
-        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#4",
+        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#5",
             24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
         var verRT = verObj.GetComponent<RectTransform>();
         verRT.anchorMin = new Vector2(0.7f, 0.92f);
@@ -1035,12 +1043,21 @@ public class MenuScreenManager : MonoBehaviour
         rightDone = false;
         leftDone = false;
 
-        // Si ya hay calibración guardada, saltar las fases de pedal
-        bool calibrated = PlayerPrefs.HasKey("G923_GasMin") && PlayerPrefs.HasKey("G923_BrakeMin");
+        // Si ya hay calibración completa (axis + min de ambos pedales), saltar.
+        // Requiere las 4 keys para asegurar que la calibración se hizo con la
+        // lógica dinámica actual — builds previos solo guardaban min sin axis.
+        bool calibrated = PlayerPrefs.HasKey("G923_GasAxis") && PlayerPrefs.HasKey("G923_GasMin")
+                       && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeMin");
         throttleDone = calibrated;
         brakeDone = calibrated;
         gasMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_GasMin") : 1f;
         brakeMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_BrakeMin") : 1f;
+
+        // Reset mins de candidatos para esta sesión de calibración
+        if (gasCandidateMins != null)
+            for (int i = 0; i < gasCandidateMins.Length; i++) gasCandidateMins[i] = 1f;
+        if (brakeCandidateMins != null)
+            for (int i = 0; i < brakeCandidateMins.Length; i++) brakeCandidateMins[i] = 1f;
 
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
@@ -1137,19 +1154,26 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
 
-        // ── Fase 3: calibración del acelerador (reusa rightFill) ──
+        // ── Fase 3: calibración dinámica del ACELERADOR (reusa rightFill) ──
+        // Samplea todos los candidatos (z, stick/y, ry) y gana el que más caiga.
         if (!throttleDone)
         {
-            float gasRaw = gasCtrl.ReadValue();
-            if (gasRaw < gasMinSeen) gasMinSeen = gasRaw;
-            float gasProgress = Mathf.Clamp01(1f - gasRaw);
+            int bestIdx = SampleCandidates(gasCandidates, gasCandidateMins, out float bestDrop);
+            float gasProgress = Mathf.Clamp01(bestDrop);
 
-            if (gasProgress >= PEDAL_PROGRESS_THRESHOLD)
+            if (gasProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
             {
                 throttleDone = true;
+                gasMinSeen = gasCandidateMins[bestIdx];
+                string gasAxisPath = GAS_AXIS_CANDIDATES[bestIdx];
+
                 rightFillRT.anchorMax = new Vector2(1, 1);
                 rightFill.color = MenuTheme.IndicatorDone;
                 rightIndicator.color = MenuTheme.IndicatorDone;
+
+                PlayerPrefs.SetString("G923_GasAxis", gasAxisPath);
+                PlayerPrefs.SetFloat("G923_GasMin", gasMinSeen);
+                Debug.Log($"[MenuScreenManager] Acelerador → eje '{gasAxisPath}' min={gasMinSeen:F3}");
 
                 // Reset leftFill para fase de freno
                 leftFillRT.anchorMin = new Vector2(1, 0);
@@ -1165,25 +1189,26 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
 
-        // ── Fase 4: calibración del freno (reusa leftFill) ──
+        // ── Fase 4: calibración dinámica del FRENO (reusa leftFill) ──
         if (!brakeDone)
         {
-            float brakeRaw = brakeCtrl.ReadValue();
-            if (brakeRaw < brakeMinSeen) brakeMinSeen = brakeRaw;
-            float brakeProgress = Mathf.Clamp01(1f - brakeRaw);
+            int bestIdx = SampleCandidates(brakeCandidates, brakeCandidateMins, out float bestDrop);
+            float brakeProgress = Mathf.Clamp01(bestDrop);
 
-            if (brakeProgress >= PEDAL_PROGRESS_THRESHOLD)
+            if (brakeProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
             {
                 brakeDone = true;
+                brakeMinSeen = brakeCandidateMins[bestIdx];
+                string brakeAxisPath = BRAKE_AXIS_CANDIDATES[bestIdx];
+
                 leftFillRT.anchorMin = new Vector2(0, 0);
                 leftFill.color = MenuTheme.IndicatorDone;
                 leftIndicator.color = MenuTheme.IndicatorDone;
 
-                // Persistir calibración — UIInputNew los leerá al detectar el volante
-                PlayerPrefs.SetFloat("G923_GasMin", gasMinSeen);
+                PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
                 PlayerPrefs.SetFloat("G923_BrakeMin", brakeMinSeen);
                 PlayerPrefs.Save();
-                Debug.Log($"[MenuScreenManager] Calibración guardada: gasMin={gasMinSeen:F3} brakeMin={brakeMinSeen:F3}");
+                Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' min={brakeMinSeen:F3}");
 
                 wheelPrompt.text = "Cargando prueba...";
                 skipButton.gameObject.SetActive(false);
@@ -1219,12 +1244,15 @@ public class MenuScreenManager : MonoBehaviour
         if (debugText == null) return;
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
-        sb.Append("── DEBUG VOLANTE [FIX#4] ──\n");
+        sb.Append("── DEBUG VOLANTE [FIX#5] ──\n");
 
         // PlayerPrefs (calibración previa)
+        string gasAxisPref = PlayerPrefs.GetString("G923_GasAxis", "-");
+        string brakeAxisPref = PlayerPrefs.GetString("G923_BrakeAxis", "-");
         string gasPref = PlayerPrefs.HasKey("G923_GasMin") ? PlayerPrefs.GetFloat("G923_GasMin").ToString("F3") : "-";
         string brakePref = PlayerPrefs.HasKey("G923_BrakeMin") ? PlayerPrefs.GetFloat("G923_BrakeMin").ToString("F3") : "-";
-        sb.Append($"Prefs: gas={gasPref}  brake={brakePref}\n");
+        sb.Append($"Prefs gas:   axis={gasAxisPref}  min={gasPref}\n");
+        sb.Append($"Prefs brake: axis={brakeAxisPref}  min={brakePref}\n");
 
         // Device
         if (steerAction == null)
@@ -1249,12 +1277,31 @@ public class MenuScreenManager : MonoBehaviour
             sb.Append($"DEVICE: {devName}\n");
 
             float steer = steerAction.ReadValue<float>();
-            string gasStr = gasCtrl != null ? gasCtrl.ReadValue().ToString("F3") : "null";
-            string brakeStr = brakeCtrl != null ? brakeCtrl.ReadValue().ToString("F3") : "null";
             sb.Append($"RAW steer={steer:F3}\n");
-            sb.Append($"RAW gas  ={gasStr}\n");
-            sb.Append($"RAW brake={brakeStr}\n");
-            sb.Append($"MIN gas={gasMinSeen:F3}  brake={brakeMinSeen:F3}\n");
+
+            // Candidatos de gas (los 3 ejes): raw y min observado
+            sb.Append("GAS candidatos:\n");
+            if (gasCandidates != null)
+            {
+                for (int i = 0; i < gasCandidates.Length; i++)
+                {
+                    string path = GAS_AXIS_CANDIDATES[i];
+                    if (gasCandidates[i] == null) { sb.Append($"  {path}= null\n"); continue; }
+                    float v = gasCandidates[i].ReadValue();
+                    sb.Append($"  {path}= {v:F3}  min={gasCandidateMins[i]:F3}\n");
+                }
+            }
+            sb.Append("FRENO candidatos:\n");
+            if (brakeCandidates != null)
+            {
+                for (int i = 0; i < brakeCandidates.Length; i++)
+                {
+                    string path = BRAKE_AXIS_CANDIDATES[i];
+                    if (brakeCandidates[i] == null) { sb.Append($"  {path}= null\n"); continue; }
+                    float v = brakeCandidates[i].ReadValue();
+                    sb.Append($"  {path}= {v:F3}  min={brakeCandidateMins[i]:F3}\n");
+                }
+            }
         }
 
         // Fase actual
@@ -1267,6 +1314,44 @@ public class MenuScreenManager : MonoBehaviour
         sb.Append($"Estado: R={rightDone} L={leftDone} T={throttleDone} B={brakeDone}\n");
 
         debugText.text = sb.ToString();
+    }
+
+    // Cachea los candidatos a eje de pedal y resetea los mínimos observados.
+    // Durante la fase de calibración, el código observa todos los candidatos
+    // y selecciona como "el pedal" el eje con mayor caída desde el reposo.
+    void CachePedalCandidates(InputDevice device)
+    {
+        gasCandidates = new InputControl<float>[GAS_AXIS_CANDIDATES.Length];
+        gasCandidateMins = new float[GAS_AXIS_CANDIDATES.Length];
+        for (int i = 0; i < GAS_AXIS_CANDIDATES.Length; i++)
+        {
+            gasCandidates[i] = device.TryGetChildControl(GAS_AXIS_CANDIDATES[i]) as InputControl<float>;
+            gasCandidateMins[i] = 1f;
+        }
+        brakeCandidates = new InputControl<float>[BRAKE_AXIS_CANDIDATES.Length];
+        brakeCandidateMins = new float[BRAKE_AXIS_CANDIDATES.Length];
+        for (int i = 0; i < BRAKE_AXIS_CANDIDATES.Length; i++)
+        {
+            brakeCandidates[i] = device.TryGetChildControl(BRAKE_AXIS_CANDIDATES[i]) as InputControl<float>;
+            brakeCandidateMins[i] = 1f;
+        }
+    }
+
+    // Actualiza los mins de un grupo de candidatos y devuelve el índice del
+    // candidato con mayor caída (drop = 1 - min) y su magnitud.
+    int SampleCandidates(InputControl<float>[] candidates, float[] mins, out float bestDrop)
+    {
+        bestDrop = 0f;
+        int bestIdx = -1;
+        for (int i = 0; i < candidates.Length; i++)
+        {
+            if (candidates[i] == null) continue;
+            float v = candidates[i].ReadValue();
+            if (v < mins[i]) mins[i] = v;
+            float drop = 1f - mins[i];
+            if (drop > bestDrop) { bestDrop = drop; bestIdx = i; }
+        }
+        return bestIdx;
     }
 
     float ReadSteerInput()
@@ -1295,6 +1380,7 @@ public class MenuScreenManager : MonoBehaviour
                     enterBtn  = device.TryGetChildControl("button10") as InputControl<float>;
                     gasCtrl   = device.TryGetChildControl("z")  as InputControl<float>;
                     brakeCtrl = device.TryGetChildControl("rz") as InputControl<float>;
+                    CachePedalCandidates(device);
                     Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path}) hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
                     break;
                 }
@@ -1314,6 +1400,7 @@ public class MenuScreenManager : MonoBehaviour
                 enterBtn  = jDev.TryGetChildControl("button10") as InputControl<float>;
                 gasCtrl   = jDev.TryGetChildControl("z")  as InputControl<float>;
                 brakeCtrl = jDev.TryGetChildControl("rz") as InputControl<float>;
+                CachePedalCandidates(jDev);
                 Debug.Log($"[MenuScreenManager] Joystick fallback: {jDev.displayName} hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
             }
             if (steerAction == null && Gamepad.current != null)

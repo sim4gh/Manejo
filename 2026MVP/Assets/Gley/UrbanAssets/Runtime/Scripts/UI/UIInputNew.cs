@@ -132,10 +132,13 @@ namespace Gley.UrbanSystem
                 _hasWheel = true;
                 _wheelDevice = device;
 
-                // Ejes
+                // Ejes — paths calibrados dinámicamente en la pantalla del menú.
+                // Si no hay pref, defaults razonables (algunos volantes funcionan así).
                 _steerCtrl = CacheControl("stick/x");
-                _gasCtrl   = CacheControl("z");
-                _brakeCtrl = CacheControl("rz");
+                string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
+                string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
+                _gasCtrl   = CacheControl(gasPath);
+                _brakeCtrl = CacheControl(brakePath);
 
                 // H-shifter: buttons 13-19
                 _gearControls = new InputControl<float>[7];
@@ -166,7 +169,9 @@ namespace Gley.UrbanSystem
                 _minBrakeSeen = PlayerPrefs.GetFloat("G923_BrakeMin", -1f);
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
-                    + " | steer=" + (_steerCtrl != null) + " gas=" + (_gasCtrl != null) + " brake=" + (_brakeCtrl != null));
+                    + " | steer=" + (_steerCtrl != null)
+                    + " gas[" + gasPath + "]=" + (_gasCtrl != null)
+                    + " brake[" + brakePath + "]=" + (_brakeCtrl != null));
                 return true;
             }
             return false;
