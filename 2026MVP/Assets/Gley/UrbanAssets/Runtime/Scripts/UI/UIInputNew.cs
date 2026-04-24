@@ -37,14 +37,25 @@ namespace Gley.UrbanSystem
         private float _debugLogTimer = 0f;
         private bool _debugOverlay = false;
 
-        // Auto-calibración del rango de pedales.
-        // Asumimos axis.rest = +1.0 y se mueve hacia minSeen al presionar.
-        // Rango 0..1 (Xbox HID común): minSeen tiende a 0.
-        // Rango -1..1 (PS HID común):  minSeen tiende a -1.
-        // Arrancamos con -1 para no sobre-saturar en rangos signed; si el HID
-        // es 0..1, al primer pisotón minSeen cae a ~0 y se recalibra.
-        private float _minGasSeen = -1f;
-        private float _minBrakeSeen = -1f;
+        // Calibración de pedal por rest+press (capturados en pantalla del menú).
+        // Fórmula: presionado_fracción = clamp((raw - rest) / (press - rest), 0, 1).
+        // Funciona para cualquier rest (±1, 0) y cualquier dirección de press.
+        private float _gasRest = 1f;
+        private float _gasPress = -1f;
+        private float _brakeRest = 1f;
+        private float _brakePress = -1f;
+
+        // Curva de sensibilidad del volante: output = sign(x) * |x|^STEER_CURVE
+        // < 1 → más sensible en centro (más rápido a valores altos), 1 = lineal.
+        private const float STEER_CURVE = 0.7f;
+
+        // Calibración del steering por rango físico alcanzable (center/max/min).
+        // Guardada en PlayerPrefs al completar las fases 1 y 2 del menú.
+        // Si el volante solo llega a raw=±0.9 mecánicamente, normalizar contra
+        // ese rango da ±1.0 al tope — sin este paso, el jugador pierde el 10%.
+        private float _steerCenter = 0f;
+        private float _steerMax = 1f;
+        private float _steerMin = -1f;
 
         // Ejes cacheados (lectura directa del device — sin InputAction binding,
         // porque el layout HID del G923 trae "::" y espacios que a veces no resuelve)
@@ -163,10 +174,18 @@ namespace Gley.UrbanSystem
                 _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
                 if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
-                // Cargar calibración de pedales si el usuario pasó por la pantalla de verificación.
-                // Si no hay, default -1 (asume rango signed; se auto-refina en runtime).
-                _minGasSeen   = PlayerPrefs.GetFloat("G923_GasMin", -1f);
-                _minBrakeSeen = PlayerPrefs.GetFloat("G923_BrakeMin", -1f);
+                // Cargar calibración de pedales (rest+press) hecha en el menú.
+                // Defaults: rest=1, press=-1 (convención común, pero puede fallar
+                // en G923s con mapeo invertido — la pantalla de calibración lo cubre).
+                _gasRest   = PlayerPrefs.GetFloat("G923_GasRest",  1f);
+                _gasPress  = PlayerPrefs.GetFloat("G923_GasPress", -1f);
+                _brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
+                _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+
+                // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
+                _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
+                _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
+                _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
 
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
                     + " | steer=" + (_steerCtrl != null)
@@ -177,14 +196,32 @@ namespace Gley.UrbanSystem
             return false;
         }
 
-        // Normaliza pedal a [0,1] agnóstico al rango del HID.
-        // axis.rest = +1 (convención del G923); minSeen se ajusta al mínimo observado.
-        private float NormalizePedal(float raw, ref float minSeen)
+        // Normaliza pedal a [0,1] usando rest+press calibrados en pantalla.
+        // Funciona sin importar la dirección del eje (rest puede ser > o < press).
+        private float NormalizePedal(float raw, float rest, float press)
         {
-            if (raw < minSeen) minSeen = raw;
-            float span = 1f - minSeen;
-            if (span < 0.05f) return 0f;
-            return Mathf.Clamp01((1f - raw) / span);
+            float span = press - rest;
+            if (Mathf.Abs(span) < 0.05f) return 0f;
+            return Mathf.Clamp01((raw - rest) / span);
+        }
+
+        // Normaliza steering a [-1, 1] mapeando el rango físico (center, max, min)
+        // alcanzable por el volante. Si el volante solo llega a raw=+0.9, giro
+        // completo derecha → 1.0. Preserva la dirección del signo al convertir.
+        private float NormalizeSteer(float raw)
+        {
+            if (raw >= _steerCenter)
+            {
+                float span = _steerMax - _steerCenter;
+                if (span < 0.05f) return 0f;
+                return Mathf.Clamp01((raw - _steerCenter) / span);
+            }
+            else
+            {
+                float span = _steerCenter - _steerMin;
+                if (span < 0.05f) return 0f;
+                return -Mathf.Clamp01((_steerCenter - raw) / span);
+            }
         }
 
         private InputControl<float> CacheButton(int num)
@@ -251,11 +288,20 @@ namespace Gley.UrbanSystem
 
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
-            // ---- Steering ----
+            // ---- Steering: calibrado (rango físico) + curva (sensibilidad centro) ----
             if (_hasWheel)
             {
-                float wheelSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
-                horizontalInput = Mathf.Abs(wheelSteer) > 0.01f ? wheelSteer : kbInput.x;
+                float rawSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : _steerCenter;
+                float norm = NormalizeSteer(rawSteer); // [-1, 1] sobre rango físico real
+                if (Mathf.Abs(norm) > 0.01f)
+                {
+                    float absN = Mathf.Abs(norm);
+                    horizontalInput = Mathf.Sign(norm) * Mathf.Pow(absN, STEER_CURVE);
+                }
+                else
+                {
+                    horizontalInput = kbInput.x;
+                }
             }
             else
             {
@@ -285,11 +331,12 @@ namespace Gley.UrbanSystem
                 else if (_hasWheel)
                 {
                     // Sin teclado: pedales del volante, mantener último gear
-                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
-                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
-                    float gas = NormalizePedal(gasRaw, ref _minGasSeen);
-                    float brakeLinear = NormalizePedal(brakeRaw, ref _minBrakeSeen);
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
+                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
+                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
+                    float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
+                    // 2.5 (antes 2.0) → freno ~25% más sensible: pedal al ~63% = freno full
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.5f);
                     verticalInput = gas;
                     brakeInput = brake;
 
@@ -318,11 +365,11 @@ namespace Gley.UrbanSystem
                 }
                 else if (_hasWheel)
                 {
-                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
-                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
-                    float gas = NormalizePedal(gasRaw, ref _minGasSeen);
-                    float brakeLinear = NormalizePedal(brakeRaw, ref _minBrakeSeen);
-                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
+                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
+                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
+                    float gas = NormalizePedal(gasRaw, _gasRest, _gasPress);
+                    float brakeLinear = NormalizePedal(brakeRaw, _brakeRest, _brakePress);
+                    float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2.5f);
                     verticalInput = gas;
                     brakeInput = brake;
                 }
@@ -416,7 +463,7 @@ namespace Gley.UrbanSystem
                     float st = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
                     float gr = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
                     float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
-                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | minG={_minGasSeen:F3} minB={_minBrakeSeen:F3} | auto={_isAutomaticMode} gear={_currentGear}");
+                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} | auto={_isAutomaticMode} gear={_currentGear}");
                 }
             }
 #endif
@@ -443,8 +490,8 @@ namespace Gley.UrbanSystem
                 float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
                 info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3}\n";
                 info += $"CALC V={verticalInput:F3} B={brakeInput:F3} gear={_currentGear}\n";
-                info += $"CAL  minGas={_minGasSeen:F3} minBrake={_minBrakeSeen:F3}\n";
-                info += "(presiona pedales al tope p/ calibrar)";
+                info += $"CAL  gas rest={_gasRest:F2} press={_gasPress:F2}\n";
+                info += $"     brake rest={_brakeRest:F2} press={_brakePress:F2}";
             }
             else
             {

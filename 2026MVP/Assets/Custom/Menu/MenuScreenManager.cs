@@ -61,8 +61,12 @@ public class MenuScreenManager : MonoBehaviour
         "z", "rz", "stick/y", "stick/z", "ry", "rx"
     };
     private InputControl<float>[] pedalCandidates;
-    private float[] pedalCandidateMins;
+    // Calibración por delta signado desde el reposo — funciona con ejes
+    // cuyo rest sea +1, 0 o -1, y en cualquier dirección de press.
+    private float[] pedalCandidateRests;      // valor al inicio de la fase (reposo)
+    private float[] pedalCandidateMaxDeltas;  // delta signado máximo observado
     private int gasChosenIdx = -1; // índice elegido en fase 3; excluir de fase 4
+    private const float PEDAL_DELTA_THRESHOLD = 0.85f; // |delta| mínimo para completar fase
     private bool confirmBtnHeld;
     private float dpadUpT, dpadDownT, dpadLeftT, dpadRightT;
     private bool dpadUpR, dpadDownR, dpadLeftR, dpadRightR;
@@ -97,11 +101,15 @@ public class MenuScreenManager : MonoBehaviour
     private TextMeshProUGUI debugText; // DEBUG temporal — telemetría en vivo del volante
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
-    private float gasMinSeen = 1f;   // rest=1; cae al pisar
-    private float brakeMinSeen = 1f;
     private Button skipButton;
     private const float WHEEL_THRESHOLD = 0.9f;
-    private const float PEDAL_PROGRESS_THRESHOLD = 0.85f; // 85% pisado = fase completa
+    // Calibración del steering durante fases 1 y 2:
+    //   center = valor raw al entrar a la pantalla (volante centrado)
+    //   maxSeen / minSeen = extremos físicos alcanzados en las fases de giro
+    private float steerCenter = 0f;
+    private float steerMaxSeen = 0f;
+    private float steerMinSeen = 0f;
+    private bool steerCenterCaptured = false;
 
     // ── Assets ─────────────────────────────────────────────────────────
     private Texture2D bgTexture;
@@ -501,7 +509,7 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── DEBUG: label de versión del fix (esquina superior derecha) ──
         // TEMPORAL: incrementar manualmente al pushear builds de debug.
-        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#6",
+        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#8",
             24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
         var verRT = verObj.GetComponent<RectTransform>();
         verRT.anchorMin = new Vector2(0.7f, 0.92f);
@@ -1063,20 +1071,25 @@ public class MenuScreenManager : MonoBehaviour
         rightDone = false;
         leftDone = false;
 
-        // Si ya hay calibración completa (axis + min de ambos pedales), saltar.
-        // Requiere las 4 keys para asegurar que la calibración se hizo con la
-        // lógica dinámica actual — builds previos solo guardaban min sin axis.
-        bool calibrated = PlayerPrefs.HasKey("G923_GasAxis") && PlayerPrefs.HasKey("G923_GasMin")
-                       && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeMin");
+        // Calibración completa requiere las 6 keys nuevas (axis + rest + press
+        // para cada pedal). Las keys viejas (G923_GasMin/BrakeMin) se ignoran.
+        bool calibrated =
+               PlayerPrefs.HasKey("G923_GasAxis")   && PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
+            && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress");
         throttleDone = calibrated;
         brakeDone = calibrated;
-        gasMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_GasMin") : 1f;
-        brakeMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_BrakeMin") : 1f;
 
-        // Reset mins de candidatos de pedal para esta sesión de calibración
-        if (pedalCandidateMins != null)
-            for (int i = 0; i < pedalCandidateMins.Length; i++) pedalCandidateMins[i] = 1f;
+        // Reset deltas de candidatos para esta sesión de calibración
+        if (pedalCandidateMaxDeltas != null)
+            for (int i = 0; i < pedalCandidateMaxDeltas.Length; i++) pedalCandidateMaxDeltas[i] = 0f;
         gasChosenIdx = -1;
+
+        // Reset calibración del steering. Captura inicial del centro se hace
+        // en Update() primer frame que steerAction esté disponible.
+        steerCenter = 0f;
+        steerMaxSeen = 0f;
+        steerMinSeen = 0f;
+        steerCenterCaptured = false;
 
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
@@ -1121,6 +1134,20 @@ public class MenuScreenManager : MonoBehaviour
 
         // Leer input (dispara detección+cacheo de device/pedales) antes de pintar debug
         float steer = ReadSteerInput();
+
+        // Capturar el centro del volante al primer frame en que steerAction esté listo.
+        // El raw inicial puede no ser exactamente 0 (deadzone mecánico / calibración del HID).
+        if (!steerCenterCaptured && steerAction != null)
+        {
+            steerCenter = steer;
+            steerMaxSeen = steer;
+            steerMinSeen = steer;
+            steerCenterCaptured = true;
+        }
+        // Trackear extremos raw durante cualquier fase de giro
+        if (steer > steerMaxSeen) steerMaxSeen = steer;
+        if (steer < steerMinSeen) steerMinSeen = steer;
+
         UpdateDebugText();
 
         if (rightDone && leftDone && throttleDone && brakeDone) return;
@@ -1156,21 +1183,27 @@ public class MenuScreenManager : MonoBehaviour
                 leftFill.color = MenuTheme.IndicatorDone;
                 leftIndicator.color = MenuTheme.IndicatorDone;
 
+                // Persistir calibración del steering (se usó el rango físico completo)
+                PlayerPrefs.SetFloat("G923_SteerCenter", steerCenter);
+                PlayerPrefs.SetFloat("G923_SteerMax", steerMaxSeen);
+                PlayerPrefs.SetFloat("G923_SteerMin", steerMinSeen);
+                Debug.Log($"[MenuScreenManager] Steering calibrado: center={steerCenter:F3} max={steerMaxSeen:F3} min={steerMinSeen:F3}");
+
                 // Sin pedales conectados o ya calibrado previamente → cargar escena directo
                 if (gasCtrl == null || brakeCtrl == null || (throttleDone && brakeDone))
                 {
                     throttleDone = true;
                     brakeDone = true;
+                    PlayerPrefs.Save();
                     wheelPrompt.text = "Cargando prueba...";
                     skipButton.gameObject.SetActive(false);
                     StartCoroutine(LoadSceneDelayed(1.5f));
                 }
                 else
                 {
-                    // Reset visuales para reutilizar los fills en calibración de pedales
-                    rightFillRT.anchorMax = new Vector2(0, 1);
-                    rightFill.color = MenuTheme.SecondaryCrimson;
-                    rightIndicator.color = MenuTheme.IndicatorPending;
+                    // Capturar reposo de los ejes JUSTO antes de fase 3 —
+                    // el usuario acaba de soltar el volante y no está pisando nada.
+                    SnapshotPedalRests();
                     wheelPrompt.text = "Pisa el ACELERADOR a fondo";
                 }
             }
@@ -1183,17 +1216,19 @@ public class MenuScreenManager : MonoBehaviour
         }
 
         // ── Fase 3: calibración dinámica del ACELERADOR (barra gasFill) ──
-        // Samplea la lista unificada de candidatos y gana el que más caiga.
+        // Samplea la lista unificada de candidatos y gana el que tenga mayor
+        // |delta| desde su reposo (capturado al inicio de la fase).
         if (!throttleDone)
         {
-            int bestIdx = SamplePedalCandidates(-1, out float bestDrop);
-            float gasProgress = Mathf.Clamp01(bestDrop);
+            int bestIdx = SamplePedalCandidates(-1, out float bestAbsDelta);
+            float gasProgress = Mathf.Clamp01(bestAbsDelta);
 
-            if (gasProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
+            if (bestAbsDelta >= PEDAL_DELTA_THRESHOLD && bestIdx >= 0)
             {
                 throttleDone = true;
                 gasChosenIdx = bestIdx;
-                gasMinSeen = pedalCandidateMins[bestIdx];
+                float rest = pedalCandidateRests[bestIdx];
+                float press = rest + pedalCandidateMaxDeltas[bestIdx]; // preserva signo
                 string gasAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
 
                 gasFillRT.anchorMax = new Vector2(1, 1);
@@ -1201,8 +1236,9 @@ public class MenuScreenManager : MonoBehaviour
                 gasIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_GasAxis", gasAxisPath);
-                PlayerPrefs.SetFloat("G923_GasMin", gasMinSeen);
-                Debug.Log($"[MenuScreenManager] Acelerador → eje '{gasAxisPath}' min={gasMinSeen:F3}");
+                PlayerPrefs.SetFloat("G923_GasRest", rest);
+                PlayerPrefs.SetFloat("G923_GasPress", press);
+                Debug.Log($"[MenuScreenManager] Acelerador → eje '{gasAxisPath}' rest={rest:F3} press={press:F3}");
 
                 wheelPrompt.text = "Pisa el FRENO a fondo";
             }
@@ -1218,13 +1254,14 @@ public class MenuScreenManager : MonoBehaviour
         // Excluye el eje que ya se eligió para acelerador.
         if (!brakeDone)
         {
-            int bestIdx = SamplePedalCandidates(gasChosenIdx, out float bestDrop);
-            float brakeProgress = Mathf.Clamp01(bestDrop);
+            int bestIdx = SamplePedalCandidates(gasChosenIdx, out float bestAbsDelta);
+            float brakeProgress = Mathf.Clamp01(bestAbsDelta);
 
-            if (brakeProgress >= PEDAL_PROGRESS_THRESHOLD && bestIdx >= 0)
+            if (bestAbsDelta >= PEDAL_DELTA_THRESHOLD && bestIdx >= 0)
             {
                 brakeDone = true;
-                brakeMinSeen = pedalCandidateMins[bestIdx];
+                float rest = pedalCandidateRests[bestIdx];
+                float press = rest + pedalCandidateMaxDeltas[bestIdx];
                 string brakeAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
 
                 brakeFillRT.anchorMax = new Vector2(1, 1);
@@ -1232,9 +1269,10 @@ public class MenuScreenManager : MonoBehaviour
                 brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
-                PlayerPrefs.SetFloat("G923_BrakeMin", brakeMinSeen);
+                PlayerPrefs.SetFloat("G923_BrakeRest", rest);
+                PlayerPrefs.SetFloat("G923_BrakePress", press);
                 PlayerPrefs.Save();
-                Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' min={brakeMinSeen:F3}");
+                Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3}");
 
                 wheelPrompt.text = "Cargando prueba...";
                 skipButton.gameObject.SetActive(false);
@@ -1270,15 +1308,19 @@ public class MenuScreenManager : MonoBehaviour
         if (debugText == null) return;
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
-        sb.Append("── DEBUG VOLANTE [FIX#6] ──\n");
+        sb.Append("── DEBUG VOLANTE [FIX#8] ──\n");
 
-        // PlayerPrefs (calibración previa)
+        // PlayerPrefs (calibración previa con rest+press)
         string gasAxisPref = PlayerPrefs.GetString("G923_GasAxis", "-");
         string brakeAxisPref = PlayerPrefs.GetString("G923_BrakeAxis", "-");
-        string gasPref = PlayerPrefs.HasKey("G923_GasMin") ? PlayerPrefs.GetFloat("G923_GasMin").ToString("F3") : "-";
-        string brakePref = PlayerPrefs.HasKey("G923_BrakeMin") ? PlayerPrefs.GetFloat("G923_BrakeMin").ToString("F3") : "-";
-        sb.Append($"Prefs gas:   axis={gasAxisPref}  min={gasPref}\n");
-        sb.Append($"Prefs brake: axis={brakeAxisPref}  min={brakePref}\n");
+        string gasRestStr = PlayerPrefs.HasKey("G923_GasRest") ? PlayerPrefs.GetFloat("G923_GasRest").ToString("F3") : "-";
+        string gasPressStr = PlayerPrefs.HasKey("G923_GasPress") ? PlayerPrefs.GetFloat("G923_GasPress").ToString("F3") : "-";
+        string brakeRestStr = PlayerPrefs.HasKey("G923_BrakeRest") ? PlayerPrefs.GetFloat("G923_BrakeRest").ToString("F3") : "-";
+        string brakePressStr = PlayerPrefs.HasKey("G923_BrakePress") ? PlayerPrefs.GetFloat("G923_BrakePress").ToString("F3") : "-";
+        sb.Append($"Prefs gas:   axis={gasAxisPref}  rest={gasRestStr} press={gasPressStr}\n");
+        sb.Append($"Prefs brake: axis={brakeAxisPref}  rest={brakeRestStr} press={brakePressStr}\n");
+        // Calibración steering (en vivo durante fases 1-2, persistido al completar fase 2)
+        sb.Append($"Steer: center={steerCenter:F3} max={steerMaxSeen:F3} min={steerMinSeen:F3}\n");
 
         // Device
         if (steerAction == null)
@@ -1305,8 +1347,8 @@ public class MenuScreenManager : MonoBehaviour
             float steer = steerAction.ReadValue<float>();
             sb.Append($"RAW steer={steer:F3}\n");
 
-            // Candidatos de pedal (lista unificada): raw, min y marca del eje elegido
-            sb.Append("Pedal candidatos:\n");
+            // Candidatos de pedal: raw, rest, delta signado máximo y tag del elegido
+            sb.Append("Pedal candidatos (raw / rest / maxDelta):\n");
             if (pedalCandidates != null)
             {
                 for (int i = 0; i < pedalCandidates.Length; i++)
@@ -1315,7 +1357,9 @@ public class MenuScreenManager : MonoBehaviour
                     string tag = (i == gasChosenIdx) ? " [GAS]" : "";
                     if (pedalCandidates[i] == null) { sb.Append($"  {path}= null{tag}\n"); continue; }
                     float v = pedalCandidates[i].ReadValue();
-                    sb.Append($"  {path}= {v:F3}  min={pedalCandidateMins[i]:F3}{tag}\n");
+                    float rest = pedalCandidateRests != null ? pedalCandidateRests[i] : 1f;
+                    float md = pedalCandidateMaxDeltas != null ? pedalCandidateMaxDeltas[i] : 0f;
+                    sb.Append($"  {path}= {v:F2} rest={rest:F2} Δmax={md:+0.00;-0.00}{tag}\n");
                 }
             }
         }
@@ -1336,30 +1380,47 @@ public class MenuScreenManager : MonoBehaviour
     void CachePedalCandidates(InputDevice device)
     {
         pedalCandidates = new InputControl<float>[PEDAL_AXIS_CANDIDATES.Length];
-        pedalCandidateMins = new float[PEDAL_AXIS_CANDIDATES.Length];
+        pedalCandidateRests = new float[PEDAL_AXIS_CANDIDATES.Length];
+        pedalCandidateMaxDeltas = new float[PEDAL_AXIS_CANDIDATES.Length];
         for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
         {
             pedalCandidates[i] = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
-            pedalCandidateMins[i] = 1f;
+            pedalCandidateRests[i] = 1f; // placeholder hasta snapshot
+            pedalCandidateMaxDeltas[i] = 0f;
         }
     }
 
-    // Actualiza los mins de todos los candidatos y devuelve el que más cayó
-    // (out bestDrop), con opción de excluir un índice (para que brake no elija
-    // el mismo eje que ya ganó gas).
-    int SamplePedalCandidates(int excludeIdx, out float bestDrop)
+    // Captura el valor de reposo de cada candidato. Llamar justo antes de la
+    // fase de pedal, cuando se asume que el usuario no está pisando nada.
+    void SnapshotPedalRests()
     {
-        bestDrop = 0f;
+        if (pedalCandidates == null) return;
+        for (int i = 0; i < pedalCandidates.Length; i++)
+        {
+            if (pedalCandidates[i] != null)
+                pedalCandidateRests[i] = pedalCandidates[i].ReadValue();
+            pedalCandidateMaxDeltas[i] = 0f;
+        }
+    }
+
+    // Samplea todos los candidatos, actualiza el delta signado máximo por
+    // eje (delta = raw - rest) y devuelve el índice con mayor |delta|.
+    // excludeIdx se usa en la fase brake para no elegir el mismo eje del gas.
+    int SamplePedalCandidates(int excludeIdx, out float bestAbsDelta)
+    {
+        bestAbsDelta = 0f;
         int bestIdx = -1;
         if (pedalCandidates == null) return -1;
         for (int i = 0; i < pedalCandidates.Length; i++)
         {
             if (pedalCandidates[i] == null) continue;
             float v = pedalCandidates[i].ReadValue();
-            if (v < pedalCandidateMins[i]) pedalCandidateMins[i] = v;
+            float delta = v - pedalCandidateRests[i];
+            if (Mathf.Abs(delta) > Mathf.Abs(pedalCandidateMaxDeltas[i]))
+                pedalCandidateMaxDeltas[i] = delta; // preserva signo
             if (i == excludeIdx) continue;
-            float drop = 1f - pedalCandidateMins[i];
-            if (drop > bestDrop) { bestDrop = drop; bestIdx = i; }
+            float absD = Mathf.Abs(pedalCandidateMaxDeltas[i]);
+            if (absD > bestAbsDelta) { bestAbsDelta = absD; bestIdx = i; }
         }
         return bestIdx;
     }
