@@ -28,11 +28,14 @@ namespace Gley.UrbanSystem
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
-        private InputAction _gasAction;
-        private InputAction _brakeAction;
-        private InputAction _steerAction;
         private InputDevice _wheelDevice;
         private bool _hasWheel;
+
+        // Ejes cacheados (lectura directa del device — sin InputAction binding,
+        // porque el layout HID del G923 trae "::" y espacios que a veces no resuelve)
+        private InputControl<float> _steerCtrl; // stick/x
+        private InputControl<float> _gasCtrl;   // z
+        private InputControl<float> _brakeCtrl; // rz
 
         // Controles cacheados (evita TryGetChildControl cada frame)
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
@@ -104,22 +107,13 @@ namespace Gley.UrbanSystem
                     || name.IndexOf("Driving Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 if (!isWheel) continue;
 
-                string wheel = "<" + device.layout + ">";
                 _hasWheel = true;
                 _wheelDevice = device;
 
-                // Ejes via InputAction (funciona para ejes HID)
-                _steerAction = new InputAction("G923_Steer", InputActionType.Value);
-                _steerAction.AddBinding(wheel + "/stick/x");
-                _steerAction.Enable();
-
-                _gasAction = new InputAction("G923_Gas", InputActionType.Value);
-                _gasAction.AddBinding(wheel + "/z");
-                _gasAction.Enable();
-
-                _brakeAction = new InputAction("G923_Brake", InputActionType.Value);
-                _brakeAction.AddBinding(wheel + "/rz");
-                _brakeAction.Enable();
+                // Ejes: lectura directa del device (evita problemas con layout HID)
+                _steerCtrl = CacheControl("stick/x");
+                _gasCtrl   = CacheControl("z");
+                _brakeCtrl = CacheControl("rz");
 
                 // Botones via acceso directo al device (cachear una sola vez)
                 // H-shifter: buttons 13-19
@@ -141,7 +135,8 @@ namespace Gley.UrbanSystem
                 _crossCtrl = CacheButton(2);     // × → Reversa
                 _triangleCtrl = CacheButton(4);  // △ → Drive
 
-                Debug.Log("[UIInputNew] Volante detectado: " + device.displayName + " | Layout: " + wheel);
+                Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
+                    + " | steer=" + (_steerCtrl != null) + " gas=" + (_gasCtrl != null) + " brake=" + (_brakeCtrl != null));
                 break;
             }
 
@@ -195,7 +190,7 @@ namespace Gley.UrbanSystem
             // ---- Steering ----
             if (_hasWheel)
             {
-                float wheelSteer = _steerAction.ReadValue<float>();
+                float wheelSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
                 horizontalInput = Mathf.Abs(wheelSteer) > 0.01f ? wheelSteer : kbInput.x;
             }
             else
@@ -226,8 +221,10 @@ namespace Gley.UrbanSystem
                 else if (_hasWheel)
                 {
                     // Sin teclado: pedales del volante, mantener último gear
-                    float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
-                    float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
+                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
+                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                    float gas = (1f - gasRaw) / 2f;
+                    float brakeLinear = (1f - brakeRaw) / 2f;
                     float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                     verticalInput = gas;
                     brakeInput = brake;
@@ -257,8 +254,10 @@ namespace Gley.UrbanSystem
                 }
                 else if (_hasWheel)
                 {
-                    float gas = (1f - _gasAction.ReadValue<float>()) / 2f;
-                    float brakeLinear = (1f - _brakeAction.ReadValue<float>()) / 2f;
+                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
+                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                    float gas = (1f - gasRaw) / 2f;
+                    float brakeLinear = (1f - brakeRaw) / 2f;
                     float brake = Mathf.Clamp01(brakeLinear * brakeLinear * 2f);
                     verticalInput = gas;
                     brakeInput = brake;
@@ -371,9 +370,6 @@ namespace Gley.UrbanSystem
             onButtonUp -= PointerUp;
 #else
             _moveAction?.Disable(); _moveAction?.Dispose();
-            _gasAction?.Disable();  _gasAction?.Dispose();
-            _brakeAction?.Disable(); _brakeAction?.Dispose();
-            _steerAction?.Disable(); _steerAction?.Dispose();
 #endif
         }
     }
