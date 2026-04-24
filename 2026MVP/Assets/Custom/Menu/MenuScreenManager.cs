@@ -1007,10 +1007,14 @@ public class MenuScreenManager : MonoBehaviour
     {
         rightDone = false;
         leftDone = false;
-        throttleDone = false;
-        brakeDone = false;
-        gasMinSeen = 1f;
-        brakeMinSeen = 1f;
+
+        // Si ya hay calibración guardada, saltar las fases de pedal
+        bool calibrated = PlayerPrefs.HasKey("G923_GasMin") && PlayerPrefs.HasKey("G923_BrakeMin");
+        throttleDone = calibrated;
+        brakeDone = calibrated;
+        gasMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_GasMin") : 1f;
+        brakeMinSeen = calibrated ? PlayerPrefs.GetFloat("G923_BrakeMin") : 1f;
+
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
 
@@ -1077,8 +1081,8 @@ public class MenuScreenManager : MonoBehaviour
                 leftFill.color = MenuTheme.IndicatorDone;
                 leftIndicator.color = MenuTheme.IndicatorDone;
 
-                // Si no hay pedales conectados, saltar calibración y cargar escena
-                if (gasCtrl == null || brakeCtrl == null)
+                // Sin pedales conectados o ya calibrado previamente → cargar escena directo
+                if (gasCtrl == null || brakeCtrl == null || (throttleDone && brakeDone))
                 {
                     throttleDone = true;
                     brakeDone = true;
