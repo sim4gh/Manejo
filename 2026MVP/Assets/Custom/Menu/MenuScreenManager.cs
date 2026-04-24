@@ -28,7 +28,7 @@ public class MenuScreenManager : MonoBehaviour
     private Coroutine pollingCoroutine;
 
     // ── Escenas por licenseType ────────────────────────────────────────
-    private readonly string[] variantScenes = { "carretera", "Jetta", "Camioneta" };
+    private readonly string[] variantScenes = { "Sedan", "Jetta", "Camioneta" };
 
     // ── UI refs ────────────────────────────────────────────────────────
     private GameObject[] screens = new GameObject[4];
@@ -342,7 +342,7 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 0.78f), new Vector2(1, 0.86f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-        string[] titles = { "Sedán", "Jetta", "Camioneta" };
+        string[] titles = { "Sedan", "Jetta", "Camioneta" };
         string[] descs = { "Compacto estándar", "Sedán mediano", "Familiar SUV" };
         string[] letters = { "S", "J", "C" };
         variantCards = new GameObject[3];
