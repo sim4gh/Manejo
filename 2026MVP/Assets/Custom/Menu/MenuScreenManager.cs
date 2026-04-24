@@ -50,6 +50,8 @@ public class MenuScreenManager : MonoBehaviour
     private InputControl<float> hatUp, hatDown, hatLeft, hatRight;
     private InputControl<float> circleBtn;
     private InputControl<float> enterBtn;   // button10 = Options/Enter
+    private InputControl<float> gasCtrl;    // eje /z — acelerador (para calibración)
+    private InputControl<float> brakeCtrl;  // eje /rz — freno (para calibración)
     private bool confirmBtnHeld;
     private float dpadUpT, dpadDownT, dpadLeftT, dpadRightT;
     private bool dpadUpR, dpadDownR, dpadLeftR, dpadRightR;
@@ -75,8 +77,12 @@ public class MenuScreenManager : MonoBehaviour
     private RectTransform leftFillRT;
     private TextMeshProUGUI examInfoText;
     private bool rightDone, leftDone;
+    private bool throttleDone, brakeDone;
+    private float gasMinSeen = 1f;   // rest=1; cae al pisar
+    private float brakeMinSeen = 1f;
     private Button skipButton;
     private const float WHEEL_THRESHOLD = 0.9f;
+    private const float PEDAL_PROGRESS_THRESHOLD = 0.85f; // 85% pisado = fase completa
 
     // ── Assets ─────────────────────────────────────────────────────────
     private Texture2D bgTexture;
@@ -1001,6 +1007,10 @@ public class MenuScreenManager : MonoBehaviour
     {
         rightDone = false;
         leftDone = false;
+        throttleDone = false;
+        brakeDone = false;
+        gasMinSeen = 1f;
+        brakeMinSeen = 1f;
         rightIndicator.color = MenuTheme.IndicatorPending;
         leftIndicator.color = MenuTheme.IndicatorPending;
 
@@ -1032,7 +1042,7 @@ public class MenuScreenManager : MonoBehaviour
             UpdateOptionsDpad();
 
         if (currentScreen != 2) return;
-        if (rightDone && leftDone) return;
+        if (rightDone && leftDone && throttleDone && brakeDone) return;
 
         float steer = ReadSteerInput();
 
@@ -1056,23 +1066,100 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
 
-        // rightDone && !leftDone
-        float leftProgress = Mathf.Clamp01(-steer);
+        if (!leftDone)
+        {
+            float leftProgress = Mathf.Clamp01(-steer);
 
-        if (-steer >= WHEEL_THRESHOLD)
-        {
-            leftDone = true;
-            leftFillRT.anchorMin = new Vector2(0, 0);
-            leftFill.color = MenuTheme.IndicatorDone;
-            leftIndicator.color = MenuTheme.IndicatorDone;
-            wheelPrompt.text = "Cargando prueba...";
-            skipButton.gameObject.SetActive(false);
-            StartCoroutine(LoadSceneDelayed(1.5f));
+            if (-steer >= WHEEL_THRESHOLD)
+            {
+                leftDone = true;
+                leftFillRT.anchorMin = new Vector2(0, 0);
+                leftFill.color = MenuTheme.IndicatorDone;
+                leftIndicator.color = MenuTheme.IndicatorDone;
+
+                // Si no hay pedales conectados, saltar calibración y cargar escena
+                if (gasCtrl == null || brakeCtrl == null)
+                {
+                    throttleDone = true;
+                    brakeDone = true;
+                    wheelPrompt.text = "Cargando prueba...";
+                    skipButton.gameObject.SetActive(false);
+                    StartCoroutine(LoadSceneDelayed(1.5f));
+                }
+                else
+                {
+                    // Reset visuales para reutilizar los fills en calibración de pedales
+                    rightFillRT.anchorMax = new Vector2(0, 1);
+                    rightFill.color = MenuTheme.SecondaryCrimson;
+                    rightIndicator.color = MenuTheme.IndicatorPending;
+                    wheelPrompt.text = "Pisa el ACELERADOR a fondo";
+                }
+            }
+            else if (Mathf.Abs(leftProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
+            {
+                leftFillRT.anchorMin = new Vector2(1 - leftProgress, 0);
+                leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, leftProgress);
+            }
+            return;
         }
-        else if (Mathf.Abs(leftProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
+
+        // ── Fase 3: calibración del acelerador (reusa rightFill) ──
+        if (!throttleDone)
         {
-            leftFillRT.anchorMin = new Vector2(1 - leftProgress, 0);
-            leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, leftProgress);
+            float gasRaw = gasCtrl.ReadValue();
+            if (gasRaw < gasMinSeen) gasMinSeen = gasRaw;
+            float gasProgress = Mathf.Clamp01(1f - gasRaw);
+
+            if (gasProgress >= PEDAL_PROGRESS_THRESHOLD)
+            {
+                throttleDone = true;
+                rightFillRT.anchorMax = new Vector2(1, 1);
+                rightFill.color = MenuTheme.IndicatorDone;
+                rightIndicator.color = MenuTheme.IndicatorDone;
+
+                // Reset leftFill para fase de freno
+                leftFillRT.anchorMin = new Vector2(1, 0);
+                leftFill.color = MenuTheme.SecondaryCrimson;
+                leftIndicator.color = MenuTheme.IndicatorPending;
+                wheelPrompt.text = "Pisa el FRENO a fondo";
+            }
+            else if (Mathf.Abs(gasProgress - rightFillRT.anchorMax.x) > 0.005f)
+            {
+                rightFillRT.anchorMax = new Vector2(gasProgress, 1);
+                rightFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+            }
+            return;
+        }
+
+        // ── Fase 4: calibración del freno (reusa leftFill) ──
+        if (!brakeDone)
+        {
+            float brakeRaw = brakeCtrl.ReadValue();
+            if (brakeRaw < brakeMinSeen) brakeMinSeen = brakeRaw;
+            float brakeProgress = Mathf.Clamp01(1f - brakeRaw);
+
+            if (brakeProgress >= PEDAL_PROGRESS_THRESHOLD)
+            {
+                brakeDone = true;
+                leftFillRT.anchorMin = new Vector2(0, 0);
+                leftFill.color = MenuTheme.IndicatorDone;
+                leftIndicator.color = MenuTheme.IndicatorDone;
+
+                // Persistir calibración — UIInputNew los leerá al detectar el volante
+                PlayerPrefs.SetFloat("G923_GasMin", gasMinSeen);
+                PlayerPrefs.SetFloat("G923_BrakeMin", brakeMinSeen);
+                PlayerPrefs.Save();
+                Debug.Log($"[MenuScreenManager] Calibración guardada: gasMin={gasMinSeen:F3} brakeMin={brakeMinSeen:F3}");
+
+                wheelPrompt.text = "Cargando prueba...";
+                skipButton.gameObject.SetActive(false);
+                StartCoroutine(LoadSceneDelayed(1.5f));
+            }
+            else if (Mathf.Abs(brakeProgress - (1 - leftFillRT.anchorMin.x)) > 0.005f)
+            {
+                leftFillRT.anchorMin = new Vector2(1 - brakeProgress, 0);
+                leftFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, brakeProgress);
+            }
         }
     }
 
@@ -1115,7 +1202,9 @@ public class MenuScreenManager : MonoBehaviour
                     hatRight = device.TryGetChildControl("hat/right") as InputControl<float>;
                     circleBtn = device.TryGetChildControl("button3")  as InputControl<float>;
                     enterBtn  = device.TryGetChildControl("button10") as InputControl<float>;
-                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path}) hat={hatUp != null}");
+                    gasCtrl   = device.TryGetChildControl("z")  as InputControl<float>;
+                    brakeCtrl = device.TryGetChildControl("rz") as InputControl<float>;
+                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path}) hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
                     break;
                 }
             }
@@ -1132,7 +1221,9 @@ public class MenuScreenManager : MonoBehaviour
                 hatRight = jDev.TryGetChildControl("hat/right") as InputControl<float>;
                 circleBtn = jDev.TryGetChildControl("button3")  as InputControl<float>;
                 enterBtn  = jDev.TryGetChildControl("button10") as InputControl<float>;
-                Debug.Log($"[MenuScreenManager] Joystick fallback: {jDev.displayName} hat={hatUp != null}");
+                gasCtrl   = jDev.TryGetChildControl("z")  as InputControl<float>;
+                brakeCtrl = jDev.TryGetChildControl("rz") as InputControl<float>;
+                Debug.Log($"[MenuScreenManager] Joystick fallback: {jDev.displayName} hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
             }
             if (steerAction == null && Gamepad.current != null)
             {

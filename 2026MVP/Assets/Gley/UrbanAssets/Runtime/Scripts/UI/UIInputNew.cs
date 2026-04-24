@@ -160,6 +160,11 @@ namespace Gley.UrbanSystem
                 _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
                 if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
+                // Cargar calibración de pedales si el usuario pasó por la pantalla de verificación.
+                // Si no hay, default -1 (asume rango signed; se auto-refina en runtime).
+                _minGasSeen   = PlayerPrefs.GetFloat("G923_GasMin", -1f);
+                _minBrakeSeen = PlayerPrefs.GetFloat("G923_BrakeMin", -1f);
+
                 Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
                     + " | steer=" + (_steerCtrl != null) + " gas=" + (_gasCtrl != null) + " brake=" + (_brakeCtrl != null));
                 return true;
