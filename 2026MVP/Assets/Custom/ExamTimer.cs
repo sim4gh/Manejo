@@ -13,7 +13,7 @@ public class ExamTimer : MonoBehaviour
 
     [Header("Configuración")]
     [Tooltip("Duración del examen en segundos (300 = 5 min)")]
-    public float examDuration = 300f;
+    public float examDuration = 720f;
 
     /// <summary>Evento disparado cuando el examen termina.</summary>
     public System.Action OnExamFinished;
