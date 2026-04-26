@@ -104,7 +104,10 @@ namespace Gley.UrbanSystem
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
-        private InputControl<float> _crossCtrl;     // reversa
+        // Reversa soporta multi-path: el binding string puede contener varios
+        // paths separados por '|' (OR). Útil cuando un mismo shifter firma
+        // reversa en varios controles a la vez.
+        private InputControl<float>[] _crossCtrls;   // reversa (multi-path OR)
         private InputControl<float> _triangleCtrl;   // drive
         private InputControl<float> _restartCtrl;    // botón único de reinicio (nuevo)
         private bool _lastCrossPressed;
@@ -118,7 +121,7 @@ namespace Gley.UrbanSystem
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
         // sobreescribir para otros volantes (ej. G923 Xbox usa otros paths).
         private string _bindSteerAxis = "stick/x";  // eje del volante
-        private string _bindReverse = "button2";
+        private string _bindReverse = "button18";
         private string _bindDrive = "button4";
         private string _bindPaddleLeft = "button6";
         private string _bindPaddleRight = "button5";
@@ -140,7 +143,12 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_RESTART_B = "Bind_restartB";
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
-        public const string DEFAULT_BIND_REVERSE = "button2";
+        // Default = button18, posición R del H-shifter del G923. NO incluir
+        // stick/down: ese eje se activa al meter CUALQUIER marcha (forward
+        // también), por lo que en automático cualquier toque a la palanca
+        // dispararía reversa. Cuando el usuario calibre vía Pantalla 2 o F8,
+        // este default queda overrideado.
+        public const string DEFAULT_BIND_REVERSE = "button18";
         public const string DEFAULT_BIND_DRIVE = "button4";
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
@@ -157,6 +165,14 @@ namespace Gley.UrbanSystem
         /// </summary>
         public void ReloadBindings()
         {
+            // One-shot: el viejo default era "button2" (cross PS); ya no aplica al
+            // H-shifter del G923 que firma reversa en button18. Si algún arranque
+            // anterior lo dejó guardado, borrar para que tome el nuevo default.
+            if (PlayerPrefs.GetString(PREF_BIND_REVERSE, "") == "button2")
+            {
+                PlayerPrefs.DeleteKey(PREF_BIND_REVERSE);
+                PlayerPrefs.Save();
+            }
             _bindSteerAxis    = PlayerPrefs.GetString(PREF_BIND_STEER_AXIS, DEFAULT_BIND_STEER_AXIS);
             _bindReverse      = PlayerPrefs.GetString(PREF_BIND_REVERSE, DEFAULT_BIND_REVERSE);
             _bindDrive        = PlayerPrefs.GetString(PREF_BIND_DRIVE, DEFAULT_BIND_DRIVE);
@@ -173,7 +189,7 @@ namespace Gley.UrbanSystem
         void ReCacheBindings()
         {
             _steerCtrl    = CacheBindingCtrl(_bindSteerAxis);
-            _crossCtrl    = CacheBindingCtrl(_bindReverse);
+            _crossCtrls   = CacheBindingCtrls(_bindReverse);
             _triangleCtrl = CacheBindingCtrl(_bindDrive);
             _l1Ctrl       = CacheBindingCtrl(_bindPaddleLeft);
             _r1Ctrl       = CacheBindingCtrl(_bindPaddleRight);
@@ -188,6 +204,22 @@ namespace Gley.UrbanSystem
         {
             if (string.IsNullOrEmpty(path)) return null;
             return _wheelDevice.TryGetChildControl(path) as InputControl<float>;
+        }
+
+        // Parsea un binding compuesto separado por '|' (ej: "button18|stick/down")
+        // y cachea cada path como InputControl<float>. Paths vacíos o no resueltos
+        // se ignoran en silencio — útil para defaults que cubren múltiples shifters.
+        InputControl<float>[] CacheBindingCtrls(string composite)
+        {
+            if (string.IsNullOrEmpty(composite)) return System.Array.Empty<InputControl<float>>();
+            string[] parts = composite.Split('|');
+            var list = new System.Collections.Generic.List<InputControl<float>>(parts.Length);
+            foreach (var p in parts)
+            {
+                var c = CacheBindingCtrl(p.Trim());
+                if (c != null) list.Add(c);
+            }
+            return list.ToArray();
         }
 
         public InputDevice WheelDevice => _wheelDevice;
@@ -360,6 +392,13 @@ namespace Gley.UrbanSystem
         {
             return ctrl != null && ctrl.ReadValue() > 0.5f;
         }
+
+        private bool IsAnyPressed(InputControl<float>[] arr)
+        {
+            if (arr == null) return false;
+            for (int i = 0; i < arr.Length; i++) if (IsPressed(arr[i])) return true;
+            return false;
+        }
 #endif
 
         public float GetHorizontalInput() => horizontalInput;
@@ -470,7 +509,7 @@ namespace Gley.UrbanSystem
                     brakeInput = brake;
 
                     // × = Reversa, △ = Drive (solo automático con volante)
-                    bool crossNow = IsPressed(_crossCtrl);
+                    bool crossNow = IsAnyPressed(_crossCtrls);
                     if (crossNow && !_lastCrossPressed) _currentGear = -1;
                     _lastCrossPressed = crossNow;
 

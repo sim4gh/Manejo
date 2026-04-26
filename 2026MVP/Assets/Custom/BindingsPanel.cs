@@ -19,6 +19,7 @@ public class BindingsPanel : MonoBehaviour
         GameObject go = new GameObject("[BindingsPanel]");
         go.AddComponent<BindingsPanel>();
         DontDestroyOnLoad(go);
+        Debug.Log("[BindingsPanel] AutoCreate OK · mantén F8 1.5s para abrir");
     }
 
     const float HOLD_TIME = 1.5f;
@@ -47,6 +48,11 @@ public class BindingsPanel : MonoBehaviour
     Dictionary<string, float> axisBaseline;
     const float AXIS_DETECT_DELTA = 0.35f;
 
+    // Snapshot de botones al iniciar escucha de button → detectar transición
+    // not-pressed → pressed (sin esto, una palanca H ya pegada en una posición
+    // nunca dispara wasPressedThisFrame y la asignación falla).
+    Dictionary<string, bool> buttonBaseline;
+
     void Awake()
     {
         // Eje del volante (primero, es el más crítico)
@@ -73,8 +79,13 @@ public class BindingsPanel : MonoBehaviour
         {
             if (kb != null && kb.f8Key.isPressed)
             {
+                float prev = holdTimer;
                 holdTimer += Time.unscaledDeltaTime;
-                if (holdTimer >= HOLD_TIME) { Open(); holdTimer = 0f; }
+                // Log un único tick por cada medio segundo cruzado — sirve para
+                // confirmar en LogConsolePanel (F7) que el sistema sí está leyendo F8.
+                if (Mathf.FloorToInt(holdTimer * 2) != Mathf.FloorToInt(prev * 2))
+                    Debug.Log($"[BindingsPanel] F8 held {holdTimer:F1}s / {HOLD_TIME}s");
+                if (holdTimer >= HOLD_TIME) { Debug.Log("[BindingsPanel] Abriendo panel"); Open(); holdTimer = 0f; }
             }
             else holdTimer = 0f;
             return;
@@ -98,16 +109,29 @@ public class BindingsPanel : MonoBehaviour
 
             if (listening.kind == ActionKind.Button)
             {
+                // Detectar transición not-pressed → pressed contra el snapshot
+                // tomado al entrar listening. wasPressedThisFrame solo no basta
+                // porque un H-shifter ya puesto en posición no dispara flanco.
                 foreach (var ctrl in dev.allControls)
                 {
                     if (!(ctrl is ButtonControl btn)) continue;
-                    if (btn.wasPressedThisFrame)
+                    string path = GetDeviceRelativePath(ctrl, dev);
+                    bool nowPressed = btn.isPressed;
+                    if (buttonBaseline == null) break;
+                    if (!buttonBaseline.TryGetValue(path, out bool wasPressed))
                     {
-                        string path = GetDeviceRelativePath(ctrl, dev);
+                        // control nuevo (device hot-plug u otro) → registrar baseline
+                        buttonBaseline[path] = nowPressed;
+                        continue;
+                    }
+                    if (nowPressed && !wasPressed)
+                    {
                         AssignBinding(listening, path);
                         StopListening();
                         break;
                     }
+                    // refrescar baseline para captar futuros flancos sin atarse al snapshot inicial
+                    buttonBaseline[path] = nowPressed;
                 }
             }
             else // Axis
@@ -318,6 +342,23 @@ public class BindingsPanel : MonoBehaviour
                     if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
                     axisBaseline[path] = ReadAxis(ctrl);
+                }
+            }
+        }
+        else // Button
+        {
+            // Snapshot de estado actual de cada botón. Botones ya pegados al
+            // entrar listening NO se autoasignan — el usuario debe transicionar
+            // (sacar y volver a meter la palanca) para registrar la asignación.
+            buttonBaseline = new Dictionary<string, bool>();
+            InputDevice dev = FindWheelDevice();
+            if (dev != null)
+            {
+                foreach (var ctrl in dev.allControls)
+                {
+                    if (!(ctrl is ButtonControl btn)) continue;
+                    string path = GetDeviceRelativePath(ctrl, dev);
+                    buttonBaseline[path] = btn.isPressed;
                 }
             }
         }
