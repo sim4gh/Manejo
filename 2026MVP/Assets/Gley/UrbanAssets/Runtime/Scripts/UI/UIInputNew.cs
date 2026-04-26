@@ -1,6 +1,7 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using UnityEngine.SceneManagement;
 
 namespace Gley.UrbanSystem
@@ -268,72 +269,123 @@ namespace Gley.UrbanSystem
 
         // Detecta el volante y cachea todos los controles. Idempotente:
         // llamar múltiples veces es barato si ya se encontró.
-        // El G923 reporta distinto según el modo (PS/Xbox) y el driver:
-        //   - PS:    "Logitech G923 Racing Wheel for PS4"
-        //   - Xbox:  "Logitech G923 Racing Wheel for Xbox One and PC"
-        //            o "Steering Wheel for Xbox One and PC" (sin GHUB)
-        //   - G920:  "Logitech G920 Driving Force Racing Wheel"
+        // Estrategia en dos pasos:
+        //   1) Match por nombre conocido en displayName O description.product
+        //      (G923 PS/Xbox, G920, Driving Force, etc).
+        //   2) Fallback: enumerar Joysticks y validar firma de volante por
+        //      conteo de axes/buttons. Esto cubre G923s con drivers raros
+        //      cuyos nombres no calzan ningún patrón conocido — sin esto, el
+        //      gameplay no veía el volante aunque Pantalla 2 sí lo calibrara.
         private bool TryDetectWheel()
         {
             if (_hasWheel) return true;
 
+            // 1) Match por nombre conocido (preferido — más específico)
             foreach (var device in InputSystem.devices)
             {
-                string name = device.displayName ?? string.Empty;
-                bool isWheel =
-                    name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf("G920", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf("Driving Force", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf("Racing Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf("Steering Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || name.IndexOf("Driving Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0;
-                if (!isWheel) continue;
+                if (MatchesWheelName(device) && AttachToWheelDevice(device, "named match"))
+                    return true;
+            }
 
-                _hasWheel = true;
-                _wheelDevice = device;
+            // 2) Fallback: cualquier Joystick que pase la validación heurística.
+            //    NO usamos Joystick.current — ese retorna "último activo", no
+            //    "mejor candidato"; cualquier otro joystick conectado podría
+            //    desplazar al volante real.
+            foreach (var device in InputSystem.devices)
+            {
+                if (!(device is Joystick)) continue;
+                if (AttachToWheelDevice(device, "Joystick fallback"))
+                    return true;
+            }
 
-                // Ejes — paths calibrados dinámicamente en la pantalla del menú
-                // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
-                string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
-                string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
-                _gasCtrl   = CacheControl(gasPath);
-                _brakeCtrl = CacheControl(brakePath);
+            return false;
+        }
 
-                // H-shifter: buttons 13-19 (no configurable — hardcoded)
-                _gearControls = new InputControl<float>[7];
-                for (int i = 0; i < 7; i++)
-                    _gearControls[i] = CacheButton(13 + i);
-
-                // Bindings configurables (reversa, paddles, combos, restart)
-                ReloadBindings();
-
-                // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
-                _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
-                if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
-
-                // Cargar calibración de pedales (rest+press) hecha en el menú.
-                // Defaults: rest=1, press=-1 (convención común, pero puede fallar
-                // en G923s con mapeo invertido — la pantalla de calibración lo cubre).
-                _gasRest   = PlayerPrefs.GetFloat("G923_GasRest",  1f);
-                _gasPress  = PlayerPrefs.GetFloat("G923_GasPress", -1f);
-                _brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
-                _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
-
-                // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
-                _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
-                _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
-                _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
-
-                // Parámetros tuneable (panel F9)
-                ReloadTuning();
-
-                Debug.Log("[UIInputNew] Volante detectado: " + device.displayName
-                    + " | steer=" + (_steerCtrl != null)
-                    + " gas[" + gasPath + "]=" + (_gasCtrl != null)
-                    + " brake[" + brakePath + "]=" + (_brakeCtrl != null));
-                return true;
+        // Hacer match por nombre tanto en displayName como en description.product.
+        // Pantalla 2 ya hace esto — product suele ser más estable entre drivers.
+        private static bool MatchesWheelName(InputDevice d)
+        {
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            string[] patterns = { "G923", "G920", "Driving Force", "Racing Wheel",
+                                  "Steering Wheel", "Driving Wheel", "Logitech" };
+            foreach (var p in patterns)
+            {
+                if (name.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                if (product.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
             }
             return false;
+        }
+
+        // Intenta adjuntar al device como volante. Solo retorna true si parece
+        // volante por firma (axes y buttons suficientes). NO valida paths
+        // específicos — G923s distintos reportan paths distintos (`stick/x` vs
+        // `x`, `z`/`rz` vs otro layout). Pantalla 2 los descubre dinámicamente.
+        // Sin validación mínima, un mouse o gamepad podría agarrar el slot;
+        // con validación demasiado estricta, un G923 raro queda fuera.
+        private bool AttachToWheelDevice(InputDevice device, string reason)
+        {
+            int axisCount = 0, buttonCount = 0;
+            foreach (var c in device.allControls)
+            {
+                if (c is ButtonControl) buttonCount++;
+                else if (c is AxisControl) axisCount++;
+            }
+            // Mínimo razonable para volante con pedales + algún botón:
+            // 3+ axes (steer + gas + brake típicos) y 8+ buttons.
+            bool ok = axisCount >= 3 && buttonCount >= 8;
+            if (!ok)
+            {
+                Debug.LogWarning($"[UIInputNew] Candidato rechazado ({reason}): {device.displayName}"
+                    + $" | layout={device.layout} | product='{device.description.product}'"
+                    + $" | axes={axisCount} buttons={buttonCount}");
+                return false;
+            }
+
+            _hasWheel = true;
+            _wheelDevice = device;
+
+            // Ejes — paths calibrados dinámicamente en la pantalla del menú
+            // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
+            string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
+            string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
+            _gasCtrl   = CacheControl(gasPath);
+            _brakeCtrl = CacheControl(brakePath);
+
+            // H-shifter: buttons 13-19 (no configurable — hardcoded)
+            _gearControls = new InputControl<float>[7];
+            for (int i = 0; i < 7; i++)
+                _gearControls[i] = CacheButton(13 + i);
+
+            // Bindings configurables (reversa, paddles, combos, restart)
+            ReloadBindings();
+
+            // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
+            _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
+            if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
+
+            // Cargar calibración de pedales (rest+press) hecha en el menú.
+            _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
+            _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
+            _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
+            _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+
+            // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
+            _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
+            _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
+            _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+
+            // Parámetros tuneable (panel F9)
+            ReloadTuning();
+
+            Debug.Log($"[UIInputNew] Volante adjuntado ({reason}): {device.displayName}"
+                + $" | layout={device.layout} | product='{device.description.product}'"
+                + $" | manufacturer='{device.description.manufacturer}' | deviceId={device.deviceId}"
+                + $" | axes={axisCount} buttons={buttonCount}"
+                + $" | steer={_steerCtrl != null} gas[{gasPath}]={_gasCtrl != null}"
+                + $" brake[{brakePath}]={_brakeCtrl != null}"
+                + $" reverse_paths={(_crossCtrls != null ? _crossCtrls.Length : 0)}");
+            return true;
         }
 
         // Normaliza pedal a [0,1] usando rest+press calibrados en pantalla.
@@ -433,9 +485,17 @@ namespace Gley.UrbanSystem
                         if (_redetectLogTimer >= 3f)
                         {
                             _redetectLogTimer = 0f;
+                            // Diagnóstico remoto: incluir product/manufacturer/deviceId
+                            // de cada device para que vía LogUploader → S3 podamos
+                            // identificar G923s con nombres raros que no calzan ningún patrón.
                             string all = "";
                             foreach (var d in InputSystem.devices)
-                                all += "\n  - " + d.displayName + " [" + d.layout + "]";
+                            {
+                                all += $"\n  - displayName='{d.displayName}' layout={d.layout}"
+                                    + $" product='{d.description.product}'"
+                                    + $" manufacturer='{d.description.manufacturer}'"
+                                    + $" deviceId={d.deviceId}";
+                            }
                             Debug.LogWarning("[UIInputNew] Sin volante aún. Devices:" + all);
                         }
                     }
