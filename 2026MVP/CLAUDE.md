@@ -6,9 +6,9 @@ Simulador de examen de manejo para evaluacion de conductores en Tlaxcala, Mexico
 
 ## Stack Tecnico
 
-- **Engine:** Unity 2022.3 LTS
+- **Engine:** Unity 6 (6000.3.5f2)
 - **Render Pipeline:** URP (Universal Render Pipeline) 17.3.0
-- **Input:** Unity Input System 1.17.0
+- **Input:** Unity Input System 1.17.0 (`activeInputHandler: 1` — solo new system, NO legacy `Input.GetKey`)
 - **UI:** TextMesh Pro
 - **Build Target:** Windows (Intel) - v0.0.4
 
@@ -41,6 +41,37 @@ Simulador de examen de manejo para evaluacion de conductores en Tlaxcala, Mexico
 | `SpeedLimitDisplay.cs` | - | Letrero HUD de limite de velocidad. Se suscribe a `ViolationDetector.OnSpeedLimitChanged`. Parpadea rojo si excede >10 km/h |
 | `SpeedometerSetup.cs` | Editor-only | Menu items para crear prefabs de dashboard y letrero en el editor |
 | `NotificationManager.cs` | Singleton | Popups de infracciones con color y auto-ocultado (2s default) |
+
+### Paneles de Diagnostico / Debug Overlays (`Assets/Custom/`)
+
+Los 4 paneles se auto-instancian via `RuntimeInitializeOnLoadMethod(BeforeSceneLoad)` y persisten entre escenas. Mientras estan abiertos pausan el juego (`Time.timeScale = 0`). Esc o la misma tecla (pulsada, no held) cierra.
+
+| Tecla | Script | Proposito |
+|-------|--------|-----------|
+| **F7 hold 1.5s** | `LogConsolePanel.cs` | Consola de diagnostico tipo terminal. 4 paneles: devices conectados, PlayerPrefs relevantes (G923_*, Adv_*, Bind_*), inputs en vivo (todo boton presionado + todo eje movido con valor/baseline/rango), feed de `Debug.Log/Warn/Error` con timestamp. Boton "Copiar al portapapeles" exporta texto plano sin tags TMP. Util para descubrir nombres tecnicos de cualquier control sin recompilar. |
+| **F8 hold 1.5s** | `BindingsPanel.cs` | Remapeo de controles del volante (reversa, drive, paddles, restart, combos menu). Click en `[Detectar]` y mueve/presiona el control que quieres asignar — guarda en PlayerPrefs `Bind_*` y notifica a `UIInputNew.ReloadBindings()`. Tambien muestra inputs en vivo en la parte inferior. |
+| **F9 hold 1.5s** | `AdvancedInputPanel.cs` | Tunear sensibilidades del volante/freno/acelerador en runtime: curva del volante (`Adv_SteerCurveA`), deadzone (`Adv_SteerDeadzone`), punto de quiebre del freno (`Adv_BrakeSoftEnd`/`Adv_BrakeSoftMaxOutput`), curva del gas (`Adv_GasCurveN`). Sliders en vivo, llaman a `UIInputNew.ReloadTuning()`. |
+| **F10 hold 1.5s** | `AdminPanel.cs` | Solo en escena `MainMenu`. Navega a la pantalla admin del `MenuScreenManager`. |
+
+**Nota macOS:** las teclas F7/F8/F9 estan mapeadas por el sistema a controles de medios (anterior/play/siguiente). Para que Unity las reciba como F-keys hay que: (a) System Settings -> Keyboard -> "Use F1, F2, etc. keys as standard function keys", o (b) presionar `fn+F8` en vez de F8. Si al mantener F8 no aparece nada en LogConsolePanel ni un log `[BindingsPanel] F8 held ...`, el SO esta interceptando la tecla — no es bug del juego.
+
+### Upload de Logs (`Assets/Custom/LogUploader.cs`)
+
+Counterpart remoto del F7. Mismo singleton `RuntimeInitializeOnLoadMethod(BeforeSceneLoad)` que persiste entre escenas. Captura `Application.logMessageReceivedThreaded` (todo thread, no solo main) con stack traces, buffer circular de 5000 lineas + persistencia en disco a `persistentDataPath/logs/current.log` (recupera en proximo arranque si Unity crashea).
+
+Cada 5 minutos hace flush:
+1. Snapshot tipo F7 (devices conectados, inputs activos, PlayerPrefs `G923_*`/`Adv_*`/`Bind_*`) en texto plano
+2. POST a `{baseUrl}/simulator/logs/upload-url` con `{pcId,size}`, recibe presigned URL
+3. PUT bytes gzipeados a S3 con `Content-Type: application/gzip`
+4. Trunca el archivo local
+
+Tras 3 fallos consecutivos descarta el buffer (evita memory leak si la red esta caida indefinidamente). Tambien hace flush best-effort en `OnApplicationQuit`.
+
+**Backend:** los archivos terminan en `s3://simtabasco-simulator-logs-{env}/logs/{pcId}/{YYYY-MM-DD}/{ISO-timestamp}.log.gz` con lifecycle 30d Standard -> IA -> 180d expire.
+
+**Portal admin:** `/admin/simuladores/pcs/[pcId]/logs` lista los archivos con paginacion, descarga via presigned GET de 5min.
+
+`bundleVersion` se reporta al backend en `appVersion` via `Application.version` (cambiar en `Edit -> Project Settings -> Player -> Version`). Actual: `1.0.4`.
 
 ### NPCs - Sistema de Camion (`Assets/NPCs/CamionNPC-s/`)
 
@@ -117,11 +148,44 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 - Seleccion de transmision: Automatica/Manual → `PlayerPrefs["TransmisionManual"]`
 - Default: Sedan + Automatica
 
-### Pantalla 2 — Inicio de prueba (verificacion de volante)
-- "Gira el volante a la DERECHA, luego a la IZQUIERDA"
-- Detecta G923 input (`Gamepad.current.leftStick.x`)
-- Al completar → carga escena seleccionada
-- Timeout 15s → boton "Iniciar sin volante"
+### Pantalla 2 — Verificacion de controles del volante
+
+Maquina de 3 estados decidida en `PrepareWheelScreen()` segun la huella del
+dispositivo conectado (`Cal_DeviceFingerprint = product|manufacturer|serial`)
+y la calibracion guardada en PlayerPrefs:
+
+| Estado | Cuando | UI |
+|--------|--------|----|
+| **Verified** | Huella coincide + 5 fases ya calibradas | Splash "Preparando prueba..." 1.5s con sanity check (axes existen y no estan atorados). Boton "Reasignar controles" para forzar Discovery. |
+| **Partial** | Huella coincide, faltan algunos roles | Solo prompts las fases pendientes; las hechas aparecen en verde. |
+| **Discovery** | Sin calibracion o huella distinta | Flujo completo de 5 fases. Boton "Iniciar sin volante" como bypass. |
+
+Si la huella cambia (cambio de modelo de volante), la calibracion guardada se
+invalida automaticamente y la pantalla cae en Discovery.
+
+#### 5 fases (Discovery completo)
+
+1. **DERECHA** — descubre el eje del volante via baseline + delta maximo positivo
+   sobre todos los axes del device. Agnostico al modelo (no asume `stick/x`).
+   Persiste el path en `Bind_steerAxis` y reconstruye `steerAction`.
+2. **IZQUIERDA** — confirma rango negativo del mismo eje. Persiste
+   `G923_SteerCenter/Max/Min` + `Cal_DeviceFingerprint`.
+3. **ACELERADOR** — descubre el eje de gas via `PEDAL_AXIS_CANDIDATES` + max delta.
+4. **FRENO** — idem, excluyendo el eje ya elegido para gas y el del volante.
+   Persiste `G923_GasAxis/Rest/Press` + `G923_BrakeAxis/Rest/Press`.
+5. **REVERSA** — primer boton presionado o axis discreto (H-shifter) con delta
+   ≥ 0.5 vs baseline. Excluye paths de steering/gas/freno. Persiste
+   `Bind_reverse` + `Cal_ReverseDone=1`.
+
+#### PlayerPrefs relevantes
+
+| Llave | Tipo | Origen | Uso |
+|-------|------|--------|-----|
+| `Cal_DeviceFingerprint` | string | Pantalla 2 | Huella del device de la calibracion. Si cambia, invalida todo. |
+| `Cal_ReverseDone` | int (0/1) | Pantalla 2 | Marca fase 5 completada. Necesaria porque `Bind_reverse` tiene default no vacio (`button2`). |
+| `Bind_steerAxis` | string | Pantalla 2 / F8 | Path del eje del volante, descubierto. Default `stick/x`. |
+| `Bind_reverse` | string | Pantalla 2 / F8 | Path del boton/eje de reversa. Default `button2`. |
+| `G923_Steer*`, `G923_Gas*`, `G923_Brake*` | float | Pantalla 2 | Rangos de calibracion (rest/press/min/max). Consumidos por `UIInputNew.cs`. |
 
 ### Mapeo licenseType → escena
 - `particular` → depende de modelo (carretera/Jetta/Camioneta)
