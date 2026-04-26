@@ -783,6 +783,7 @@ public class MenuScreenManager : MonoBehaviour
     private TextMeshProUGUI adminUidLabel;
     private TextMeshProUGUI adminNetworkLabel;
     private TextMeshProUGUI adminSimulatorLabel;
+    private Toggle adminDisplayToggle;
 
     void BuildScreen3_Admin()
     {
@@ -828,6 +829,12 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── API URL (editable) ──
         adminApiUrlInput = AdminAddField(ct, "API URL", config.apiBaseUrl, "https://...");
+
+        // ── Modo de pantallas (1 prueba / 3 producción) ──
+        GameObject displayToggleGo = MenuCardBuilder.CreateToggle(ct,
+            "Modo prueba (1 pantalla)", config.displayCount == 1);
+        displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
+        adminDisplayToggle = displayToggleGo.GetComponent<Toggle>();
 
         AdminAddSpacer(ct, 5f);
 
@@ -932,8 +939,13 @@ public class MenuScreenManager : MonoBehaviour
 
         data.name = adminNameInput?.text ?? data.name;
         data.apiBaseUrl = adminApiUrlInput?.text ?? data.apiBaseUrl;
+        if (adminDisplayToggle != null)
+            data.displayCount = adminDisplayToggle.isOn ? 1 : 3;
 
         SimulatorConfig.Instance.Save();
+
+        if (MultiPantallaManager.Instance != null)
+            MultiPantallaManager.Instance.Apply();
 
         // Registrar en backend
         StartCoroutine(AdminRegisterBackend(data));

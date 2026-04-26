@@ -17,6 +17,7 @@ public class SimulatorConfig : MonoBehaviour
         public string apiBaseUrl = "https://d6twaegbhg.execute-api.us-east-1.amazonaws.com";
         public string simulatorId = "";    // devuelto por el backend al registrar
         public string simulatorName = "";  // nombre del simulador asignado
+        public int displayCount = 3;       // 1 = modo prueba (1 monitor), 3 = producción (3 monitores)
     }
 
     public ConfigData data = new ConfigData();
