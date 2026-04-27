@@ -137,7 +137,7 @@ namespace Gley.UrbanSystem
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
         // sobreescribir para otros volantes (ej. G923 Xbox usa otros paths).
         private string _bindSteerAxis = "stick/x";  // eje del volante
-        private string _bindReverse = "button2|button18";
+        private string _bindReverse = "button19";
         private string _bindDrive = "button4";
         private string _bindPaddleLeft = "button6";
         private string _bindPaddleRight = "button5";
@@ -159,11 +159,11 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_RESTART_B = "Bind_restartB";
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
-        // Pre-Wednesday (commit 0ad7aaf): reversa era button2 (Cross PS).
-        // Multi-path: aceptar también button18 (R del H-shifter), por si el
-        // operador prefiere usar la palanca. NO incluir stick/down (ese eje
-        // se activa con CUALQUIER marcha del shifter — falsos positivos).
-        public const string DEFAULT_BIND_REVERSE = "button2|button18";
+        // En el G923 PS del kiosk de la demo, la posición R del H-shifter
+        // dispara button19 (verificado en F7 múltiples veces). NO es phantom
+        // — es la señal real de R. Solo aparece "siempre on" en F7 si el
+        // operador deja el shifter en R durante el test.
+        public const string DEFAULT_BIND_REVERSE = "button19";
         public const string DEFAULT_BIND_DRIVE = "button4";
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
@@ -395,7 +395,7 @@ namespace Gley.UrbanSystem
             PlayerPrefs.SetString("G923_GasAxis", "z");
             PlayerPrefs.SetString("G923_BrakeAxis", "rz");
             PlayerPrefs.SetString(PREF_BIND_STEER_AXIS, "stick/x");
-            PlayerPrefs.SetString(PREF_BIND_REVERSE, "button2|button18");
+            PlayerPrefs.SetString(PREF_BIND_REVERSE, "button19");
             // Pre-Wed pedales: range raw 1.0 (rest) → -1.0 (press completo).
             // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
             PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
