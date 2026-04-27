@@ -24,6 +24,14 @@ public class FallbackSpeedHud : MonoBehaviour
     void Start()
     {
         FindVehicle();
+        // Defer 1 frame igual que ExamTimer — para que ya esté MultiPantallaManager
+        // listo y la cámara cockpit tenga su targetDisplay final.
+        StartCoroutine(BuildAfterFrame());
+    }
+
+    System.Collections.IEnumerator BuildAfterFrame()
+    {
+        yield return null;
         BuildUI();
     }
 

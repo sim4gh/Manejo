@@ -40,6 +40,14 @@ public class ExamTimer : MonoBehaviour
     void Start()
     {
         startTime = Time.time;
+        // Defer 1 frame para que MultiPantallaManager.Start() corra primero y
+        // las cámaras tengan ya su targetDisplay reasignado según config.
+        StartCoroutine(InitAfterFrame());
+    }
+
+    System.Collections.IEnumerator InitAfterFrame()
+    {
+        yield return null;
         CreateTimerUI();
         HideExportTelemetryButton();
     }
@@ -72,12 +80,14 @@ public class ExamTimer : MonoBehaviour
 #pragma warning restore CS0618
 
         Canvas targetCanvas = null;
-        // Primera pasada: Canvas overlay root en display principal (targetDisplay == 0)
+        int desiredDisplay = DisplayHelper.CockpitDisplay;
+        // Primera pasada: Canvas overlay root que ya esté en el display de la
+        // cámara cockpit (evita reasignaciones innecesarias).
         foreach (var canvas in canvases)
         {
             if (canvas.renderMode == RenderMode.ScreenSpaceOverlay
                 && canvas.transform.parent == null
-                && canvas.targetDisplay == DisplayHelper.CenterDisplay)
+                && canvas.targetDisplay == desiredDisplay)
             {
                 targetCanvas = canvas;
                 break;
@@ -313,7 +323,7 @@ public class ExamTimer : MonoBehaviour
         Canvas canvas = canvasObj.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         canvas.sortingOrder = 1000;
-        canvas.targetDisplay = DisplayHelper.CenterDisplay;
+        canvas.targetDisplay = DisplayHelper.CockpitDisplay;
 
         CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
