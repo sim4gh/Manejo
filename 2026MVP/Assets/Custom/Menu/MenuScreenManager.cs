@@ -29,7 +29,9 @@ public class MenuScreenManager : MonoBehaviour
     private Coroutine pollingCoroutine;
 
     // ── Escenas por licenseType ────────────────────────────────────────
-    private readonly string[] variantScenes = { "Sedan", "Jetta", "Camioneta" };
+    // Nota: "Camioneta" es el nombre real de la escena Unity, pero en UI
+    // se muestra como "SUV" (más reconocible para el público de la prueba).
+    private readonly string[] variantScenes = { "Sedan", "Camioneta" };
 
     // ── UI refs ────────────────────────────────────────────────────────
     private GameObject[] screens = new GameObject[4];
@@ -469,18 +471,18 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 0.78f), new Vector2(1, 0.86f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-        string[] titles = { "Sedan", "Jetta", "Camioneta" };
-        string[] descs = { "Compacto estándar", "Sedán mediano", "Familiar SUV" };
-        string[] letters = { "S", "J", "C" };
-        variantCards = new GameObject[3];
-        variantBorders = new Image[3];
+        string[] titles = { "Sedan", "SUV" };
+        string[] descs = { "Compacto estándar", "Familiar SUV" };
+        string[] letters = { "S", "U" };
+        variantCards = new GameObject[titles.Length];
+        variantBorders = new Image[titles.Length];
 
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < titles.Length; i++)
         {
             int idx = i;
-            float cardW = 0.28f;
-            float gap = 0.03f;
-            float totalW = cardW * 3 + gap * 2;
+            float cardW = 0.32f;
+            float gap = 0.04f;
+            float totalW = cardW * titles.Length + gap * (titles.Length - 1);
             float startX = (1f - totalW) / 2f;
             float left = startX + i * (cardW + gap);
 

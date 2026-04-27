@@ -144,8 +144,7 @@ Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Flujo:
 |---|--------|----------|-------------|
 | 1 | MainMenu | — | Menu principal con input de expediente |
 | 2 | Carretera | Player Original | Escena principal del examen de manejo (UrbanExample) |
-| 3 | Jetta | Jetta | Examen con vehiculo Jetta |
-| 4 | Camioneta | Camioneta | Examen con camioneta |
+| 3 | Camioneta | Camioneta | Examen con camioneta (SUV en UI) |
 | 5 | Bus Pasajeros | Bus | Examen con autobus de pasajeros |
 | 6 | Camion D Carga | Camion | Examen con camion de carga |
 | 7 | Motocicleta | Moto | Examen con motocicleta |
@@ -166,7 +165,7 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 - Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
 
 ### Pantalla 1 — Configuracion (solo licenseType=particular)
-- Seleccion de modelo: Sedan→`"carretera"`, Jetta→`"Jetta"`, Camioneta→`"Camioneta"`
+- Seleccion de modelo: Sedan→`"Sedan"`, SUV→`"Camioneta"` (Jetta removido — UI muestra "SUV", escena real sigue siendo "Camioneta")
 - Seleccion de transmision: Automatica/Manual → `PlayerPrefs["TransmisionManual"]`
 - Default: Sedan + Automatica
 
@@ -210,7 +209,7 @@ invalida automaticamente y la pantalla cae en Discovery.
 | `G923_Steer*`, `G923_Gas*`, `G923_Brake*` | float | Pantalla 2 | Rangos de calibracion (rest/press/min/max). Consumidos por `UIInputNew.cs`. |
 
 ### Mapeo licenseType → escena
-- `particular` → depende de modelo (carretera/Jetta/Camioneta)
+- `particular` → depende de modelo (Sedan/Camioneta)
 - `motocicleta` → `"Motocicleta"`
 - `publico` → `"BusPasajeros"`
 - `carga` → `"CamionDCarga"`
