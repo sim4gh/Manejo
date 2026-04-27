@@ -4,8 +4,10 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.Networking;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using TMPro;
 using QRCoder;
+using Gley.UrbanSystem;
 
 /// <summary>
 /// Menú principal del simulador — flujo QR/código → opciones → verificación volante.
@@ -52,6 +54,12 @@ public class MenuScreenManager : MonoBehaviour
     private InputControl<float> enterBtn;   // button10 = Options/Enter
     private InputControl<float> gasCtrl;    // eje /z — acelerador (para calibración)
     private InputControl<float> brakeCtrl;  // eje /rz — freno (para calibración)
+    // Ref explícita al device adjuntado — usada por OnDeviceChange para invalidar
+    // el cache cuando el device se desconecta. NO depender de
+    // steerAction.controls[0].device porque puede quedar stale si el device fue
+    // removido pero el InputAction sigue con binding viejo.
+    private InputDevice attachedDevice;
+    private System.Action<InputDevice, InputDeviceChange> _deviceChangeHandler;
 
     // Detección dinámica del eje de cada pedal — lista unificada de candidatos.
     // En la fase gas gana el que más caiga; en la fase brake se excluye el
@@ -97,12 +105,46 @@ public class MenuScreenManager : MonoBehaviour
     private Image brakeIndicator;
     private Image brakeFill;
     private RectTransform brakeFillRT;
+    // Fase 5: barra booleana para reversa
+    private Image reverseIndicator;
+    private Image reverseFill;
+    private RectTransform reverseFillRT;
     private TextMeshProUGUI examInfoText;
-    private TextMeshProUGUI debugText; // DEBUG temporal — telemetría en vivo del volante
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
+    private bool reverseDone;
     private Button skipButton;
+    private Button reassignButton;
+    // Coroutine del sanity check del estado Verified (splash "Preparando
+    // prueba..."). Se cancela si el usuario aprieta "Reasignar controles" o
+    // si la pantalla se reabre durante el splash.
+    private Coroutine sanityCheckCo;
     private const float WHEEL_THRESHOLD = 0.9f;
+    private const float REVERSE_AXIS_DETECT_DELTA = 0.5f; // delta vs baseline para H-shifter en eje
+    // Llave de PlayerPrefs con la huella (product|manufacturer|serial) del
+    // dispositivo usado para calibrar. Si cambia el modelo de volante, la
+    // calibración guardada se invalida y se fuerza descubrimiento completo.
+    private const string PREF_CAL_FINGERPRINT = "Cal_DeviceFingerprint";
+    // Marca de "fase de reversa completada (con asignación o saltada)" para
+    // este device. Se usa porque Bind_reverse tiene un default no vacío
+    // (button2), entonces HasKey no distingue "configurado por el usuario" vs
+    // "default". Esta llave sí lo distingue.
+    private const string PREF_CAL_REVERSE_DONE = "Cal_ReverseDone";
+
+    // Descubrimiento del eje del volante en fase 1 — todos los axes del
+    // device, baseline al entrar a la fase, gana el de mayor delta positivo.
+    // Hace el flujo agnóstico al modelo (no asume "stick/x").
+    private InputControl<float>[] _steerCandidates;
+    private float[] _steerCandidateBaselines;
+    private string[] _steerCandidatePaths;
+    // Si el eje del volante coincide con uno de PEDAL_AXIS_CANDIDATES, se
+    // excluye de la fase 3/4 para que no se asigne acelerador o freno al
+    // propio volante.
+    private int _steerExcludedPedalIdx = -1;
+    // Baselines para detección de reversa por eje (H-shifter). Capturados
+    // justo antes de la fase 5 — el usuario aún no movió la palanca.
+    private System.Collections.Generic.Dictionary<string, float> _reverseAxisBaseline;
+    private System.Collections.Generic.HashSet<string> _reverseExcludedPaths;
     // Calibración del steering durante fases 1 y 2:
     //   center = valor raw al entrar a la pantalla (volante centrado)
     //   maxSeen / minSeen = extremos físicos alcanzados en las fases de giro
@@ -126,6 +168,51 @@ public class MenuScreenManager : MonoBehaviour
         BuildLayout();
         ShowScreen(0);
         StartQRSession();
+
+        // Listener para invalidar cache de InputControl<float> cuando el device
+        // adjuntado se desconecta. Sin esto, ReadValue() en hatUp/hatDown/etc
+        // lanza InvalidOperationException por frame (verificado en logs S3 —
+        // 4995 exceptions/83s en DpadRepeat → UpdatePinDpad, FIX#19).
+        _deviceChangeHandler = OnDeviceChange;
+        InputSystem.onDeviceChange += _deviceChangeHandler;
+    }
+
+    // Reaccionamos solo a Removed/Disconnected/Disabled — UsageChanged es muy
+    // amplio (cambios de "primary"/"secondary"), SoftReset/HardReset no
+    // implican device inválido, solo resetean estado.
+    private void OnDeviceChange(InputDevice device, InputDeviceChange change)
+    {
+        if (device != attachedDevice) return;
+        if (change != InputDeviceChange.Removed
+            && change != InputDeviceChange.Disconnected
+            && change != InputDeviceChange.Disabled) return;
+
+        Debug.LogWarning($"[MenuScreenManager] Device {change}: {device.displayName}. Reseteando cache.");
+
+        // CRÍTICO: dispose explícito de steerAction. Sin esto, TryAttachToDevice()
+        // retorna temprano (chequea steerAction != null) y nunca re-bindea.
+        if (steerAction != null) { steerAction.Disable(); steerAction.Dispose(); steerAction = null; }
+        hatUp = null; hatDown = null; hatLeft = null; hatRight = null;
+        circleBtn = null; enterBtn = null;
+        gasCtrl = null; brakeCtrl = null;
+        attachedDevice = null;
+        // CachePedalCandidates fue llamado con el device viejo; al re-attach se
+        // vuelve a llamar (ver AttachToDevice). No hace falta limpiarlo aquí
+        // porque las fases de calibración usan el array recién cacheado.
+    }
+
+    // Lectura segura: valida que el device esté en el sistema y atrapa la
+    // InvalidOperationException que ocurre en la race entre OnDeviceChange y
+    // los reads del frame en curso. Sin esto, una desconexión genera spam
+    // de 60 exceptions/segundo.
+    private static bool SafeReadFloat(InputControl<float> ctrl, out float value)
+    {
+        value = 0f;
+        if (ctrl == null) return false;
+        var dev = ctrl.device;
+        if (dev == null || !dev.added) return false;
+        try { value = ctrl.ReadValue(); return true; }
+        catch (System.InvalidOperationException) { return false; }
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -498,6 +585,10 @@ public class MenuScreenManager : MonoBehaviour
         BuildLabeledBar(area.transform, "FRENO", ref y, true,
             out brakeIndicator, out brakeFill, out brakeFillRT);
 
+        // Barra REVERSA — booleana (rellena al detectar botón o cambio de eje)
+        BuildLabeledBar(area.transform, "REVERSA", ref y, true,
+            out reverseIndicator, out reverseFill, out reverseFillRT);
+
         y -= 15; // separación antes de info
 
         // Exam info — legible
@@ -515,32 +606,17 @@ public class MenuScreenManager : MonoBehaviour
         skipButton.GetComponent<RectTransform>().Set(
             new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1),
             new Vector2(0, y), new Vector2(350, 65));
+        y -= 80;
 
-        // ── DEBUG: label de versión del fix (esquina superior derecha) ──
-        // TEMPORAL: incrementar manualmente al pushear builds de debug.
-        var verObj = MenuCardBuilder.CreateText(screen.transform, "FixVersion", "FIX#16",
-            24f, FontStyles.Bold, new Color(1f, 0.85f, 0.2f, 1f), TextAlignmentOptions.TopRight);
-        var verRT = verObj.GetComponent<RectTransform>();
-        verRT.anchorMin = new Vector2(0.7f, 0.92f);
-        verRT.anchorMax = new Vector2(1f, 1f);
-        verRT.pivot = new Vector2(1, 1);
-        verRT.anchoredPosition = new Vector2(-20, -20);
-        verRT.sizeDelta = Vector2.zero;
-        verObj.GetComponent<TextMeshProUGUI>().raycastTarget = false;
-
-        // ── DEBUG: telemetría en vivo del volante (esquina inferior izquierda) ──
-        // TEMPORAL: quitar cuando el input quede estable.
-        var debugObj = MenuCardBuilder.CreateText(screen.transform, "DebugTelemetry", "",
-            18f, FontStyles.Normal, new Color(0.6f, 1f, 0.6f, 0.95f), TextAlignmentOptions.TopLeft);
-        var debugRT = debugObj.GetComponent<RectTransform>();
-        debugRT.anchorMin = new Vector2(0, 0);
-        debugRT.anchorMax = new Vector2(0.55f, 0.5f);
-        debugRT.pivot = new Vector2(0, 0);
-        debugRT.anchoredPosition = new Vector2(20, 20);
-        debugRT.sizeDelta = Vector2.zero;
-        debugText = debugObj.GetComponent<TextMeshProUGUI>();
-        debugText.textWrappingMode = TextWrappingModes.Normal;
-        debugText.raycastTarget = false;
+        // Botón secundario — solo visible en estado Verified (splash). Permite
+        // forzar descubrimiento si el sanity check no detectó axis stuck pero
+        // el operador sabe que el mapeo está mal.
+        reassignButton = MenuCardBuilder.CreateButton(area.transform, "Reasignar controles", "secondary",
+            new Vector2(280, 50), () => OnReassignControls()).GetComponent<Button>();
+        reassignButton.GetComponent<RectTransform>().Set(
+            new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0.5f, 1),
+            new Vector2(0, y), new Vector2(280, 50));
+        reassignButton.gameObject.SetActive(false);
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1089,48 +1165,102 @@ public class MenuScreenManager : MonoBehaviour
 
     void PrepareWheelScreen()
     {
-        rightDone = false;
-        leftDone = false;
+        // Cancelar splash en curso si la pantalla se reabre
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
 
-        // Calibración completa requiere las 6 keys nuevas (axis + rest + press
-        // para cada pedal). Las keys viejas (G923_GasMin/BrakeMin) se ignoran.
-        bool calibrated =
-               PlayerPrefs.HasKey("G923_GasAxis")   && PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
+        // ── 1) Detectar dispositivo y comparar huella con la calibración guardada ──
+        InputDevice dev = TryAttachToDevice();
+        string currentFp = ComputeDeviceFingerprint(dev);
+        string savedFp = PlayerPrefs.GetString(PREF_CAL_FINGERPRINT, "");
+        bool fingerprintMatches = !string.IsNullOrEmpty(currentFp) && currentFp == savedFp;
+
+        // Si la huella cambió, la calibración guardada se hizo con otro modelo
+        // de volante (axis distintos) → invalidar y forzar discovery completo.
+        if (!string.IsNullOrEmpty(savedFp) && !fingerprintMatches)
+        {
+            Debug.Log($"[MenuScreenManager] Huella de dispositivo cambió ('{savedFp}' → '{currentFp}'), invalidando calibración guardada");
+            ClearWheelCalibration();
+        }
+
+        // ── 2) Calcular qué fases ya tienen calibración válida ──
+        bool steeringCal = fingerprintMatches
+            && PlayerPrefs.HasKey("G923_SteerMax") && PlayerPrefs.HasKey("G923_SteerMin");
+        bool pedalsCal = fingerprintMatches
+            && PlayerPrefs.HasKey("G923_GasAxis")   && PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
             && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress");
-        throttleDone = calibrated;
-        brakeDone = calibrated;
+        bool reverseCal = fingerprintMatches && PlayerPrefs.GetInt(PREF_CAL_REVERSE_DONE, 0) == 1;
+
+        rightDone = leftDone = steeringCal;
+        throttleDone = brakeDone = pedalsCal;
+        reverseDone = reverseCal;
 
         // Reset deltas de candidatos para esta sesión de calibración
         if (pedalCandidateMaxDeltas != null)
             for (int i = 0; i < pedalCandidateMaxDeltas.Length; i++) pedalCandidateMaxDeltas[i] = 0f;
         gasChosenIdx = -1;
 
-        // Reset calibración del steering. Captura inicial del centro se hace
-        // en Update() primer frame que steerAction esté disponible.
+        // Reset descubrimiento del eje del volante. Snapshot se hace en
+        // Update al entrar a fase 1 (el usuario ya tiene las manos puestas).
+        _steerCandidates = null;
+        _steerCandidateBaselines = null;
+        _steerCandidatePaths = null;
+        _steerExcludedPedalIdx = -1;
+        // Si el steering ya está calibrado, recuperar el índice excluido a
+        // partir del path guardado para que las fases de pedal lo respeten.
+        if (steeringCal)
+        {
+            string savedSteer = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, UIInputNew.DEFAULT_BIND_STEER_AXIS);
+            for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
+                if (PEDAL_AXIS_CANDIDATES[i] == savedSteer) { _steerExcludedPedalIdx = i; break; }
+        }
+
+        // Reset captura del centro del volante (extremos se capturan en Update)
         steerCenter = 0f;
         steerMaxSeen = 0f;
         steerMinSeen = 0f;
         steerCenterCaptured = false;
 
-        rightIndicator.color = MenuTheme.IndicatorPending;
-        leftIndicator.color = MenuTheme.IndicatorPending;
-        // Si ya calibrado previamente, las 2 barras de pedales quedan en verde (done).
-        Color gasColor = throttleDone ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
-        Color brakeColor = brakeDone ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
-        gasIndicator.color = gasColor;
-        brakeIndicator.color = brakeColor;
+        // Indicadores y fills reflejan el estado por fase
+        rightIndicator.color   = rightDone    ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        leftIndicator.color    = leftDone     ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        gasIndicator.color     = throttleDone ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        brakeIndicator.color   = brakeDone    ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
+        reverseIndicator.color = reverseDone  ? MenuTheme.IndicatorDone : MenuTheme.IndicatorPending;
 
-        // Resetear fills a ancho 0 (giros) o 100% (pedales si ya calibrados)
-        rightFillRT.anchorMax = new Vector2(0, 1);
-        rightFill.color = MenuTheme.SecondaryCrimson;
-        leftFillRT.anchorMin = new Vector2(1, 0);
-        leftFill.color = MenuTheme.SecondaryCrimson;
+        rightFillRT.anchorMax = new Vector2(rightDone ? 1f : 0f, 1);
+        rightFill.color = rightDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
+        leftFillRT.anchorMin = new Vector2(leftDone ? 0f : 1f, 0);
+        leftFill.color = leftDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
         gasFillRT.anchorMax = new Vector2(throttleDone ? 1f : 0f, 1);
         gasFill.color = throttleDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
         brakeFillRT.anchorMax = new Vector2(brakeDone ? 1f : 0f, 1);
         brakeFill.color = brakeDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
+        reverseFillRT.anchorMax = new Vector2(reverseDone ? 1f : 0f, 1);
+        reverseFill.color = reverseDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
 
-        wheelPrompt.text = "Gira el volante hacia la DERECHA";
+        // ── 3) Decidir el modo de la pantalla ──
+        bool fullyCalibrated = steeringCal && pedalsCal && reverseCal;
+
+        if (fullyCalibrated)
+        {
+            // Verified: nada que pedir al usuario, solo splash + sanity check.
+            wheelPrompt.text = "Preparando prueba...";
+            if (skipButton != null) skipButton.gameObject.SetActive(false);
+            if (reassignButton != null) reassignButton.gameObject.SetActive(true);
+            sanityCheckCo = StartCoroutine(SanityCheckThenLoad(1.5f));
+        }
+        else
+        {
+            // Discovery / Partial: prompt según primera fase pendiente.
+            wheelPrompt.text = !rightDone    ? "Gira el volante hacia la DERECHA"
+                             : !leftDone     ? "Gira el volante hacia la IZQUIERDA"
+                             : !throttleDone ? "Pisa el ACELERADOR a fondo"
+                             : !brakeDone    ? "Pisa el FRENO a fondo"
+                             :                 "Activa la REVERSA";
+            if (skipButton != null) skipButton.gameObject.SetActive(true);
+            if (reassignButton != null) reassignButton.gameObject.SetActive(false);
+        }
+
         string examType = licenseType switch
         {
             "particular" => "Vehículo Particular",
@@ -1141,7 +1271,6 @@ public class MenuScreenManager : MonoBehaviour
         };
         string name = string.IsNullOrEmpty(citizenName) ? "" : citizenName + " | ";
         if (examInfoText != null) examInfoText.text = $"{name}Examen: {examType}";
-
     }
 
     void Update()
@@ -1169,21 +1298,60 @@ public class MenuScreenManager : MonoBehaviour
         if (steer > steerMaxSeen) steerMaxSeen = steer;
         if (steer < steerMinSeen) steerMinSeen = steer;
 
-        UpdateDebugText();
-
-        if (rightDone && leftDone && throttleDone && brakeDone) return;
+        if (rightDone && leftDone && throttleDone && brakeDone && reverseDone) return;
 
         if (!rightDone)
         {
-            float progress = Mathf.Clamp01(steer);
+            // Discovery agnóstico al modelo: scan de todos los axes contra su
+            // baseline; gana el de mayor delta positivo. Independiente de si
+            // el volante usa stick/x, rx, z, etc.
+            if (_steerCandidates == null) SnapshotSteerCandidates();
 
-            if (steer >= WHEEL_THRESHOLD)
+            int bestIdx = -1;
+            float bestPositiveDelta = 0f;
+            if (_steerCandidates != null)
             {
+                for (int i = 0; i < _steerCandidates.Length; i++)
+                {
+                    if (!SafeReadFloat(_steerCandidates[i], out var sv)) continue;
+                    float delta = sv - _steerCandidateBaselines[i];
+                    if (delta > bestPositiveDelta) { bestPositiveDelta = delta; bestIdx = i; }
+                }
+            }
+
+            float progress = Mathf.Clamp01(bestPositiveDelta);
+
+            if (bestPositiveDelta >= WHEEL_THRESHOLD && bestIdx >= 0)
+            {
+                // Persistir el eje descubierto y reconstruir steerAction sobre él
+                string chosenPath = _steerCandidatePaths[bestIdx];
+                PlayerPrefs.SetString(UIInputNew.PREF_BIND_STEER_AXIS, chosenPath);
+                _steerExcludedPedalIdx = -1;
+                for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
+                    if (PEDAL_AXIS_CANDIDATES[i] == chosenPath) { _steerExcludedPedalIdx = i; break; }
+
+                InputDevice dev = TryAttachToDevice();
+                if (dev != null)
+                {
+                    if (steerAction != null) { steerAction.Disable(); steerAction.Dispose(); }
+                    steerAction = new InputAction("MenuSteer", InputActionType.Value);
+                    steerAction.AddBinding(dev.path + "/" + chosenPath);
+                    steerAction.Enable();
+                }
+                // Capturar centro/extremos desde la baseline ya conocida —
+                // el siguiente Update seguirá actualizando steerMaxSeen/MinSeen
+                // a través del bloque genérico de tracking.
+                steerCenter  = _steerCandidateBaselines[bestIdx];
+                steerMaxSeen = SafeReadFloat(_steerCandidates[bestIdx], out var smv) ? smv : steerCenter;
+                steerMinSeen = steerCenter;
+                steerCenterCaptured = true;
+
                 rightDone = true;
                 rightFillRT.anchorMax = new Vector2(1, 1);
                 rightFill.color = MenuTheme.IndicatorDone;
                 rightIndicator.color = MenuTheme.IndicatorDone;
                 wheelPrompt.text = "Gira el volante hacia la IZQUIERDA";
+                Debug.Log($"[MenuScreenManager] Eje del volante descubierto: '{chosenPath}'");
             }
             else if (Mathf.Abs(progress - rightFillRT.anchorMax.x) > 0.005f)
             {
@@ -1208,17 +1376,31 @@ public class MenuScreenManager : MonoBehaviour
                 PlayerPrefs.SetFloat("G923_SteerCenter", steerCenter);
                 PlayerPrefs.SetFloat("G923_SteerMax", steerMaxSeen);
                 PlayerPrefs.SetFloat("G923_SteerMin", steerMinSeen);
-                Debug.Log($"[MenuScreenManager] Steering calibrado: center={steerCenter:F3} max={steerMaxSeen:F3} min={steerMinSeen:F3}");
+                // Huella del dispositivo al que pertenece esta calibración —
+                // si en una sesión futura se conecta otro modelo, la huella
+                // diferirá y la calibración se invalidará automáticamente.
+                string fp = ComputeDeviceFingerprint(TryAttachToDevice());
+                if (!string.IsNullOrEmpty(fp)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fp);
+                Debug.Log($"[MenuScreenManager] Steering calibrado: center={steerCenter:F3} max={steerMaxSeen:F3} min={steerMinSeen:F3} fp={fp}");
 
-                // Sin pedales conectados o ya calibrado previamente → cargar escena directo
+                // Sin pedales conectados o ya calibrado previamente → saltar
+                // a la fase de reversa (o cargar escena si reverseDone).
                 if (gasCtrl == null || brakeCtrl == null || (throttleDone && brakeDone))
                 {
                     throttleDone = true;
                     brakeDone = true;
-                    PlayerPrefs.Save();
-                    wheelPrompt.text = "Cargando prueba...";
-                    skipButton.gameObject.SetActive(false);
-                    StartCoroutine(LoadSceneDelayed(1.5f));
+                    if (reverseDone)
+                    {
+                        PlayerPrefs.Save();
+                        wheelPrompt.text = "Cargando prueba...";
+                        skipButton.gameObject.SetActive(false);
+                        StartCoroutine(LoadSceneDelayed(1.5f));
+                    }
+                    else
+                    {
+                        SnapshotReverseBaseline();
+                        wheelPrompt.text = "Activa la REVERSA";
+                    }
                 }
                 else
                 {
@@ -1292,17 +1474,58 @@ public class MenuScreenManager : MonoBehaviour
                 PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
                 PlayerPrefs.SetFloat("G923_BrakeRest", rest);
                 PlayerPrefs.SetFloat("G923_BrakePress", press);
+                // Reescribir la huella aquí también garantiza que un Partial
+                // que solo redescubrió pedales quede asociado al device actual.
+                string fpBrake = ComputeDeviceFingerprint(TryAttachToDevice());
+                if (!string.IsNullOrEmpty(fpBrake)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpBrake);
                 PlayerPrefs.Save();
-                Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3}");
+                Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3} fp={fpBrake}");
 
-                wheelPrompt.text = "Cargando prueba...";
-                skipButton.gameObject.SetActive(false);
-                StartCoroutine(LoadSceneDelayed(1.5f));
+                if (reverseDone)
+                {
+                    wheelPrompt.text = "Cargando prueba...";
+                    skipButton.gameObject.SetActive(false);
+                    StartCoroutine(LoadSceneDelayed(1.5f));
+                }
+                else
+                {
+                    SnapshotReverseBaseline();
+                    wheelPrompt.text = "Activa la REVERSA";
+                }
             }
             else if (Mathf.Abs(brakeProgress - brakeFillRT.anchorMax.x) > 0.005f)
             {
                 brakeFillRT.anchorMax = new Vector2(brakeProgress, 1);
                 brakeFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, brakeProgress);
+            }
+            return;
+        }
+
+        // ── Fase 5: descubrimiento de REVERSA ──
+        // Detección dual: (1) primer botón presionado este frame que NO esté
+        // ya bindeado a otra acción (drive/paddle/etc.), o (2) un eje discreto
+        // (H-shifter) con delta grande respecto a su baseline. El path elegido
+        // se persiste como Bind_reverse para que UIInputNew lo lea.
+        if (!reverseDone)
+        {
+            string chosenReverse = TryDetectReverseInput(out bool isAxis);
+            if (!string.IsNullOrEmpty(chosenReverse))
+            {
+                reverseDone = true;
+                reverseFillRT.anchorMax = new Vector2(1, 1);
+                reverseFill.color = MenuTheme.IndicatorDone;
+                reverseIndicator.color = MenuTheme.IndicatorDone;
+
+                PlayerPrefs.SetString(UIInputNew.PREF_BIND_REVERSE, chosenReverse);
+                PlayerPrefs.SetInt(PREF_CAL_REVERSE_DONE, 1);
+                string fpRev = ComputeDeviceFingerprint(TryAttachToDevice());
+                if (!string.IsNullOrEmpty(fpRev)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpRev);
+                PlayerPrefs.Save();
+                Debug.Log($"[MenuScreenManager] Reversa → '{chosenReverse}' (axis={isAxis}) fp={fpRev}");
+
+                wheelPrompt.text = "Cargando prueba...";
+                skipButton.gameObject.SetActive(false);
+                StartCoroutine(LoadSceneDelayed(1.5f));
             }
         }
     }
@@ -1320,81 +1543,6 @@ public class MenuScreenManager : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
         LoadSelectedScene();
-    }
-
-    // DEBUG temporal: telemetría visible en la propia pantalla del volante.
-    // Remover cuando el mapeo/pedales queden validados en el kiosko.
-    void UpdateDebugText()
-    {
-        if (debugText == null) return;
-
-        System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
-        sb.Append("── DEBUG VOLANTE [FIX#16] ──\n");
-
-        // PlayerPrefs (calibración previa con rest+press)
-        string gasAxisPref = PlayerPrefs.GetString("G923_GasAxis", "-");
-        string brakeAxisPref = PlayerPrefs.GetString("G923_BrakeAxis", "-");
-        string gasRestStr = PlayerPrefs.HasKey("G923_GasRest") ? PlayerPrefs.GetFloat("G923_GasRest").ToString("F3") : "-";
-        string gasPressStr = PlayerPrefs.HasKey("G923_GasPress") ? PlayerPrefs.GetFloat("G923_GasPress").ToString("F3") : "-";
-        string brakeRestStr = PlayerPrefs.HasKey("G923_BrakeRest") ? PlayerPrefs.GetFloat("G923_BrakeRest").ToString("F3") : "-";
-        string brakePressStr = PlayerPrefs.HasKey("G923_BrakePress") ? PlayerPrefs.GetFloat("G923_BrakePress").ToString("F3") : "-";
-        sb.Append($"Prefs gas:   axis={gasAxisPref}  rest={gasRestStr} press={gasPressStr}\n");
-        sb.Append($"Prefs brake: axis={brakeAxisPref}  rest={brakeRestStr} press={brakePressStr}\n");
-        // Calibración steering (en vivo durante fases 1-2, persistido al completar fase 2)
-        sb.Append($"Steer: center={steerCenter:F3} max={steerMaxSeen:F3} min={steerMinSeen:F3}\n");
-
-        // Device
-        if (steerAction == null)
-        {
-            sb.Append("DEVICE: no detectado aún\n");
-            sb.Append("Enumerados:\n");
-            foreach (var d in InputSystem.devices)
-                sb.Append($"  - {d.displayName}\n");
-        }
-        else
-        {
-            // Probar a detectar nombre del device en uso
-            string devName = "(?)";
-            foreach (var d in InputSystem.devices)
-            {
-                string nm = d.displayName ?? "";
-                if (nm.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || nm.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0
-                    || d == Joystick.current || d == Gamepad.current)
-                { devName = nm; break; }
-            }
-            sb.Append($"DEVICE: {devName}\n");
-
-            float steer = steerAction.ReadValue<float>();
-            sb.Append($"RAW steer={steer:F3}\n");
-
-            // Candidatos de pedal: raw, rest, delta signado máximo y tag del elegido
-            sb.Append("Pedal candidatos (raw / rest / maxDelta):\n");
-            if (pedalCandidates != null)
-            {
-                for (int i = 0; i < pedalCandidates.Length; i++)
-                {
-                    string path = PEDAL_AXIS_CANDIDATES[i];
-                    string tag = (i == gasChosenIdx) ? " [GAS]" : "";
-                    if (pedalCandidates[i] == null) { sb.Append($"  {path}= null{tag}\n"); continue; }
-                    float v = pedalCandidates[i].ReadValue();
-                    float rest = pedalCandidateRests != null ? pedalCandidateRests[i] : 1f;
-                    float md = pedalCandidateMaxDeltas != null ? pedalCandidateMaxDeltas[i] : 0f;
-                    sb.Append($"  {path}= {v:F2} rest={rest:F2} Δmax={md:+0.00;-0.00}{tag}\n");
-                }
-            }
-        }
-
-        // Fase actual
-        string phase = !rightDone ? "1/4 Girar DERECHA"
-                     : !leftDone ? "2/4 Girar IZQUIERDA"
-                     : !throttleDone ? "3/4 Pisar ACELERADOR"
-                     : !brakeDone ? "4/4 Pisar FRENO"
-                     : "COMPLETO";
-        sb.Append($"Fase: {phase}\n");
-        sb.Append($"Estado: R={rightDone} L={leftDone} T={throttleDone} B={brakeDone}\n");
-
-        debugText.text = sb.ToString();
     }
 
     // Cachea los candidatos de eje de pedal (lista unificada).
@@ -1427,6 +1575,8 @@ public class MenuScreenManager : MonoBehaviour
     // Samplea todos los candidatos, actualiza el delta signado máximo por
     // eje (delta = raw - rest) y devuelve el índice con mayor |delta|.
     // excludeIdx se usa en la fase brake para no elegir el mismo eje del gas.
+    // Además se excluye el eje del volante (_steerExcludedPedalIdx) si éste
+    // coincide con uno de los candidatos de pedal.
     int SamplePedalCandidates(int excludeIdx, out float bestAbsDelta)
     {
         bestAbsDelta = 0f;
@@ -1435,83 +1585,291 @@ public class MenuScreenManager : MonoBehaviour
         for (int i = 0; i < pedalCandidates.Length; i++)
         {
             if (pedalCandidates[i] == null) continue;
-            float v = pedalCandidates[i].ReadValue();
+            if (!SafeReadFloat(pedalCandidates[i], out var v)) continue;
             float delta = v - pedalCandidateRests[i];
             if (Mathf.Abs(delta) > Mathf.Abs(pedalCandidateMaxDeltas[i]))
                 pedalCandidateMaxDeltas[i] = delta; // preserva signo
-            if (i == excludeIdx) continue;
+            if (i == excludeIdx || i == _steerExcludedPedalIdx) continue;
             float absD = Mathf.Abs(pedalCandidateMaxDeltas[i]);
             if (absD > bestAbsDelta) { bestAbsDelta = absD; bestIdx = i; }
         }
         return bestIdx;
     }
 
-    float ReadSteerInput()
+    // Snapshot de baselines de todos los axes del device para descubrir el
+    // eje del volante por delta máxima en fase 1. Asume que el usuario tiene
+    // las manos quietas en el centro al entrar a la pantalla.
+    void SnapshotSteerCandidates()
     {
-        // Intentar detectar G923 cada frame hasta encontrarlo
-        if (steerAction == null)
+        InputDevice dev = TryAttachToDevice();
+        if (dev == null) { _steerCandidates = null; return; }
+
+        var ctrls = new System.Collections.Generic.List<InputControl<float>>();
+        var paths = new System.Collections.Generic.List<string>();
+        string devPath = dev.path ?? "";
+        foreach (var c in dev.allControls)
         {
-            foreach (var device in InputSystem.devices)
+            // Sólo axes float continuos — ButtonControl hereda de AxisControl
+            // pero queremos descartarlos.
+            if (!(c is AxisControl) || c is ButtonControl) continue;
+            if (!(c is InputControl<float> fc)) continue;
+            ctrls.Add(fc);
+            string p = c.path ?? "";
+            if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
+                p = p.Substring(devPath.Length + 1);
+            paths.Add(p);
+        }
+        _steerCandidates = ctrls.ToArray();
+        _steerCandidatePaths = paths.ToArray();
+        _steerCandidateBaselines = new float[_steerCandidates.Length];
+        for (int i = 0; i < _steerCandidates.Length; i++)
+            _steerCandidateBaselines[i] = _steerCandidates[i].ReadValue();
+    }
+
+    void SnapshotReverseBaseline()
+    {
+        InputDevice dev = TryAttachToDevice();
+        if (dev == null) { _reverseAxisBaseline = null; return; }
+
+        _reverseAxisBaseline = new System.Collections.Generic.Dictionary<string, float>();
+        string devPath = dev.path ?? "";
+        foreach (var c in dev.allControls)
+        {
+            if (!(c is AxisControl) || c is ButtonControl) continue;
+            if (!(c is InputControl<float> fc)) continue;
+            string p = c.path ?? "";
+            if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
+                p = p.Substring(devPath.Length + 1);
+            _reverseAxisBaseline[p] = fc.ReadValue();
+        }
+
+        // No reasignar reversa al volante, gas o freno
+        _reverseExcludedPaths = new System.Collections.Generic.HashSet<string>();
+        string steerP = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, "");
+        string gasP   = PlayerPrefs.GetString("G923_GasAxis", "");
+        string brakeP = PlayerPrefs.GetString("G923_BrakeAxis", "");
+        if (!string.IsNullOrEmpty(steerP)) _reverseExcludedPaths.Add(steerP);
+        if (!string.IsNullOrEmpty(gasP))   _reverseExcludedPaths.Add(gasP);
+        if (!string.IsNullOrEmpty(brakeP)) _reverseExcludedPaths.Add(brakeP);
+    }
+
+    // Devuelve el path (relativo al device) del control que activa reversa, o
+    // string.Empty si nada se ha activado todavía. Detecta primero botones y,
+    // si nada presionado, mira axes con delta grande (H-shifter).
+    string TryDetectReverseInput(out bool isAxis)
+    {
+        isAxis = false;
+        InputDevice dev = TryAttachToDevice();
+        if (dev == null) return "";
+
+        string devPath = dev.path ?? "";
+
+        // 1) Botón recién presionado este frame
+        foreach (var c in dev.allControls)
+        {
+            if (!(c is ButtonControl btn)) continue;
+            if (!btn.wasPressedThisFrame) continue;
+            string p = c.path ?? "";
+            if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
+                p = p.Substring(devPath.Length + 1);
+            if (_reverseExcludedPaths != null && _reverseExcludedPaths.Contains(p)) continue;
+            return p;
+        }
+
+        // 2) Eje discreto con delta grande contra baseline (palanca H)
+        if (_reverseAxisBaseline != null)
+        {
+            foreach (var c in dev.allControls)
             {
-                string name = device.displayName ?? "";
-                string desc = device.description.product ?? "";
-                if (name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    desc.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                    name.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                if (!(c is AxisControl) || c is ButtonControl) continue;
+                if (!(c is InputControl<float> fc)) continue;
+                string p = c.path ?? "";
+                if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
+                    p = p.Substring(devPath.Length + 1);
+                if (_reverseExcludedPaths != null && _reverseExcludedPaths.Contains(p)) continue;
+                if (!_reverseAxisBaseline.TryGetValue(p, out float baseline)) continue;
+                if (!SafeReadFloat(fc, out var rxv)) continue;
+                if (Mathf.Abs(rxv - baseline) >= REVERSE_AXIS_DETECT_DELTA)
                 {
-                    string path = device.path;
-                    steerAction = new InputAction("MenuSteer", InputActionType.Value);
-                    steerAction.AddBinding(path + "/stick/x");
-                    steerAction.Enable();
-                    // Cache d-pad hat + Circle para PIN input
-                    hatUp    = device.TryGetChildControl("hat/up")    as InputControl<float>;
-                    hatDown  = device.TryGetChildControl("hat/down")  as InputControl<float>;
-                    hatLeft  = device.TryGetChildControl("hat/left")  as InputControl<float>;
-                    hatRight = device.TryGetChildControl("hat/right") as InputControl<float>;
-                    circleBtn = device.TryGetChildControl("button3")  as InputControl<float>;
-                    enterBtn  = device.TryGetChildControl("button10") as InputControl<float>;
-                    gasCtrl   = device.TryGetChildControl("z")  as InputControl<float>;
-                    brakeCtrl = device.TryGetChildControl("rz") as InputControl<float>;
-                    CachePedalCandidates(device);
-                    Debug.Log($"[MenuScreenManager] Volante detectado: {name} ({path}) hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
-                    break;
+                    isAxis = true;
+                    return p;
                 }
             }
-            // Fallback: cualquier joystick o gamepad
-            if (steerAction == null && Joystick.current != null)
-            {
-                steerAction = new InputAction("MenuSteer", InputActionType.Value);
-                steerAction.AddBinding(Joystick.current.path + "/stick/x");
-                steerAction.Enable();
-                var jDev = Joystick.current;
-                hatUp    = jDev.TryGetChildControl("hat/up")    as InputControl<float>;
-                hatDown  = jDev.TryGetChildControl("hat/down")  as InputControl<float>;
-                hatLeft  = jDev.TryGetChildControl("hat/left")  as InputControl<float>;
-                hatRight = jDev.TryGetChildControl("hat/right") as InputControl<float>;
-                circleBtn = jDev.TryGetChildControl("button3")  as InputControl<float>;
-                enterBtn  = jDev.TryGetChildControl("button10") as InputControl<float>;
-                gasCtrl   = jDev.TryGetChildControl("z")  as InputControl<float>;
-                brakeCtrl = jDev.TryGetChildControl("rz") as InputControl<float>;
-                CachePedalCandidates(jDev);
-                Debug.Log($"[MenuScreenManager] Joystick fallback: {jDev.displayName} hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
-            }
-            if (steerAction == null && Gamepad.current != null)
-            {
-                steerAction = new InputAction("MenuSteer", InputActionType.Value);
-                steerAction.AddBinding("<Gamepad>/leftStick/x");
-                steerAction.Enable();
-                var gp = Gamepad.current;
-                hatUp    = gp.TryGetChildControl("dpad/up")    as InputControl<float>;
-                hatDown  = gp.TryGetChildControl("dpad/down")  as InputControl<float>;
-                hatLeft  = gp.TryGetChildControl("dpad/left")  as InputControl<float>;
-                hatRight = gp.TryGetChildControl("dpad/right") as InputControl<float>;
-                circleBtn = gp.TryGetChildControl("buttonEast") as InputControl<float>;
-                enterBtn  = gp.TryGetChildControl("start")      as InputControl<float>;
-            }
-            // No encontró nada — retorna 0, intentará de nuevo el próximo frame
-            if (steerAction == null) return 0f;
         }
+
+        return "";
+    }
+
+    float ReadSteerInput()
+    {
+        if (steerAction == null) TryAttachToDevice();
+        if (steerAction == null) return 0f;
         return steerAction.ReadValue<float>();
+    }
+
+    // Detecta y conecta el dispositivo de volante una sola vez. Idempotente:
+    // si ya hay steerAction, retorna el device asociado sin re-atar. El path
+    // del eje del volante se lee de Bind_steerAxis (configurable vía F8) — por
+    // defecto "stick/x" pero el operador puede reasignar a otro modelo.
+    InputDevice TryAttachToDevice()
+    {
+        if (steerAction != null)
+        {
+            var ctrls = steerAction.controls;
+            return ctrls.Count > 0 ? ctrls[0].device : null;
+        }
+
+        string steerSubpath = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, UIInputNew.DEFAULT_BIND_STEER_AXIS);
+
+        // 1) Buscar G923 / Logitech por nombre (camino preferido)
+        foreach (var device in InputSystem.devices)
+        {
+            string name = device.displayName ?? "";
+            string desc = device.description.product ?? "";
+            if (name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                desc.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                name.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                AttachToDevice(device, steerSubpath, $"Volante detectado: {name}");
+                return device;
+            }
+        }
+
+        // 2) Fallback: cualquier joystick HID genérico (otros modelos de volante)
+        if (Joystick.current != null)
+        {
+            AttachToDevice(Joystick.current, steerSubpath, $"Joystick fallback: {Joystick.current.displayName}");
+            return Joystick.current;
+        }
+
+        // 3) Fallback final: Gamepad (el path del volante no aplica aquí, usa leftStick)
+        if (Gamepad.current != null)
+        {
+            var gp = Gamepad.current;
+            steerAction = new InputAction("MenuSteer", InputActionType.Value);
+            steerAction.AddBinding("<Gamepad>/leftStick/x");
+            steerAction.Enable();
+            hatUp    = gp.TryGetChildControl("dpad/up")    as InputControl<float>;
+            hatDown  = gp.TryGetChildControl("dpad/down")  as InputControl<float>;
+            hatLeft  = gp.TryGetChildControl("dpad/left")  as InputControl<float>;
+            hatRight = gp.TryGetChildControl("dpad/right") as InputControl<float>;
+            circleBtn = gp.TryGetChildControl("buttonEast") as InputControl<float>;
+            enterBtn  = gp.TryGetChildControl("start")      as InputControl<float>;
+            attachedDevice = gp; // ref explícita para OnDeviceChange
+            return gp;
+        }
+        return null;
+    }
+
+    void AttachToDevice(InputDevice device, string steerSubpath, string logPrefix)
+    {
+        steerAction = new InputAction("MenuSteer", InputActionType.Value);
+        steerAction.AddBinding(device.path + "/" + steerSubpath);
+        steerAction.Enable();
+        hatUp    = device.TryGetChildControl("hat/up")    as InputControl<float>;
+        hatDown  = device.TryGetChildControl("hat/down")  as InputControl<float>;
+        hatLeft  = device.TryGetChildControl("hat/left")  as InputControl<float>;
+        hatRight = device.TryGetChildControl("hat/right") as InputControl<float>;
+        circleBtn = device.TryGetChildControl("button3")  as InputControl<float>;
+        enterBtn  = device.TryGetChildControl("button10") as InputControl<float>;
+        gasCtrl   = device.TryGetChildControl("z")  as InputControl<float>;
+        brakeCtrl = device.TryGetChildControl("rz") as InputControl<float>;
+        attachedDevice = device; // ref explícita para OnDeviceChange
+        CachePedalCandidates(device);
+        Debug.Log($"[MenuScreenManager] {logPrefix} (eje steer={steerSubpath}) hat={hatUp != null} pedals={gasCtrl != null && brakeCtrl != null}");
+    }
+
+    // Identidad estable del dispositivo: product + manufacturer + serial.
+    // Si cambia, la calibración guardada se invalida (axis pueden ser otros).
+    string ComputeDeviceFingerprint(InputDevice d)
+    {
+        if (d == null) return "";
+        var desc = d.description;
+        return $"{desc.product ?? ""}|{desc.manufacturer ?? ""}|{desc.serial ?? ""}";
+    }
+
+    void ClearWheelCalibration()
+    {
+        PlayerPrefs.DeleteKey("G923_SteerCenter");
+        PlayerPrefs.DeleteKey("G923_SteerMax");
+        PlayerPrefs.DeleteKey("G923_SteerMin");
+        PlayerPrefs.DeleteKey("G923_GasAxis");
+        PlayerPrefs.DeleteKey("G923_GasRest");
+        PlayerPrefs.DeleteKey("G923_GasPress");
+        PlayerPrefs.DeleteKey("G923_BrakeAxis");
+        PlayerPrefs.DeleteKey("G923_BrakeRest");
+        PlayerPrefs.DeleteKey("G923_BrakePress");
+        PlayerPrefs.DeleteKey(PREF_CAL_FINGERPRINT);
+        PlayerPrefs.DeleteKey(PREF_CAL_REVERSE_DONE);
+        // El path del eje del volante y de reversa también se redescubren — si
+        // los conservamos, un wheel nuevo intentaría leer del path viejo.
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_STEER_AXIS);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_REVERSE);
+        PlayerPrefs.Save();
+    }
+
+    void OnReassignControls()
+    {
+        Debug.Log("[MenuScreenManager] Reasignar controles solicitado por usuario");
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+        ClearWheelCalibration();
+        // Soltar steerAction para que TryAttachToDevice() vuelva a bindear
+        // con el (ahora vacío/default) Bind_steerAxis. Sin esto, la pantalla
+        // seguiría leyendo del eje viejo durante el discovery.
+        if (steerAction != null) { steerAction.Disable(); steerAction.Dispose(); steerAction = null; }
+        _steerExcludedPedalIdx = -1;
+        PrepareWheelScreen();
+    }
+
+    // Splash de "Preparando prueba..." en estado Verified. Verifica que los
+    // axes calibrados sigan existiendo y no estén pisados (axis stuck por
+    // cable suelto, mapeo distinto). Si algo falla, degrada a discovery.
+    IEnumerator SanityCheckThenLoad(float duration)
+    {
+        InputDevice dev = TryAttachToDevice();
+        string gasPath = PlayerPrefs.GetString("G923_GasAxis", "");
+        string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "");
+        InputControl<float> gasC = (dev != null && !string.IsNullOrEmpty(gasPath))
+            ? dev.TryGetChildControl(gasPath) as InputControl<float> : null;
+        InputControl<float> brakeC = (dev != null && !string.IsNullOrEmpty(brakePath))
+            ? dev.TryGetChildControl(brakePath) as InputControl<float> : null;
+
+        // Si el axis previamente calibrado ya no existe en el device, la
+        // calibración no sirve — degradar a discovery.
+        if (dev != null && (gasC == null || brakeC == null))
+        {
+            Debug.Log("[MenuScreenManager] Sanity check: axis previamente calibrado no existe en el device → discovery");
+            ClearWheelCalibration();
+            PrepareWheelScreen();
+            yield break;
+        }
+
+        float gasRest = PlayerPrefs.GetFloat("G923_GasRest", 0f);
+        float brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
+
+        bool degraded = false;
+        float t = 0f;
+        while (t < duration)
+        {
+            // Durante el splash, el usuario no debería estar pisando nada.
+            // Un delta grande contra el rest guardado indica hardware
+            // desconectado o axis distinto al que se calibró.
+            if (SafeReadFloat(gasC, out var gv) && Mathf.Abs(gv - gasRest) > 0.5f) { degraded = true; break; }
+            if (SafeReadFloat(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; break; }
+            t += Time.unscaledDeltaTime;
+            yield return null;
+        }
+
+        if (degraded)
+        {
+            Debug.Log("[MenuScreenManager] Sanity check: pedal con valor anómalo respecto al rest guardado → discovery");
+            ClearWheelCalibration();
+            PrepareWheelScreen();
+            yield break;
+        }
+
+        sanityCheckCo = null;
+        LoadSelectedScene();
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -1530,8 +1888,8 @@ public class MenuScreenManager : MonoBehaviour
         bool right = DpadRepeat(hatRight, ref dpadRightT, ref dpadRightR, dt);
 
         // Circle o Enter → confirmar selección o activar Continuar
-        bool confirmPressed = (circleBtn != null && circleBtn.ReadValue() > 0.5f) ||
-                              (enterBtn  != null && enterBtn.ReadValue()  > 0.5f);
+        bool confirmPressed = (SafeReadFloat(circleBtn, out var ccv) && ccv > 0.5f) ||
+                              (SafeReadFloat(enterBtn,  out var cev) && cev > 0.5f);
         if (confirmPressed)
         {
             if (!confirmBtnHeld)
@@ -1619,8 +1977,8 @@ public class MenuScreenManager : MonoBehaviour
             MoveCursor(-1);
 
         // Circle o Enter → confirmar código
-        bool confirmPin = (circleBtn != null && circleBtn.ReadValue() > 0.5f) ||
-                          (enterBtn  != null && enterBtn.ReadValue()  > 0.5f);
+        bool confirmPin = (SafeReadFloat(circleBtn, out var pcv) && pcv > 0.5f) ||
+                          (SafeReadFloat(enterBtn,  out var pev) && pev > 0.5f);
         if (confirmPin)
         {
             if (!confirmBtnHeld) { confirmBtnHeld = true; OnVerifyCode(); }
@@ -1630,8 +1988,11 @@ public class MenuScreenManager : MonoBehaviour
 
     bool DpadRepeat(InputControl<float> ctrl, ref float timer, ref bool repeated, float dt)
     {
-        if (ctrl == null) return false;
-        if (ctrl.ReadValue() <= 0.5f) { timer = 0f; repeated = false; return false; }
+        // SafeReadFloat: si el device fue removido del system, devuelve false
+        // sin spamear excepciones. Antes de FIX#19 esto crasheaba con
+        // InvalidOperationException por frame (60/s). Sitio del crash original.
+        if (!SafeReadFloat(ctrl, out var v)) { timer = 0f; repeated = false; return false; }
+        if (v <= 0.5f) { timer = 0f; repeated = false; return false; }
 
         if (timer == 0f) { timer += dt; return true; } // primer press
 
@@ -1726,6 +2087,11 @@ public class MenuScreenManager : MonoBehaviour
     void OnDestroy()
     {
         if (steerAction != null) { steerAction.Disable(); steerAction.Dispose(); }
+        if (_deviceChangeHandler != null)
+        {
+            InputSystem.onDeviceChange -= _deviceChangeHandler;
+            _deviceChangeHandler = null;
+        }
     }
 
     void EnableButton(Button btn, bool enabled)

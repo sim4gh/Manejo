@@ -40,7 +40,18 @@ public class LogUploader : MonoBehaviour
 
     // ── Constantes ───────────────────────────────────────────────────
 
-    const int    MAX_BUFFER_LINES        = 5000;
+    const int    MAX_BUFFER_LINES        = 2000;
+    // Tags conocidos de logs que SÍ queremos capturar aunque sean LogType.Log
+    // (info-level). Cualquier otro Log se filtra para evitar ruido — ej. logs
+    // de terceros (Gley, RCCP, Realistic Car Controller) que escupen Debug.Log
+    // por frame. Warning/Error/Exception/Assert siempre se capturan.
+    static readonly string[] INFO_TAG_WHITELIST = {
+        "[UIInputNew]", "[MenuScreenManager]", "[BindingsPanel]",
+        "[AdvancedInputPanel]", "[LogConsolePanel]", "[LogUploader]",
+        "[ViolationDetector]", "[GameManager]", "[SimulatorConfig]",
+        "[ScoringConfig]", "[MenuBootstrap]", "[AutoUpdater]",
+        "[SimulatorApiClient]", "[ExamBootstrap]", "[ExamTimer]",
+    };
     const float  FLUSH_INTERVAL_SECONDS  = 300f;   // 5 min
     const float  MIN_FLUSH_GAP_SECONDS   = 60f;    // anti-spam para ForceFlush
     const int    UPLOAD_TIMEOUT_SECONDS  = 60;
@@ -130,6 +141,23 @@ public class LogUploader : MonoBehaviour
         // Evita feedback loop con nuestros propios mensajes.
         if (!string.IsNullOrEmpty(condition) && condition.StartsWith("[LogUploader]"))
             return;
+
+        // Filtro: Warning/Error/Exception/Assert siempre se capturan.
+        // LogType.Log (info) solo si tiene tag conocido. Sin esto, terceros
+        // (Gley/RCCP) escupían Debug.Log por frame y los archivos S3 crecían
+        // a 72KB cada 5min — la mayoría ruido sin valor diagnóstico.
+        if (type == LogType.Log)
+        {
+            bool whitelisted = false;
+            if (!string.IsNullOrEmpty(condition))
+            {
+                for (int i = 0; i < INFO_TAG_WHITELIST.Length; i++)
+                {
+                    if (condition.StartsWith(INFO_TAG_WHITELIST[i])) { whitelisted = true; break; }
+                }
+            }
+            if (!whitelisted) return;
+        }
 
         bool inMain = Thread.CurrentThread.ManagedThreadId == mainThreadId;
 

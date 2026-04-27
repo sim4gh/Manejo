@@ -31,6 +31,8 @@ namespace Gley.UrbanSystem
         private InputAction _moveAction;
         private InputDevice _wheelDevice;
         private bool _hasWheel;
+        // Handler cacheado para poder unsubscribe en OnDestroy.
+        private System.Action<InputDevice, InputDeviceChange> _deviceChangeHandler;
 
         // Polling (el HID del volante puede registrarse después de Initialize)
         private float _detectionTimer = 999f; // primer intento en el primer frame
@@ -264,7 +266,52 @@ namespace Gley.UrbanSystem
             _moveAction.AddBinding("<Gamepad>/leftStick");
             _moveAction.Enable();
 
+            // Listener para invalidar cache cuando el wheel se desconecta.
+            // Sin esto, los InputControl<float> cacheados quedan apuntando a un
+            // device con added=false y ReadValue() lanza InvalidOperationException
+            // por frame (verificado en logs S3 — 4995 exceptions/83s, ver FIX#19).
+            _deviceChangeHandler = OnDeviceChange;
+            InputSystem.onDeviceChange += _deviceChangeHandler;
+
             TryDetectWheel(); // primer intento; Update() hace polling si aún no está
+        }
+
+        // Llamado por Unity Input System cuando algún device cambia de estado.
+        // Reaccionamos solo a Removed/Disconnected/Disabled — UsageChanged es
+        // demasiado amplio (cambios de "primary"/"secondary"), SoftReset/HardReset
+        // no implican device inválido (solo resetean estado interno).
+        private void OnDeviceChange(InputDevice device, InputDeviceChange change)
+        {
+            if (device != _wheelDevice) return;
+            if (change != InputDeviceChange.Removed
+                && change != InputDeviceChange.Disconnected
+                && change != InputDeviceChange.Disabled) return;
+
+            Debug.LogWarning($"[UIInputNew] Wheel device {change}: {device.displayName}. Reseteando cache.");
+            _hasWheel = false;
+            _wheelDevice = null;
+            _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
+            _crossCtrls = System.Array.Empty<InputControl<float>>();
+            _triangleCtrl = null; _restartCtrl = null;
+            _l1Ctrl = null; _r1Ctrl = null;
+            _l2Ctrl = null; _r2Ctrl = null;
+            _l3Ctrl = null; _r3Ctrl = null;
+            _gearControls = System.Array.Empty<InputControl<float>>();
+            _detectionTimer = 999f; // forzar re-detect en el próximo Update
+        }
+
+        // Lectura segura de InputControl<float>: valida que el device esté en el
+        // sistema antes de leer; si la lectura tira InvalidOperationException
+        // (race entre onDeviceChange y reads del frame en curso) la atrapamos
+        // silenciosamente en lugar de spamear el log 60 veces/segundo.
+        private static bool SafeReadFloat(InputControl<float> ctrl, out float value)
+        {
+            value = 0f;
+            if (ctrl == null) return false;
+            var dev = ctrl.device;
+            if (dev == null || !dev.added) return false;
+            try { value = ctrl.ReadValue(); return true; }
+            catch (System.InvalidOperationException) { return false; }
         }
 
         // Detecta el volante y cachea todos los controles. Idempotente:
@@ -442,7 +489,7 @@ namespace Gley.UrbanSystem
 
         private bool IsPressed(InputControl<float> ctrl)
         {
-            return ctrl != null && ctrl.ReadValue() > 0.5f;
+            return SafeReadFloat(ctrl, out var v) && v > 0.5f;
         }
 
         private bool IsAnyPressed(InputControl<float>[] arr)
@@ -511,7 +558,7 @@ namespace Gley.UrbanSystem
             // ---- Steering: calibrado + deadzone + curva racional ----
             if (_hasWheel)
             {
-                float rawSteer = _steerCtrl != null ? _steerCtrl.ReadValue() : _steerCenter;
+                float rawSteer = SafeReadFloat(_steerCtrl, out var rs) ? rs : _steerCenter;
                 float norm = NormalizeSteer(rawSteer); // [-1, 1] sobre rango físico real
 
                 // Deadzone: si |norm| < deadzone, considerar centro (elimina micro-ruido)
@@ -557,8 +604,8 @@ namespace Gley.UrbanSystem
                 else if (_hasWheel)
                 {
                     // Sin teclado: pedales del volante, mantener último gear
-                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
-                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
+                    float gasRaw = SafeReadFloat(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float brakeRaw = SafeReadFloat(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
                     float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
@@ -593,8 +640,8 @@ namespace Gley.UrbanSystem
                 }
                 else if (_hasWheel)
                 {
-                    float gasRaw = _gasCtrl != null ? _gasCtrl.ReadValue() : _gasRest;
-                    float brakeRaw = _brakeCtrl != null ? _brakeCtrl.ReadValue() : _brakeRest;
+                    float gasRaw = SafeReadFloat(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float brakeRaw = SafeReadFloat(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
                     float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
@@ -702,9 +749,9 @@ namespace Gley.UrbanSystem
                 if (_debugLogTimer >= 2f)
                 {
                     _debugLogTimer = 0f;
-                    float st = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
-                    float gr = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
-                    float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                    float st = SafeReadFloat(_steerCtrl, out var rds) ? rds : 0f;
+                    float gr = SafeReadFloat(_gasCtrl, out var rdg) ? rdg : 1f;
+                    float br = SafeReadFloat(_brakeCtrl, out var rdb) ? rdb : 1f;
                     Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} | auto={_isAutomaticMode} gear={_currentGear}");
                 }
             }
@@ -727,9 +774,9 @@ namespace Gley.UrbanSystem
             info += "Mode: " + (_isAutomaticMode ? "AUTO" : "MANUAL") + "\n";
             if (_hasWheel)
             {
-                float st = _steerCtrl != null ? _steerCtrl.ReadValue() : 0f;
-                float gr = _gasCtrl != null ? _gasCtrl.ReadValue() : 1f;
-                float br = _brakeCtrl != null ? _brakeCtrl.ReadValue() : 1f;
+                float st = SafeReadFloat(_steerCtrl, out var ovs) ? ovs : 0f;
+                float gr = SafeReadFloat(_gasCtrl, out var ovg) ? ovg : 1f;
+                float br = SafeReadFloat(_brakeCtrl, out var ovb) ? ovb : 1f;
                 info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3}\n";
                 info += $"CALC V={verticalInput:F3} B={brakeInput:F3} gear={_currentGear}\n";
                 info += $"CAL  gas rest={_gasRest:F2} press={_gasPress:F2}\n";
@@ -772,6 +819,11 @@ namespace Gley.UrbanSystem
             onButtonUp -= PointerUp;
 #else
             _moveAction?.Disable(); _moveAction?.Dispose();
+            if (_deviceChangeHandler != null)
+            {
+                InputSystem.onDeviceChange -= _deviceChangeHandler;
+                _deviceChangeHandler = null;
+            }
 #endif
         }
     }
