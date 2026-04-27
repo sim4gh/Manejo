@@ -121,6 +121,12 @@ namespace Gley.UrbanSystem
         private InputControl<float> _triangleCtrl;   // drive
         private InputControl<float> _restartCtrl;    // botón único de reinicio (nuevo)
         private bool _lastCrossPressed;
+        // Timestamp del último frame con señal de reversa activa.
+        // Permite que la palanca H quede en R aunque el HID reporte button18
+        // como pulsos transitorios (1 frame on, 1 off). Solo volvemos a D
+        // cuando llevemos >REVERSE_HOLD_SECONDS sin ver señal.
+        private float _reverseLastSeenTime = -999f;
+        private const float REVERSE_HOLD_SECONDS = 0.3f;
         private bool _lastTrianglePressed;
         private bool _lastRestartPressed;
         private float _menuComboTimer;
@@ -474,13 +480,31 @@ namespace Gley.UrbanSystem
             // Parámetros tuneable (panel F9)
             ReloadTuning();
 
+            // Reportar qué paths de _crossCtrls realmente resolvieron en este device.
+            // Si Bind_reverse="button2|button18" pero solo button2 resolvió, el log
+            // dirá "[button2]" — señal que button18 vive en otro device (separate
+            // shifter HID) y necesita FIX multi-device.
+            string crossPathsResolved = "";
+            if (_crossCtrls != null)
+            {
+                string[] requestedPaths = (_bindReverse ?? "").Split('|');
+                int idx = 0;
+                foreach (var rp in requestedPaths)
+                {
+                    string trimmed = rp.Trim();
+                    bool resolved = idx < _crossCtrls.Length && _crossCtrls[idx] != null;
+                    crossPathsResolved += $"{trimmed}={resolved} ";
+                    if (resolved) idx++;
+                }
+            }
             Debug.Log($"[UIInputNew] Volante adjuntado ({reason}): {device.displayName}"
                 + $" | layout={device.layout} | product='{device.description.product}'"
                 + $" | manufacturer='{device.description.manufacturer}' | deviceId={device.deviceId}"
                 + $" | axes={axisCount} buttons={buttonCount}"
                 + $" | steer={_steerCtrl != null} gas[{gasPath}]={_gasCtrl != null}"
                 + $" brake[{brakePath}]={_brakeCtrl != null}"
-                + $" reverse_paths={(_crossCtrls != null ? _crossCtrls.Length : 0)}");
+                + $" reverse_paths_count={(_crossCtrls != null ? _crossCtrls.Length : 0)}"
+                + $" reverse_resolved=[{crossPathsResolved.Trim()}]");
             return true;
         }
 
@@ -664,16 +688,25 @@ namespace Gley.UrbanSystem
                     verticalInput = gas;
                     brakeInput = brake;
 
-                    // Reversa POSICIONAL: gear = -1 mientras la señal de reversa
-                    // esté activa (palanca H en R, o Cross PS sostenido). Cuando
-                    // se libera, vuelve a Drive automáticamente. Antes era
-                    // edge-trigger y dejaba el coche atorado en R al sacar la
-                    // palanca de la posición de reversa.
+                    // Reversa híbrida: edge-trigger para entrar (robusto a pulsos
+                    // transitorios del HID) + debounce de "última señal vista" para
+                    // salir (vuelve a Drive cuando llevemos >300ms sin reversa).
+                    // FIX#23 era posicional puro, pero si el driver reporta button18
+                    // como pulsos de 1 frame, gear oscilaba entre -1 y 1 cada frame
+                    // y se percibía como "no se reconoce reversa".
+                    // Triangle solo override Drive si la reversa NO está activa
+                    // ni vista recientemente — evita que un pulso espurio de
+                    // Triangle saque al usuario de R.
                     bool crossNow = IsAnyPressed(_crossCtrls);
                     bool triNow   = IsPressed(_triangleCtrl);
-                    if (crossNow)        _currentGear = -1; // reversa mientras se sostenga
-                    else if (triNow)     _currentGear = 1;  // botón Drive explícito
-                    else if (_lastCrossPressed) _currentGear = 1; // soltó reversa → vuelve a Drive
+                    if (crossNow) _reverseLastSeenTime = Time.realtimeSinceStartup;
+                    bool reverseRecentlySeen =
+                        Time.realtimeSinceStartup - _reverseLastSeenTime <= REVERSE_HOLD_SECONDS;
+                    if (crossNow && !_lastCrossPressed) _currentGear = -1; // edge engage R
+                    if (triNow && !_lastTrianglePressed && !reverseRecentlySeen)
+                        _currentGear = 1; // edge engage D solo si no estamos en R
+                    if (_currentGear == -1 && !crossNow && !triNow && !reverseRecentlySeen)
+                        _currentGear = 1; // auto-exit a Drive tras 300ms sin señal
                     _lastCrossPressed = crossNow;
                     _lastTrianglePressed = triNow;
                 }
@@ -805,7 +838,10 @@ namespace Gley.UrbanSystem
                     float st = SafeReadFloat(_steerCtrl, out var rds) ? rds : 0f;
                     float gr = SafeReadFloat(_gasCtrl, out var rdg) ? rdg : 1f;
                     float br = SafeReadFloat(_brakeCtrl, out var rdb) ? rdb : 1f;
-                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} | auto={_isAutomaticMode} gear={_currentGear}");
+                    bool crossDbg = IsAnyPressed(_crossCtrls);
+                    int crossLen = _crossCtrls != null ? _crossCtrls.Length : 0;
+                    float reverseAge = Time.realtimeSinceStartup - _reverseLastSeenTime;
+                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} | auto={_isAutomaticMode} gear={_currentGear} | crossCtrls={crossLen} crossNow={crossDbg} revAge={reverseAge:F2}s");
                 }
             }
 #endif
