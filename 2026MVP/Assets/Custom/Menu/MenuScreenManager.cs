@@ -287,7 +287,8 @@ public class MenuScreenManager : MonoBehaviour
     void BuildHeader()
     {
         // Título grande, bold, centrado — como en el wireframe
-        MenuCardBuilder.CreateText(transform, "MainTitle", "Prueba de Manejo",
+        // Versión leída dinámicamente de Application.version (Edit > Project Settings > Player > Version)
+        MenuCardBuilder.CreateText(transform, "MainTitle", "Prueba de Manejo  v" + Application.version,
             MenuTheme.HeaderTitleSize, FontStyles.Bold, MenuTheme.TextPrimary,
             TextAlignmentOptions.Center)
             .GetComponent<RectTransform>().Set(
