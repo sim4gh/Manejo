@@ -16,14 +16,10 @@ public class MultiPantallaManager : MonoBehaviour
         if (!camaraIzquierda) camaraIzquierda = FindCameraByName("Camara_Izquierda", "CamaraIzquierda");
         if (!camaraDerecha)   camaraDerecha   = FindCameraByName("Camara_Derecha", "CamaraDerecha");
 
-        // Fallback rig (caso moto): si NINGUNA cámara nombrada se encontró,
-        // buscamos un padre tipo "CockpitCamera" que sea solo un Transform con
-        // varias Camera hijas (una por display) y las identificamos por yaw —
-        // la frontal tiene yaw≈0, las laterales tienen yaw negativo (izq) o
-        // positivo (der). Gating estricto (todas null, no any null) para evitar
-        // sets híbridos si una escena rara tuviera ambas convenciones a la vez:
-        // mejor mantener "named-set" o "rig-set" de forma coherente.
-        if (camaraCentro == null && camaraIzquierda == null && camaraDerecha == null)
+        // Fallback rig: si alguna cámara no se encontró por nombre, buscar bajo
+        // "CockpitCamera" (Transform con Camera hijas) e identificarlas por yaw.
+        // Solo rellena las que faltan — las ya encontradas por nombre no se pisan.
+        if (camaraCentro == null || camaraIzquierda == null || camaraDerecha == null)
         {
             ResolveFromCockpitRig("CockpitCamera");
         }
