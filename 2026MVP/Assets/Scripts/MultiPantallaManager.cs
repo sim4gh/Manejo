@@ -12,9 +12,9 @@ public class MultiPantallaManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        if (!camaraCentro)    camaraCentro    = FindCameraByName("Camara_Centro");
-        if (!camaraIzquierda) camaraIzquierda = FindCameraByName("Camara_Izquierda");
-        if (!camaraDerecha)   camaraDerecha   = FindCameraByName("Camara_Derecha");
+        if (!camaraCentro)    camaraCentro    = FindCameraByName("Camara_Centro", "CamaraCentro", "CockpitCamera");
+        if (!camaraIzquierda) camaraIzquierda = FindCameraByName("Camara_Izquierda", "CamaraIzquierda");
+        if (!camaraDerecha)   camaraDerecha   = FindCameraByName("Camara_Derecha", "CamaraDerecha");
     }
 
     void Start()
@@ -67,9 +67,18 @@ public class MultiPantallaManager : MonoBehaviour
         Debug.Log($"[MultiPantalla] Modo 3 pantallas (centro={dc}, izq={dl}, der={dr})");
     }
 
-    static Camera FindCameraByName(string name)
+    static Camera FindCameraByName(params string[] names)
     {
-        var go = GameObject.Find(name);
-        return go ? go.GetComponent<Camera>() : null;
+        foreach (var name in names)
+        {
+            var go = GameObject.Find(name);
+            if (go != null)
+            {
+                var cam = go.GetComponent<Camera>();
+                if (cam != null) return cam;
+            }
+        }
+        Debug.LogWarning($"[MultiPantalla] No se encontró cámara: {string.Join(", ", names)}");
+        return null;
     }
 }
