@@ -48,6 +48,14 @@ public class SimpleSpeedGauge : MonoBehaviour
         if (vehicle == null)
             vehicle = GameObject.Find("Player");
 
+        // Fallback: en escenas donde el GameObject del jugador no se llama "Player"
+        // (e.g. Motocicleta usa "Player_Moto_Completo"), buscamos por componente.
+        if (vehicle == null)
+        {
+            var pc = Object.FindFirstObjectByType<Gley.UrbanSystem.PlayerCar>();
+            if (pc != null) vehicle = pc.gameObject;
+        }
+
         if (vehicle != null)
         {
             vehicleRb = vehicle.GetComponent<Rigidbody>();

@@ -42,16 +42,34 @@ public static class ExamBootstrap
 
     static void Setup()
     {
-        if (ExamTimer.Instance != null) return;
+        if (ExamTimer.Instance == null)
+        {
+            Debug.Log("[ExamBootstrap] Inyectando ExamTimer en escena de manejo");
+            GameObject obj = new GameObject("ExamTimerManager");
+            obj.AddComponent<ExamTimer>();
+        }
 
-        Debug.Log("[ExamBootstrap] Inyectando ExamTimer en escena de manejo");
-        GameObject obj = new GameObject("ExamTimerManager");
-        obj.AddComponent<ExamTimer>();
+        // Si la escena no tiene un velocímetro activo (caso Motocicleta — el
+        // SpeedGauge serializado vive bajo un GameObject "Player" desactivado),
+        // spawneamos un HUD procedural mínimo para que igual se muestre la velocidad.
+        EnsureSpeedHud();
 
         // Aplicar scoring config del backend a todos los detectores
         if (ScoringConfig.Instance != null)
         {
             ScoringConfig.Instance.ApplyToDetectors();
         }
+    }
+
+    static void EnsureSpeedHud()
+    {
+        // Solo cuenta una instancia activa: FindFirstObjectByType ya filtra inactivos.
+        var active = Object.FindFirstObjectByType<SimpleSpeedGauge>();
+        if (active != null) return;
+        if (Object.FindFirstObjectByType<FallbackSpeedHud>() != null) return;
+
+        Debug.Log("[ExamBootstrap] Sin SpeedGauge activo — spawning FallbackSpeedHud.");
+        GameObject hud = new GameObject("FallbackSpeedHudManager");
+        hud.AddComponent<FallbackSpeedHud>();
     }
 }

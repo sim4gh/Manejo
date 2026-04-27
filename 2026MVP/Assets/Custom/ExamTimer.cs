@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 using TMPro;
 
 /// <summary>
@@ -65,7 +66,7 @@ public class ExamTimer : MonoBehaviour
 
     void CreateTimerUI()
     {
-        // Buscar Canvas root — priorizar el que renderiza en el display principal
+        // Buscar Canvas root activo — priorizar el que renderiza en el display principal
 #pragma warning disable CS0618
         Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
 #pragma warning restore CS0618
@@ -97,10 +98,12 @@ public class ExamTimer : MonoBehaviour
         if (targetCanvas == null && canvases.Length > 0)
             targetCanvas = canvases[0];
 
+        // Si la escena no expone ningún Canvas activo (caso Motocicleta: el único
+        // Canvas vive bajo un GameObject "Player" desactivado), creamos uno propio
+        // como root para que el HUD del timer se renderice de todos modos.
         if (targetCanvas == null)
         {
-            Debug.LogWarning("[ExamTimer] No se encontró Canvas en la escena");
-            return;
+            targetCanvas = CreateFallbackRootCanvas();
         }
 
         // Garantizar que el Canvas elegido renderice en pantalla principal
@@ -283,5 +286,54 @@ public class ExamTimer : MonoBehaviour
         int min = (int)(seconds / 60f);
         int sec = (int)(seconds % 60f);
         return $"{min}:{sec:D2}";
+    }
+
+    /// <summary>
+    /// Crea un Canvas overlay root + EventSystem para escenas que no exponen ningún
+    /// Canvas activo (caso Motocicleta). Público para que otros HUD procedurales
+    /// (e.g. fallback del velocímetro) puedan reutilizar el mismo Canvas.
+    /// </summary>
+    public static Canvas EnsureFallbackHudCanvas()
+    {
+        const string canvasName = "ExamHudCanvas";
+        GameObject existing = GameObject.Find(canvasName);
+        if (existing != null)
+        {
+            Canvas c = existing.GetComponent<Canvas>();
+            if (c != null) return c;
+        }
+        return CreateFallbackRootCanvas();
+    }
+
+    static Canvas CreateFallbackRootCanvas()
+    {
+        Debug.Log("[ExamTimer] No había Canvas activo en la escena — creando ExamHudCanvas root.");
+
+        GameObject canvasObj = new GameObject("ExamHudCanvas");
+        Canvas canvas = canvasObj.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 1000;
+        canvas.targetDisplay = DisplayHelper.CenterDisplay;
+
+        CanvasScaler scaler = canvasObj.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+
+        canvasObj.AddComponent<GraphicRaycaster>();
+
+        // Asegurar EventSystem para que el Canvas pueda recibir input (defensivo —
+        // los HUD que añadimos hoy no son interactivos, pero futuros sí).
+#pragma warning disable CS0618
+        if (Object.FindObjectOfType<EventSystem>() == null)
+#pragma warning restore CS0618
+        {
+            GameObject es = new GameObject("EventSystem");
+            es.AddComponent<EventSystem>();
+            es.AddComponent<StandaloneInputModule>();
+        }
+
+        return canvas;
     }
 }
