@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.Controls;
 using TMPro;
 using System.Collections;
 
@@ -41,10 +42,24 @@ public class ExamResultsScreen : MonoBehaviour
         // Ignorar input el primer segundo para evitar skip accidental
         if (Time.realtimeSinceStartup - showTime < 1f) return;
 
-        // Cualquier tecla o clic para saltar el countdown
+        // Cualquier tecla para saltar el countdown
         if (Keyboard.current != null && Keyboard.current.anyKey.wasPressedThisFrame)
         {
             ReturnToMenu();
+            return;
+        }
+
+        // Cualquier botón del volante/joystick (en kiosko sin teclado)
+        if (Joystick.current != null)
+        {
+            foreach (var ctrl in Joystick.current.allControls)
+            {
+                if (ctrl is ButtonControl btn && btn.wasPressedThisFrame)
+                {
+                    ReturnToMenu();
+                    return;
+                }
+            }
         }
     }
 

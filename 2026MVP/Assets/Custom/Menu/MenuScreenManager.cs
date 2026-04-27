@@ -164,6 +164,7 @@ public class MenuScreenManager : MonoBehaviour
 
     void Start()
     {
+        Time.timeScale = 1f;
         LoadResources();
         SetupCanvas();
         ClearExistingChildren();
@@ -641,6 +642,7 @@ public class MenuScreenManager : MonoBehaviour
         req.uploadHandler = new UploadHandlerRaw(body);
         req.downloadHandler = new DownloadHandlerBuffer();
         req.SetRequestHeader("Content-Type", "application/json");
+        req.timeout = 10;
 
         yield return req.SendWebRequest();
 
@@ -679,7 +681,7 @@ public class MenuScreenManager : MonoBehaviour
     {
         while (true)
         {
-            yield return new WaitForSeconds(10f);
+            yield return new WaitForSecondsRealtime(10f);
 
             string url = KIOSK_API + "/" + sessionId + "/status";
             UnityWebRequest req = UnityWebRequest.Get(url);
@@ -1217,6 +1219,9 @@ public class MenuScreenManager : MonoBehaviour
         // Cancelar splash en curso si la pantalla se reabre
         if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
 
+        if (Time.timeScale != 1f)
+            Debug.LogWarning($"[MenuScreenManager] PrepareWheelScreen: timeScale={Time.timeScale}");
+
         // ── 1) Detectar dispositivo y comparar huella con la calibración guardada ──
         InputDevice dev = TryAttachToDevice();
 
@@ -1619,7 +1624,7 @@ public class MenuScreenManager : MonoBehaviour
 
     IEnumerator LoadSceneDelayed(float delay)
     {
-        yield return new WaitForSeconds(delay);
+        yield return new WaitForSecondsRealtime(delay);
         LoadSelectedScene();
     }
 
@@ -2140,6 +2145,9 @@ public class MenuScreenManager : MonoBehaviour
             Debug.LogError("[MenuScreenManager] No hay escena seleccionada");
             return;
         }
+        if (Time.timeScale != 1f)
+            Debug.LogWarning($"[MenuScreenManager] timeScale era {Time.timeScale} al cargar escena — reseteando a 1");
+        Time.timeScale = 1f;
         Debug.Log($"[MenuScreenManager] Iniciando sesión y cargando: {selectedSceneName} | Tramite: {tramiteId}");
         StartCoroutine(StartSessionAndLoadScene());
     }
