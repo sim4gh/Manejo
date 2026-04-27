@@ -53,15 +53,16 @@ public class BindingsPanel : MonoBehaviour
     // nunca dispara wasPressedThisFrame y la asignación falla).
     Dictionary<string, bool> buttonBaseline;
 
-    // Paths fantasma del G923 PS: SIEMPRE reportan estado fijo, no son input
-    // del usuario. Si F8 o Pantalla 2 los captura, el binding queda inservible
-    // (verificado en F7 en kiosk: button19=PRESSED, stick/y=-1, stick/down=PRESSED
-    // de manera constante sin tocar nada). Los del stick/up..right son los
-    // componentes derivados del eje stick — no son botones independientes.
+    // Paths que NO se deben usar como bindings normales:
+    //  - stick/y siempre reporta -1 en el G923 PS del kiosk (eje no usado).
+    //  - stick/up/down/left/right son los componentes ButtonControl derivados
+    //    del eje stick/x — no son botones independientes, son alias del axis.
+    // NO se incluye button19 — en este G923 button19 ES la posición R del
+    // H-shifter (verificado en F7), aunque parezca "always-on" si el operador
+    // deja el shifter en R durante el test del panel.
     static readonly System.Collections.Generic.HashSet<string> PHANTOM_PATHS =
         new System.Collections.Generic.HashSet<string>
         {
-            "button19",
             "stick/up", "stick/down", "stick/left", "stick/right",
             "stick/y",
         };
