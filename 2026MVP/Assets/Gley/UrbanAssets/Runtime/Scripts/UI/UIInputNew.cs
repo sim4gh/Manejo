@@ -131,7 +131,7 @@ namespace Gley.UrbanSystem
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
         // sobreescribir para otros volantes (ej. G923 Xbox usa otros paths).
         private string _bindSteerAxis = "stick/x";  // eje del volante
-        private string _bindReverse = "button18";
+        private string _bindReverse = "button2|button18";
         private string _bindDrive = "button4";
         private string _bindPaddleLeft = "button6";
         private string _bindPaddleRight = "button5";
@@ -153,12 +153,11 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_RESTART_B = "Bind_restartB";
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
-        // Default = button18, posición R del H-shifter del G923. NO incluir
-        // stick/down: ese eje se activa al meter CUALQUIER marcha (forward
-        // también), por lo que en automático cualquier toque a la palanca
-        // dispararía reversa. Cuando el usuario calibre vía Pantalla 2 o F8,
-        // este default queda overrideado.
-        public const string DEFAULT_BIND_REVERSE = "button18";
+        // Pre-Wednesday (commit 0ad7aaf): reversa era button2 (Cross PS).
+        // Multi-path: aceptar también button18 (R del H-shifter), por si el
+        // operador prefiere usar la palanca. NO incluir stick/down (ese eje
+        // se activa con CUALQUIER marcha del shifter — falsos positivos).
+        public const string DEFAULT_BIND_REVERSE = "button2|button18";
         public const string DEFAULT_BIND_DRIVE = "button4";
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
@@ -378,32 +377,31 @@ namespace Gley.UrbanSystem
         // Logitech/G923 (MatchesWheelName); otros wheels conservan calibración.
         private void EnsureG923PSDefaults(InputDevice device)
         {
-            string brake = PlayerPrefs.GetString("G923_BrakeAxis", "");
-            string gas   = PlayerPrefs.GetString("G923_GasAxis", "");
-            string steer = PlayerPrefs.GetString(PREF_BIND_STEER_AXIS, "");
-
-            // Si los 3 paths críticos ya calzan con G923 PS, respetar
-            // calibración existente (incluyendo rests/presses tuneados).
-            bool pathsOk = brake == "rz" && gas == "z" && steer == "stick/x";
-            if (pathsOk) return;
-
-            Debug.LogWarning($"[UIInputNew] Calibración no calza con G923 PS"
-                + $" (brake={brake}, gas={gas}, steer={steer}). Aplicando defaults.");
+            // FORZAR pre-Wednesday mapping en CADA boot. La calibración de
+            // Pantalla 2 capturó paths/rangos equivocados varias veces; el
+            // mapping pre-Wed (commit 0ad7aaf) era simple y funcionaba:
+            //   stick/x = volante, z = gas, rz = freno, button2 = reversa
+            //   range pedal: rest=1, press=-1 (formula (1-raw)/2 daba 0..1)
+            // Para overrides finos: F9 (curvas) o editar PlayerPrefs manual.
+            Debug.Log($"[UIInputNew] Aplicando mapping pre-Wednesday G923 PS"
+                + $" (sobrescribe calibración previa para predictibilidad).");
 
             PlayerPrefs.SetString("G923_GasAxis", "z");
             PlayerPrefs.SetString("G923_BrakeAxis", "rz");
             PlayerPrefs.SetString(PREF_BIND_STEER_AXIS, "stick/x");
-            // Pedales G923 PS: rest=1.0 (arriba), press=0.0 (abajo).
-            // No usamos -1.0 porque los pedales reales no llegan a -1
-            // (esos son ejes de stick centrados).
+            PlayerPrefs.SetString(PREF_BIND_REVERSE, "button2|button18");
+            // Pre-Wed pedales: range raw 1.0 (rest) → -1.0 (press completo).
+            // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
             PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
-            PlayerPrefs.SetFloat("G923_GasPress",   0.0f);
+            PlayerPrefs.SetFloat("G923_GasPress",  -1.0f);
             PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
-            PlayerPrefs.SetFloat("G923_BrakePress", 0.0f);
+            PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
             // Steering rango simétrico estándar.
             PlayerPrefs.SetFloat("G923_SteerCenter", 0.0f);
             PlayerPrefs.SetFloat("G923_SteerMax",    1.0f);
             PlayerPrefs.SetFloat("G923_SteerMin",   -1.0f);
+            // Limpiar el flag que hace que Pantalla 2 fuerce Discovery.
+            PlayerPrefs.SetInt("Cal_ReverseDone", 1);
             PlayerPrefs.Save();
         }
 
