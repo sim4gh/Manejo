@@ -71,7 +71,25 @@ Tras 3 fallos consecutivos descarta el buffer (evita memory leak si la red esta 
 
 **Portal admin:** `/admin/simuladores/pcs/[pcId]/logs` lista los archivos con paginacion, descarga via presigned GET de 5min.
 
-`bundleVersion` se reporta al backend en `appVersion` via `Application.version` (cambiar en `Edit -> Project Settings -> Player -> Version`). Actual: `1.0.4`.
+`bundleVersion` se reporta al backend en `appVersion` via `Application.version` (cambiar en `Edit -> Project Settings -> Player -> Version`). Desde **1.0.11** se manda en cada heartbeat (campo `appVersion` en `HeartbeatRequest`) — el backend lo usa para auto-confirm honesto del install OTA.
+
+### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
+
+Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Flujo:
+
+1. `SimulatorApiClient.SendHeartbeat()` recibe `pendingUpdate` del backend cada ~3 min.
+2. `AutoUpdater.ProcessPendingUpdate(data)` filtra por status (PENDING o FAILED — DOWNLOADING/INSTALLING ya en progreso, INSTALLED ignorado).
+3. `RequestAndDownload()`: POST `/simulator/request-update` -> recibe `downloadUrl` (CloudFront `cdn.{env}.simuladores.mexicalab.com`), reporta DOWNLOADING, descarga con `UnityWebRequest.Get` + `DownloadHandlerFile`, valida SHA256.
+4. Reporta DOWNLOADED, llama `InstallUpdate()`.
+5. `InstallUpdate()`: reporta INSTALLING (fire-and-forget), genera `update.bat` en `persistentDataPath/update.bat`, ejecuta y hace `Application.Quit()`.
+6. El bat extrae el ZIP a staging, **`xcopy /s /e /y "<staging>\*" "<appDir>\"`** copia archivos root + subdirs preservando estructura, corre `Unblock-File` para limpiar Mark-of-the-Web, lanza `Tlax2026MVP.exe` nuevo.
+7. El nuevo `.exe` arranca, su heartbeat reporta `Application.version = nuevaVersion` -> backend matchea `pendingUpdate.version` -> auto-confirma INSTALLED honestamente.
+
+**Bug histórico (resuelto en 1.0.10+):** el bat tenia `for /d %%D in ("staging\*")` que solo iteraba subdirectorios y NUNCA copiaba `Tlax2026MVP.exe` ni `UnityPlayer.dll` (archivos root del ZIP). Por eso el OTA fallaba en silencio entre 1.0.7-1.0.8 — la PC seguia corriendo el .exe viejo.
+
+**Logs locales:** `<appDir>\install.log` con timestamps de cada step (Expand-Archive OK, xcopy OK, etc.) — primer lugar a mirar si un install falla.
+
+**Bootstrap manual:** `Manejo/2026MVP/scripts/bootstrap-install.ps1` para migrar PCs con bat viejo a una build nueva. Una vez por kiosko, despues los OTA siguientes funcionan solos.
 
 ### NPCs - Sistema de Camion (`Assets/NPCs/CamionNPC-s/`)
 
@@ -126,8 +144,7 @@ Tras 3 fallos consecutivos descarta el buffer (evita memory leak si la red esta 
 |---|--------|----------|-------------|
 | 1 | MainMenu | — | Menu principal con input de expediente |
 | 2 | Carretera | Player Original | Escena principal del examen de manejo (UrbanExample) |
-| 3 | Jetta | Jetta | Examen con vehiculo Jetta |
-| 4 | Camioneta | Camioneta | Examen con camioneta |
+| 3 | Camioneta | Camioneta | Examen con camioneta (SUV en UI) |
 | 5 | Bus Pasajeros | Bus | Examen con autobus de pasajeros |
 | 6 | Camion D Carga | Camion | Examen con camion de carga |
 | 7 | Motocicleta | Moto | Examen con motocicleta |
@@ -148,7 +165,7 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 - Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
 
 ### Pantalla 1 — Configuracion (solo licenseType=particular)
-- Seleccion de modelo: Sedan→`"carretera"`, Jetta→`"Jetta"`, Camioneta→`"Camioneta"`
+- Seleccion de modelo: Sedan→`"Sedan"`, SUV→`"Camioneta"` (Jetta removido — UI muestra "SUV", escena real sigue siendo "Camioneta")
 - Seleccion de transmision: Automatica/Manual → `PlayerPrefs["TransmisionManual"]`
 - Default: Sedan + Automatica
 
@@ -192,7 +209,7 @@ invalida automaticamente y la pantalla cae en Discovery.
 | `G923_Steer*`, `G923_Gas*`, `G923_Brake*` | float | Pantalla 2 | Rangos de calibracion (rest/press/min/max). Consumidos por `UIInputNew.cs`. |
 
 ### Mapeo licenseType → escena
-- `particular` → depende de modelo (carretera/Jetta/Camioneta)
+- `particular` → depende de modelo (Sedan/Camioneta)
 - `motocicleta` → `"Motocicleta"`
 - `publico` → `"BusPasajeros"`
 - `carga` → `"CamionDCarga"`
