@@ -126,6 +126,19 @@ En modo automático, los botones del hub del G923 controlan Drive/Reversa:
 | `Assets/Custom/MainMenuController.cs` | Menu principal: selector de transmision auto/manual (PlayerPrefs) |
 | `Assets/Custom/ViolationDetector.cs` | Detecta infracciones. Lee velocidad del Rigidbody |
 | `Assets/pruebas general/DetectaControl.cs` | Debug: lista todos los dispositivos HID y sus controles en consola |
+| `Assets/Custom/LogConsolePanel.cs` | **F7 hold 1.5s** — consola en runtime: devices, inputs en vivo (boton/eje + valores), PlayerPrefs, feed de Debug.Log |
+| `Assets/Custom/BindingsPanel.cs` | **F8 hold 1.5s** — remapea reversa/drive/paddles/combos en vivo, guarda en PlayerPrefs `Bind_*` |
+| `Assets/Custom/AdvancedInputPanel.cs` | **F9 hold 1.5s** — sliders para curva volante, deadzone, freno por tramos, curva gas (PlayerPrefs `Adv_*`) |
+
+## Paneles de diagnostico en runtime
+
+Para descubrir el nombre tecnico de cualquier control del volante (reversa, paddles, ejes de pedal) sin recompilar:
+
+1. **Mantener F7 1.5s** abre `LogConsolePanel` — muestra todos los devices conectados, todos los botones presionados y todos los ejes que se han movido (con valor actual, baseline al abrir y rango min/max historico).
+2. Pisar el pedal o pulsar el boton a investigar — aparece en la columna "INPUTS EN VIVO" con su path tecnico (ej. `button5`, `z`, `stick/x`).
+3. Para asignar permanentemente ese path a una accion del juego: cerrar F7, mantener F8 -> `BindingsPanel`, click en `[Detectar]` de la accion y mover/presionar el control. Se guarda en PlayerPrefs y `UIInputNew.ReloadBindings()` lo recoge.
+
+**macOS:** las teclas F7-F12 son media keys por defecto (anterior/play/siguiente/mute/vol). Activar Sys Settings -> Keyboard -> "Use F1, F2, etc. keys as standard function keys", o usar `fn+F8`. Si nada aparece en LogConsolePanel al mantener una F-key, el SO la esta interceptando.
 
 ## Notas tecnicas
 

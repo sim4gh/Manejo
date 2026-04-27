@@ -139,7 +139,11 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 ### Pantalla 0 — Verificacion (QR o codigo manual)
 - **QR**: POST `/kiosk/sessions` → genera QR → poll cada 10s → al verificarse obtiene `tramiteId`, `citizenName`, `licenseType`
 - **Codigo manual**: Input "TLX-XXXXXX" → GET `/simulator/lookup?code={code}` → misma info
-- **Demo codes**: 0000=particular, 1111=publico, 2222=motocicleta, 3333=carga
+- **Demo codes** (5 digitos, normalizados con `.Trim().ToUpper()`):
+  - `00000` → `TLX-DEMO00000` "Demo Automovil" `particular` (abre Pantalla 1 de seleccion de modelo)
+  - `11111` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
+  - `22222` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
+  - `33333` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
 - **Clima**: aleatorio (`PlayerPrefs["Cargolluvia"] = Random.Range(0,2)`)
 - Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
 

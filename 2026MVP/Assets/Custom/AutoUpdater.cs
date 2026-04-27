@@ -247,28 +247,61 @@ public class AutoUpdater : MonoBehaviour
         string exePath = Path.Combine(appDir, exeName);
         string stagingDir = Path.Combine(Application.persistentDataPath, "updates", "staging");
         string batPath = Path.Combine(Application.persistentDataPath, "update.bat");
+        string installLog = Path.Combine(appDir, "install.log");
 
+        // Notas:
+        // 1. Expand-Archive + Unblock-File en una sola llamada PowerShell — quita
+        //    el Mark-of-the-Web (MotW) que heredan todos los archivos al venir de
+        //    un ZIP descargado de internet. Sin esto, Windows SmartScreen pide
+        //    confirmación al usuario al arrancar el .exe nuevo (kiosko se queda
+        //    esperando un click).
+        // 2. xcopy directo desde stagingDir\* (no for /d). El loop con /d que
+        //    teníamos antes solo iteraba subdirectorios y dejaba los archivos
+        //    root del ZIP (Tlax2026MVP.exe, UnityPlayer.dll) sin copiar — el
+        //    .exe nuevo nunca llegaba a appDir y la PC seguía corriendo el viejo.
+        // 3. Después del xcopy también corremos Unblock-File sobre el directorio
+        //    de instalación: por si quedó algún archivo previo bloqueado.
+        // 4. -ExecutionPolicy Bypass evita prompts de policy en máquinas con
+        //    políticas restrictivas.
+        // 5. install.log queda en appDir con timestamps de cada step + exit
+        //    codes — sin esto, debug del install es adivinanza pura.
+        string psFlags = "-NoProfile -ExecutionPolicy Bypass -Command";
         string batContent = $@"@echo off
+setlocal enabledelayedexpansion
 echo Instalando actualizacion del simulador v{LatestVersion}...
+echo. >> ""{installLog}""
+echo === Install v{LatestVersion} === %DATE% %TIME% >> ""{installLog}""
 timeout /t 3 /nobreak >nul
 
-echo Extrayendo archivos...
-powershell -Command ""Expand-Archive -Path '{downloadedZipPath}' -DestinationPath '{stagingDir}' -Force""
+echo Extrayendo archivos y limpiando Mark-of-the-Web...
+powershell {psFlags} ""Expand-Archive -Path '{downloadedZipPath}' -DestinationPath '{stagingDir}' -Force; Get-ChildItem -Path '{stagingDir}' -Recurse -File | Unblock-File""
 if %ERRORLEVEL% NEQ 0 (
-    echo ERROR: Fallo la extraccion del ZIP
+    echo ERROR: Fallo la extraccion del ZIP (errorlevel %ERRORLEVEL%)
+    echo %DATE% %TIME% Expand-Archive FAILED %ERRORLEVEL% >> ""{installLog}""
     exit /b 1
 )
+echo %DATE% %TIME% Expand-Archive OK >> ""{installLog}""
 
 echo Copiando archivos nuevos...
-for /d %%D in (""{stagingDir}\*"") do (
-    xcopy /s /e /y ""%%D\*"" ""{appDir}\""
+xcopy /s /e /y ""{stagingDir}\*"" ""{appDir}\""
+if %ERRORLEVEL% NEQ 0 (
+    echo ERROR: xcopy fallo con errorlevel %ERRORLEVEL%
+    echo %DATE% %TIME% xcopy FAILED %ERRORLEVEL% >> ""{installLog}""
+    exit /b 1
 )
+echo %DATE% %TIME% xcopy OK >> ""{installLog}""
+
+echo Limpiando Mark-of-the-Web del directorio destino...
+powershell {psFlags} ""Get-ChildItem -Path '{appDir}' -Recurse -File | Unblock-File""
+echo %DATE% %TIME% Unblock-File appDir done >> ""{installLog}""
 
 echo Limpiando archivos temporales...
 rmdir /s /q ""{stagingDir}""
 del ""{downloadedZipPath}""
+echo %DATE% %TIME% temp cleanup done >> ""{installLog}""
 
 echo Reiniciando simulador...
+echo %DATE% %TIME% launching {exeName} >> ""{installLog}""
 start """" ""{exePath}""
 
 echo Borrando este script...

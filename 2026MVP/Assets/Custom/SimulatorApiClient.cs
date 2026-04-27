@@ -355,6 +355,78 @@ public static class SimulatorApiClient
     private class HeartbeatRequest
     {
         public string pcId;
+        // appVersion es Application.version del binario corriendo. El backend lo
+        // usa como evidencia LIVE para auto-confirmar INSTALLED cuando matchea
+        // pendingUpdate.version (=> install exitoso, limpia pendingUpdate). Sin
+        // este campo el backend no tiene forma honesta de detectar éxito de un
+        // install OTA porque el cliente nunca llama explícitamente
+        // ReportUpdateStatus("INSTALLED").
+        public string appVersion;
+        public CalibrationPayload calibration;
+    }
+
+    // Subset de PlayerPrefs que el portal admin necesita para visualizar la
+    // calibración del volante/pedales. Sólo se rellenan campos con valor real;
+    // backend hace whitelist y descarta lo demás.
+    [System.Serializable]
+    public class CalibrationPayload
+    {
+        public string deviceFingerprint;
+        public bool reverseDone;
+        // Bindings (BindingsPanel F8 + Pantalla 2)
+        public string bindSteerAxis;
+        public string bindReverse;
+        public string bindDrive;
+        public string bindPaddleLeft;
+        public string bindPaddleRight;
+        // Volante (Pantalla 2)
+        public float steerCenter;
+        public float steerMax;
+        public float steerMin;
+        // Pedales (Pantalla 2)
+        public string gasAxis;
+        public float gasRest;
+        public float gasPress;
+        public string brakeAxis;
+        public float brakeRest;
+        public float brakePress;
+        // Tuning runtime (AdvancedInputPanel F9)
+        public float advSteerCurveA;
+        public float advSteerDeadzone;
+        public float advBrakeSoftEnd;
+        public float advBrakeSoftMaxOutput;
+        public float advGasCurveN;
+        // Misc
+        public bool transmisionManual;
+    }
+
+    private static CalibrationPayload BuildCalibrationPayload()
+    {
+        return new CalibrationPayload
+        {
+            deviceFingerprint    = PlayerPrefs.GetString("Cal_DeviceFingerprint", ""),
+            reverseDone          = PlayerPrefs.GetInt("Cal_ReverseDone", 0) == 1,
+            bindSteerAxis        = PlayerPrefs.GetString("Bind_steerAxis", ""),
+            bindReverse          = PlayerPrefs.GetString("Bind_reverse", ""),
+            bindDrive            = PlayerPrefs.GetString("Bind_drive", ""),
+            bindPaddleLeft       = PlayerPrefs.GetString("Bind_paddleLeft", ""),
+            bindPaddleRight      = PlayerPrefs.GetString("Bind_paddleRight", ""),
+            steerCenter          = PlayerPrefs.GetFloat("G923_SteerCenter", 0f),
+            steerMax             = PlayerPrefs.GetFloat("G923_SteerMax", 0f),
+            steerMin             = PlayerPrefs.GetFloat("G923_SteerMin", 0f),
+            gasAxis              = PlayerPrefs.GetString("G923_GasAxis", ""),
+            gasRest              = PlayerPrefs.GetFloat("G923_GasRest", 0f),
+            gasPress             = PlayerPrefs.GetFloat("G923_GasPress", 0f),
+            brakeAxis            = PlayerPrefs.GetString("G923_BrakeAxis", ""),
+            brakeRest            = PlayerPrefs.GetFloat("G923_BrakeRest", 0f),
+            brakePress           = PlayerPrefs.GetFloat("G923_BrakePress", 0f),
+            advSteerCurveA       = PlayerPrefs.GetFloat("Adv_SteerCurveA", 1f),
+            advSteerDeadzone     = PlayerPrefs.GetFloat("Adv_SteerDeadzone", 0.02f),
+            advBrakeSoftEnd      = PlayerPrefs.GetFloat("Adv_BrakeSoftEnd", 0.8f),
+            advBrakeSoftMaxOutput = PlayerPrefs.GetFloat("Adv_BrakeSoftMaxOutput", 0.3f),
+            advGasCurveN         = PlayerPrefs.GetFloat("Adv_GasCurveN", 1f),
+            transmisionManual    = PlayerPrefs.GetInt("TransmisionManual", 0) == 1,
+        };
     }
 
     [System.Serializable]
@@ -403,7 +475,12 @@ public static class SimulatorApiClient
         if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
 
         string url = $"{BaseUrl}/simulator/heartbeat";
-        string json = JsonUtility.ToJson(new HeartbeatRequest { pcId = config.pcId });
+        string json = JsonUtility.ToJson(new HeartbeatRequest
+        {
+            pcId = config.pcId,
+            appVersion = UnityEngine.Application.version,
+            calibration = BuildCalibrationPayload(),
+        });
 
         using (var request = new UnityWebRequest(url, "POST"))
         {
