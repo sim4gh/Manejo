@@ -53,6 +53,21 @@ public class BindingsPanel : MonoBehaviour
     // nunca dispara wasPressedThisFrame y la asignación falla).
     Dictionary<string, bool> buttonBaseline;
 
+    // Paths fantasma del G923 PS: SIEMPRE reportan estado fijo, no son input
+    // del usuario. Si F8 o Pantalla 2 los captura, el binding queda inservible
+    // (verificado en F7 en kiosk: button19=PRESSED, stick/y=-1, stick/down=PRESSED
+    // de manera constante sin tocar nada). Los del stick/up..right son los
+    // componentes derivados del eje stick — no son botones independientes.
+    static readonly System.Collections.Generic.HashSet<string> PHANTOM_PATHS =
+        new System.Collections.Generic.HashSet<string>
+        {
+            "button19",
+            "stick/up", "stick/down", "stick/left", "stick/right",
+            "stick/y",
+        };
+
+    static bool IsPhantomPath(string path) => path != null && PHANTOM_PATHS.Contains(path);
+
     void Awake()
     {
         // Eje del volante (primero, es el más crítico)
@@ -116,6 +131,7 @@ public class BindingsPanel : MonoBehaviour
                 {
                     if (!(ctrl is ButtonControl btn)) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
+                    if (IsPhantomPath(path)) continue; // saltar siempre-pressed del G923
                     bool nowPressed = btn.isPressed;
                     if (buttonBaseline == null) break;
                     if (!buttonBaseline.TryGetValue(path, out bool wasPressed))
@@ -140,6 +156,7 @@ public class BindingsPanel : MonoBehaviour
                 {
                     if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
+                    if (IsPhantomPath(path)) continue; // skip stick/y phantom
                     float cur = ReadAxis(ctrl);
                     if (!axisBaseline.ContainsKey(path)) axisBaseline[path] = cur;
                     float baseline = axisBaseline[path];
@@ -341,6 +358,7 @@ public class BindingsPanel : MonoBehaviour
                 {
                     if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
+                    if (IsPhantomPath(path)) continue;
                     axisBaseline[path] = ReadAxis(ctrl);
                 }
             }
@@ -358,6 +376,7 @@ public class BindingsPanel : MonoBehaviour
                 {
                     if (!(ctrl is ButtonControl btn)) continue;
                     string path = GetDeviceRelativePath(ctrl, dev);
+                    if (IsPhantomPath(path)) continue;
                     buttonBaseline[path] = btn.isPressed;
                 }
             }

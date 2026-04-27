@@ -1171,6 +1171,35 @@ public class MenuScreenManager : MonoBehaviour
 
         // ── 1) Detectar dispositivo y comparar huella con la calibración guardada ──
         InputDevice dev = TryAttachToDevice();
+
+        // FAST-PATH: si es Logitech/G923, aplicar mapping pre-Wednesday hardcoded
+        // y saltar TODA la calibración dinámica. La calibración capturaba señales
+        // fantasma (button19, stick/y, stick/down siempre on en este G923) y
+        // tomó 3 días destrabarlo. El operador puede F9 para tunear curvas.
+        if (dev != null && UIInputNew.MatchesWheelName(dev))
+        {
+            UIInputNew.EnsureG923PSDefaults(dev);
+            string fp = ComputeDeviceFingerprint(dev);
+            if (!string.IsNullOrEmpty(fp)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fp);
+            PlayerPrefs.Save();
+            // Marcar todas las fases como completadas para que la UI muestre verde.
+            rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
+            steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
+            // UI: indicadores y fills en estado "done".
+            rightIndicator.color = leftIndicator.color = gasIndicator.color =
+                brakeIndicator.color = reverseIndicator.color = MenuTheme.IndicatorDone;
+            rightFillRT.anchorMax = new Vector2(1, 1); rightFill.color = MenuTheme.IndicatorDone;
+            leftFillRT.anchorMin  = new Vector2(0, 0); leftFill.color  = MenuTheme.IndicatorDone;
+            gasFillRT.anchorMax   = new Vector2(1, 1); gasFill.color   = MenuTheme.IndicatorDone;
+            brakeFillRT.anchorMax = new Vector2(1, 1); brakeFill.color = MenuTheme.IndicatorDone;
+            reverseFillRT.anchorMax = new Vector2(1, 1); reverseFill.color = MenuTheme.IndicatorDone;
+            wheelPrompt.text = "Volante Logitech detectado. Cargando prueba...";
+            if (skipButton != null) skipButton.gameObject.SetActive(false);
+            if (reassignButton != null) reassignButton.gameObject.SetActive(false);
+            StartCoroutine(LoadSceneDelayed(1.0f));
+            return;
+        }
+
         string currentFp = ComputeDeviceFingerprint(dev);
         string savedFp = PlayerPrefs.GetString(PREF_CAL_FINGERPRINT, "");
         bool fingerprintMatches = !string.IsNullOrEmpty(currentFp) && currentFp == savedFp;

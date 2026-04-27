@@ -356,7 +356,7 @@ namespace Gley.UrbanSystem
 
         // Hacer match por nombre tanto en displayName como en description.product.
         // Pantalla 2 ya hace esto — product suele ser más estable entre drivers.
-        private static bool MatchesWheelName(InputDevice d)
+        public static bool MatchesWheelName(InputDevice d)
         {
             string name = d.displayName ?? string.Empty;
             string product = d.description.product ?? string.Empty;
@@ -375,7 +375,7 @@ namespace Gley.UrbanSystem
         // de Pantalla 2 que ha capturado paths equivocados (visto en logs S3:
         // brakeAxis="stick/y" cuando debería ser "rz"). Solo aplica para
         // Logitech/G923 (MatchesWheelName); otros wheels conservan calibración.
-        private void EnsureG923PSDefaults(InputDevice device)
+        public static void EnsureG923PSDefaults(InputDevice device)
         {
             // FORZAR pre-Wednesday mapping en CADA boot. La calibración de
             // Pantalla 2 capturó paths/rangos equivocados varias veces; el
