@@ -12,10 +12,56 @@ public class MultiPantallaManager : MonoBehaviour
     void Awake()
     {
         Instance = this;
-        if (!camaraCentro)    camaraCentro    = FindCameraByName("Camara_Centro", "CamaraCentro", "CockpitCamera");
+        if (!camaraCentro)    camaraCentro    = FindCameraByName("Camara_Centro", "CamaraCentro");
         if (!camaraIzquierda) camaraIzquierda = FindCameraByName("Camara_Izquierda", "CamaraIzquierda");
         if (!camaraDerecha)   camaraDerecha   = FindCameraByName("Camara_Derecha", "CamaraDerecha");
+
+        // Fallback rig (caso moto): si no encontramos cámaras nombradas
+        // individualmente, buscamos un padre tipo "CockpitCamera" que sea solo
+        // un Transform con varias Camera hijas (una por display) y las
+        // identificamos por yaw — la frontal tiene yaw≈0, las laterales tienen
+        // yaw negativo (izq) o positivo (der). Sin esto, las cámaras del moto
+        // se quedaban con su targetDisplay serializado y no respetaban el
+        // mapping configurado en SimulatorConfig.
+        if (camaraCentro == null || camaraIzquierda == null || camaraDerecha == null)
+        {
+            ResolveFromCockpitRig("CockpitCamera");
+        }
     }
+
+    void ResolveFromCockpitRig(string rigName)
+    {
+        GameObject rig = GameObject.Find(rigName);
+        if (rig == null) return;
+        Camera[] cams = rig.GetComponentsInChildren<Camera>(true);
+        if (cams.Length == 0) return;
+
+        // Pase 1: identificar el centro como la cámara con menor |yaw|.
+        Camera center = null;
+        float bestAbsCenter = float.MaxValue;
+        foreach (var c in cams)
+        {
+            float abs = Mathf.Abs(NormalizeYaw(c.transform.localEulerAngles.y));
+            if (abs < bestAbsCenter) { center = c; bestAbsCenter = abs; }
+        }
+
+        // Pase 2: entre las restantes, izq = yaw más negativo, der = yaw más positivo.
+        Camera left = null, right = null;
+        float bestLeftYaw = 0f, bestRightYaw = 0f;
+        foreach (var c in cams)
+        {
+            if (c == center) continue;
+            float y = NormalizeYaw(c.transform.localEulerAngles.y);
+            if (y < bestLeftYaw)  { left  = c; bestLeftYaw  = y; }
+            if (y > bestRightYaw) { right = c; bestRightYaw = y; }
+        }
+
+        if (camaraCentro    == null && center != null) { camaraCentro    = center; Debug.Log($"[MultiPantalla] Rig '{rigName}': centro = {center.name} (yaw≈{NormalizeYaw(center.transform.localEulerAngles.y):0.0}°)"); }
+        if (camaraIzquierda == null && left   != null) { camaraIzquierda = left;   Debug.Log($"[MultiPantalla] Rig '{rigName}': izq = {left.name} (yaw≈{bestLeftYaw:0.0}°)"); }
+        if (camaraDerecha   == null && right  != null) { camaraDerecha   = right;  Debug.Log($"[MultiPantalla] Rig '{rigName}': der = {right.name} (yaw≈{bestRightYaw:0.0}°)"); }
+    }
+
+    static float NormalizeYaw(float y) => y > 180f ? y - 360f : y;
 
     void Start()
     {
