@@ -376,36 +376,53 @@ namespace Gley.UrbanSystem
             return false;
         }
 
-        // Mapeo G923 PS conocido. Si la calibración guardada no calza con
-        // estos paths, sobrescribir — es más confiable que la auto-detección
-        // de Pantalla 2 que ha capturado paths equivocados (visto en logs S3:
-        // brakeAxis="stick/y" cuando debería ser "rz"). Solo aplica para
-        // Logitech/G923 (MatchesWheelName); otros wheels conservan calibración.
+        // Mapeo G923 conocido por modo. El switch físico del G923 (PS/Xbox)
+        // cambia el HID layout — diferentes axes y buttons exponen las mismas
+        // funciones físicas. Detectamos por displayName y aplicamos defaults
+        // específicos. Verificado en F7 en ambos kiosks (FIX#26).
+        //   PS mode  ("Logitech G923 Racing Wheel for PlayStation 4 and PC"):
+        //     gas=z, brake=rz, reverse=button19
+        //   Xbox mode ("Logitech G923 Racing Wheel for Xbox One and PC"):
+        //     gas=stick/y, brake=z, reverse=button12
         public static void EnsureG923PSDefaults(InputDevice device)
         {
-            // FORZAR pre-Wednesday mapping en CADA boot. La calibración de
-            // Pantalla 2 capturó paths/rangos equivocados varias veces; el
-            // mapping pre-Wed (commit 0ad7aaf) era simple y funcionaba:
-            //   stick/x = volante, z = gas, rz = freno, button2 = reversa
-            //   range pedal: rest=1, press=-1 (formula (1-raw)/2 daba 0..1)
-            // Para overrides finos: F9 (curvas) o editar PlayerPrefs manual.
-            Debug.Log($"[UIInputNew] Aplicando mapping pre-Wednesday G923 PS"
-                + $" (sobrescribe calibración previa para predictibilidad).");
+            string name = device.displayName ?? "";
+            bool isXboxMode = name.IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            string mode = isXboxMode ? "Xbox" : "PS";
 
-            PlayerPrefs.SetString("G923_GasAxis", "z");
-            PlayerPrefs.SetString("G923_BrakeAxis", "rz");
+            Debug.Log($"[UIInputNew] Aplicando mapping G923 {mode} mode"
+                + $" (displayName='{name}')");
+
+            // Steering: stick/x en ambos modos (verificado).
             PlayerPrefs.SetString(PREF_BIND_STEER_AXIS, "stick/x");
-            PlayerPrefs.SetString(PREF_BIND_REVERSE, "button19");
-            // Pre-Wed pedales: range raw 1.0 (rest) → -1.0 (press completo).
-            // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
-            PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
-            PlayerPrefs.SetFloat("G923_GasPress",  -1.0f);
-            PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
-            PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
-            // Steering rango simétrico estándar.
             PlayerPrefs.SetFloat("G923_SteerCenter", 0.0f);
             PlayerPrefs.SetFloat("G923_SteerMax",    1.0f);
             PlayerPrefs.SetFloat("G923_SteerMin",   -1.0f);
+
+            if (isXboxMode)
+            {
+                // Xbox mode: gas=stick/y (idle=-1, pressed va hacia +1),
+                // brake=z (idle=1, pressed va hacia -1), reverse=button12.
+                PlayerPrefs.SetString("G923_GasAxis", "stick/y");
+                PlayerPrefs.SetString("G923_BrakeAxis", "z");
+                PlayerPrefs.SetString(PREF_BIND_REVERSE, "button12");
+                PlayerPrefs.SetFloat("G923_GasRest",   -1.0f);
+                PlayerPrefs.SetFloat("G923_GasPress",   1.0f);
+                PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
+                PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
+            }
+            else
+            {
+                // PS mode: gas=z, brake=rz, reverse=button19.
+                // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
+                PlayerPrefs.SetString("G923_GasAxis", "z");
+                PlayerPrefs.SetString("G923_BrakeAxis", "rz");
+                PlayerPrefs.SetString(PREF_BIND_REVERSE, "button19");
+                PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
+                PlayerPrefs.SetFloat("G923_GasPress",  -1.0f);
+                PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
+                PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
+            }
             // Limpiar el flag que hace que Pantalla 2 fuerce Discovery.
             PlayerPrefs.SetInt("Cal_ReverseDone", 1);
             PlayerPrefs.Save();
