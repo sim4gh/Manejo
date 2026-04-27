@@ -52,9 +52,13 @@ public static class DisplayHelper
     {
         int center = CenterDisplay;
 
-        // Camera.main (tagged MainCamera) si existe
+        // Camera.main (tagged MainCamera) — solo si está enabled Y ya apunta al
+        // display central. En este proyecto ninguna escena taggea MainCamera,
+        // pero defensivamente: si alguien la taggea en otra cámara (e.g. una de
+        // los espejos), no queremos seguirla — el HUD acabaría en el monitor
+        // equivocado.
         Camera main = Camera.main;
-        if (main != null && main.enabled) return main;
+        if (main != null && main.enabled && main.targetDisplay == center) return main;
 
         // Por nombre — el GameObject mismo. Si tiene Camera component, listo.
         // Si no (caso moto: CockpitCamera es solo un Transform con 3 cámaras
@@ -127,7 +131,9 @@ public static class DisplayHelper
 
     static Camera FindMainDisplayCamera()
     {
-        int cd = CenterDisplay;
+        // Mismo criterio que CockpitDisplay para mantener consistencia entre
+        // overlay y screen-space-camera canvases.
+        int cd = CockpitDisplay;
         Camera main = Camera.main;
         if (main != null && main.targetDisplay == cd) return main;
         foreach (var cam in Camera.allCameras)
