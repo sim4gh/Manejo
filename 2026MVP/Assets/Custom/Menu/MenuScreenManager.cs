@@ -863,6 +863,7 @@ public class MenuScreenManager : MonoBehaviour
     private TextMeshProUGUI adminNetworkLabel;
     private TextMeshProUGUI adminSimulatorLabel;
     private Toggle adminDisplayToggle;
+    private TextMeshProUGUI adminDisplayMapLabel;
 
     void BuildScreen3_Admin()
     {
@@ -914,6 +915,27 @@ public class MenuScreenManager : MonoBehaviour
             "Modo prueba (1 pantalla)", config.displayCount == 1);
         displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
         adminDisplayToggle = displayToggleGo.GetComponent<Toggle>();
+
+        // ── Intercambiar displays ──
+        adminDisplayMapLabel = AdminAddLabel(ct, "Displays", DisplayMapString(config));
+
+        GameObject swapRow = new GameObject("SwapRow");
+        swapRow.transform.SetParent(ct, false);
+        swapRow.AddComponent<RectTransform>();
+        var swapLayout = swapRow.AddComponent<HorizontalLayoutGroup>();
+        swapLayout.spacing = 10f;
+        swapLayout.childAlignment = TextAnchor.MiddleCenter;
+        swapLayout.childControlWidth = false;
+        swapLayout.childControlHeight = false;
+        swapLayout.childForceExpandWidth = false;
+        swapRow.AddComponent<LayoutElement>().preferredHeight = 45f;
+
+        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Centro", "ghost",
+            new Vector2(160f, 40f), () => OnSwapDisplays("left", "center"));
+        MenuCardBuilder.CreateButton(swapRow.transform, "Centro / Der", "ghost",
+            new Vector2(160f, 40f), () => OnSwapDisplays("center", "right"));
+        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Der", "ghost",
+            new Vector2(160f, 40f), () => OnSwapDisplays("left", "right"));
 
         AdminAddSpacer(ct, 5f);
 
@@ -1010,6 +1032,30 @@ public class MenuScreenManager : MonoBehaviour
     }
 
     // ── Admin Actions ────────────────────────────────────────────────
+
+    string DisplayMapString(SimulatorConfig.ConfigData cfg)
+    {
+        return $"C={cfg.displayCenter}  I={cfg.displayLeft}  D={cfg.displayRight}";
+    }
+
+    void OnSwapDisplays(string a, string b)
+    {
+        if (SimulatorConfig.Instance == null) return;
+        var data = SimulatorConfig.Instance.data;
+
+        int va = a == "center" ? data.displayCenter : a == "left" ? data.displayLeft : data.displayRight;
+        int vb = b == "center" ? data.displayCenter : b == "left" ? data.displayLeft : data.displayRight;
+
+        if (a == "center") data.displayCenter = vb; else if (a == "left") data.displayLeft = vb; else data.displayRight = vb;
+        if (b == "center") data.displayCenter = va; else if (b == "left") data.displayLeft = va; else data.displayRight = va;
+
+        SimulatorConfig.Instance.Save();
+        if (MultiPantallaManager.Instance != null)
+            MultiPantallaManager.Instance.Apply();
+        if (adminDisplayMapLabel != null)
+            adminDisplayMapLabel.text = DisplayMapString(data);
+        Debug.Log($"[Admin] Swap {a}/{b}: {DisplayMapString(data)}");
+    }
 
     void OnAdminSave()
     {

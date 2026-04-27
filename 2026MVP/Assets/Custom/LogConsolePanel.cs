@@ -338,7 +338,7 @@ public class LogConsolePanel : MonoBehaviour
 
         Canvas canvas = panelRoot.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.targetDisplay = 0;
+        canvas.targetDisplay = DisplayHelper.CenterDisplay;
         canvas.sortingOrder = 32100; // arriba de los otros paneles (32000)
 
         var scaler = panelRoot.AddComponent<CanvasScaler>();

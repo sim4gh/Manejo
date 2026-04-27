@@ -18,6 +18,9 @@ public class SimulatorConfig : MonoBehaviour
         public string simulatorId = "";    // devuelto por el backend al registrar
         public string simulatorName = "";  // nombre del simulador asignado
         public int displayCount = 3;       // 1 = modo prueba (1 monitor), 3 = producción (3 monitores)
+        public int displayCenter = 0;
+        public int displayLeft = 1;
+        public int displayRight = 2;
     }
 
     public ConfigData data = new ConfigData();

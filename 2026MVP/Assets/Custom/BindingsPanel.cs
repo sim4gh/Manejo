@@ -199,7 +199,7 @@ public class BindingsPanel : MonoBehaviour
         DontDestroyOnLoad(panelRoot);
         Canvas canvas = panelRoot.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        canvas.targetDisplay = 0;
+        canvas.targetDisplay = DisplayHelper.CenterDisplay;
         canvas.sortingOrder = 32000;
         CanvasScaler scaler = panelRoot.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;

@@ -67,7 +67,7 @@ public class ExamResultsScreen : MonoBehaviour
         {
             if (canvas.renderMode == RenderMode.ScreenSpaceOverlay
                 && canvas.transform.parent == null
-                && canvas.targetDisplay == 0)
+                && canvas.targetDisplay == DisplayHelper.CenterDisplay)
             {
                 targetCanvas = canvas;
                 break;

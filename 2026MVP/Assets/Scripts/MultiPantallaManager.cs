@@ -48,10 +48,23 @@ public class MultiPantallaManager : MonoBehaviour
 
     void AplicarModoTresPantallas()
     {
-        if (camaraCentro)    { camaraCentro.targetDisplay = 0; camaraCentro.enabled = true; }
-        if (camaraIzquierda) { camaraIzquierda.targetDisplay = 1; camaraIzquierda.enabled = true; }
-        if (camaraDerecha)   { camaraDerecha.targetDisplay = 2; camaraDerecha.enabled = true; }
-        Debug.Log("[MultiPantalla] Modo 3 pantallas");
+        var cfg = SimulatorConfig.Instance?.data;
+        int dc = cfg?.displayCenter ?? 0;
+        int dl = cfg?.displayLeft   ?? 1;
+        int dr = cfg?.displayRight  ?? 2;
+
+        int max = Display.displays.Length - 1;
+        if (dc < 0 || dc > max || dl < 0 || dl > max || dr < 0 || dr > max
+            || dc == dl || dc == dr || dl == dr)
+        {
+            Debug.LogWarning($"[MultiPantalla] Mapping inválido ({dc},{dl},{dr}), usando defaults 0,1,2");
+            dc = 0; dl = 1; dr = 2;
+        }
+
+        if (camaraCentro)    { camaraCentro.targetDisplay = dc; camaraCentro.enabled = true; }
+        if (camaraIzquierda) { camaraIzquierda.targetDisplay = dl; camaraIzquierda.enabled = true; }
+        if (camaraDerecha)   { camaraDerecha.targetDisplay = dr; camaraDerecha.enabled = true; }
+        Debug.Log($"[MultiPantalla] Modo 3 pantallas (centro={dc}, izq={dl}, der={dr})");
     }
 
     static Camera FindCameraByName(string name)
