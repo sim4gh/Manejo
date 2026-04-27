@@ -325,26 +325,64 @@ Archivos en `Application.persistentDataPath/telemetry_[timestamp].json`:
 | `Assets/construcciones/` | Modelos de edificios |
 | `Assets/Forst/` | Vegetacion |
 
-## Volante Logitech G923 PS/PC
+## Volante Logitech G923
 
 Ver `ARCHITECTURE_G923.md` para documentacion completa.
 
-### Resumen rapido
+### IMPORTANTE: G923 viene en DOS variantes hardware-locked
+
+**No tiene switch PS/Xbox.** Son productos físicos distintos con HID layouts diferentes:
+
+| Variante | Logitech part | Unity displayName |
+|---|---|---|
+| **G923 PS** | 941-000147 | `Logitech G923 Racing Wheel for PlayStation 4 and PC` |
+| **G923 Xbox** | 941-000158 | `Logitech G923 Racing Wheel for Xbox One and PC` |
+
+`UIInputNew.EnsureG923PSDefaults()` detecta variante por `displayName.Contains("Xbox")` y aplica defaults específicos. Llamado al boot desde `AttachToWheelDevice` y desde `MenuScreenManager.PrepareWheelScreen`.
+
+### Mapping por variante (FIX#26, verificado en F7 en ambos kioskos)
+
+| Función | PS variant | Xbox variant |
+|---|---|---|
+| Volante (eje) | `stick/x` | `stick/x` |
+| Acelerador | `z` (idle=1, press=-1) | `stick/y` (idle=-1, press=+1) |
+| Freno | `rz` (idle=1, press=-1) | `z` (idle=1, press=-1) |
+| Reversa (palanca H R) | `button19` | `button12` |
+| Paddles G923 PS | button5=R1(der), button6=L1(izq) | (verificar) |
+| H-shifter PS | buttons 13-18 = gears 1-6, button19 = R | (verificar) |
+| Combos | L2+R2 (btn7+8) menú · L3+R3 (btn11+12) reset | (verificar) |
+
+### Kioskos identificados
+
+- **Casa Aramis** (pcId `d603a85840752414e264d4dc47ec76db5a511135`): **PS variant**
+- **Demo gobernadora** (2026-04-26): **Xbox variant**
+
+Mismo binary funciona en ambos gracias al dual-detection.
+
+### Resumen general
 - **Vehiculo usa `PlayerCar` de Gley** (NO RCCP)
-- **Ejes** via InputAction: stick/x (steering), z (gas), rz (brake)
-- **Botones** via device directo (InputAction bindings NO funcionan para botones HID genericos)
-- **Paddles invertidos** en G923 PS: button5=R1(der), button6=L1(izq)
-- **H-shifter:** buttons 13-19 = gears 1-6 + R
-- **Combos:** L2+R2 hold 1.5s = menu, L3+R3 hold 1.5s = reiniciar
-- **Direccionales:** paddles toggle, HUD con flechas verdes parpadeantes
-- **Freno:** brakeTorque separado, curva exponencial, calibrado (64km/h → 21.9m)
-- **Clutch:** stick/y — pendiente de implementar
+- **Botones** via device directo con `TryGetChildControl` (InputAction bindings NO funcionan para botones HID genericos)
+- **Steering**: stick/x con `NormalizeSteer` por rango calibrado + curva `f(x)=x/(a+(1-a)x)` con `_steerCurveA=0.65` (FIX#20)
+- **Pedales**: `NormalizePedal(raw, rest, press) = (raw-rest)/(press-rest)` clamp01
+- **Direccionales**: paddles toggle indicator, HUD con flechas verdes parpadeantes
+- **Freno**: brakeTorque separado, curva por tramos `BrakeCurve` con `_brakeSoftEnd=0.5`/`_brakeSoftMaxOutput=0.5` (FIX#20)
+- **Clutch**: pendiente de implementar
+- **Reversa en automático**: lógica híbrida edge+debounce 300ms (FIX#24) — robusto a pulsos transitorios del HID
+
+### Phantom signals filtrados (BindingsPanel.PHANTOM_PATHS)
+
+Algunos paths siempre reportan estado fijo y confunden la calibración:
+- `stick/y` cuando NO se usa (varía según variante PS/Xbox)
+- `stick/up`/`stick/down`/`stick/left`/`stick/right` son ButtonControl derivados del eje stick — no son botones independientes
+
+NO se filtra `button19` porque en PS variant es la posición R real del H-shifter (parece "always on" solo si dejas el shifter en R).
 
 ### Archivos clave
-- `UIInputNew.cs` — todo el input del G923
+- `UIInputNew.cs` — todo el input del G923, dual-detection PS/Xbox
 - `PlayerCar.cs` — controlador del vehiculo
 - `SimpleSpeedGauge.cs` — HUD (velocidad, gear, direccionales)
 - `IUIInput.cs` — interfaz de input
+- `MenuScreenManager.cs:PrepareWheelScreen` — fast-path Logitech salta calibración Pantalla 2
 
 ## Build
 
