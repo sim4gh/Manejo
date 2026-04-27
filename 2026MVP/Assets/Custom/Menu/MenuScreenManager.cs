@@ -1614,10 +1614,18 @@ public class MenuScreenManager : MonoBehaviour
             // pero queremos descartarlos.
             if (!(c is AxisControl) || c is ButtonControl) continue;
             if (!(c is InputControl<float> fc)) continue;
-            ctrls.Add(fc);
             string p = c.path ?? "";
             if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
                 p = p.Substring(devPath.Length + 1);
+            // Defense-in-depth: excluir paths conocidos como pedales. Sin esto,
+            // un pedal saturado en reposo (ej. rz=1.0 sin pisar) podía ganar
+            // la fase 1 (DERECHA) por delta, dejando Bind_steerAxis apuntando
+            // a un freno. Verificado en logs S3 (FIX#20).
+            bool isPedalPath = false;
+            for (int j = 0; j < PEDAL_AXIS_CANDIDATES.Length; j++)
+                if (PEDAL_AXIS_CANDIDATES[j] == p) { isPedalPath = true; break; }
+            if (isPedalPath) continue;
+            ctrls.Add(fc);
             paths.Add(p);
         }
         _steerCandidates = ctrls.ToArray();

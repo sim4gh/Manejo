@@ -58,16 +58,23 @@ namespace Gley.UrbanSystem
         // raw 0.2→1.0 = dar vuelta progresivamente. A=1.0 cumple eso exactamente.
         // Parámetros tuneable en runtime via AdvancedInputPanel (F9 hold 1.5s).
         // Se persisten en PlayerPrefs con prefijo "Adv_". ReloadTuning() los relee.
-        private float _steerCurveA = 1.0f;
+        private float _steerCurveA = 0.65f;
         private float _steerDeadzone = 0.02f;
-        private float _brakeSoftEnd = 0.8f;
-        private float _brakeSoftMaxOutput = 0.3f;
+        private float _brakeSoftEnd = 0.5f;
+        private float _brakeSoftMaxOutput = 0.5f;
         private float _gasCurveN = 1.0f; // exponente: <1 más respuesta inicial, >1 más control fino
         // Defaults de fábrica
-        public const float DEFAULT_STEER_CURVE_A = 1.0f;
+        // 0.65 (vs 1.0 lineal puro) → ~40% más sensible cerca del centro,
+        // mismo tope. f(0.1) pasa de 0.10 a 0.14. Resuelve el síntoma "muevo
+        // 45° y no responde" sin tocar la calibración del rango.
+        public const float DEFAULT_STEER_CURVE_A = 0.65f;
         public const float DEFAULT_STEER_DEADZONE = 0.02f;
-        public const float DEFAULT_BRAKE_SOFT_END = 0.8f;
-        public const float DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.3f;
+        // Curva de freno más progresiva. Antes era 0-80% pedal → 0-30% freno
+        // (zona muerta gigante) y luego salto al 100%. Ahora 0-50% pedal →
+        // 0-50% freno (lineal) y 50-100% pedal → 50-100% freno (lineal).
+        // Sigue siendo configurable por F9 panel.
+        public const float DEFAULT_BRAKE_SOFT_END = 0.5f;
+        public const float DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.5f;
         public const float DEFAULT_GAS_CURVE_N = 1.0f;
         // Keys PlayerPrefs
         public const string PREF_STEER_CURVE_A = "Adv_SteerCurveA";
@@ -364,6 +371,42 @@ namespace Gley.UrbanSystem
             return false;
         }
 
+        // Mapeo G923 PS conocido. Si la calibración guardada no calza con
+        // estos paths, sobrescribir — es más confiable que la auto-detección
+        // de Pantalla 2 que ha capturado paths equivocados (visto en logs S3:
+        // brakeAxis="stick/y" cuando debería ser "rz"). Solo aplica para
+        // Logitech/G923 (MatchesWheelName); otros wheels conservan calibración.
+        private void EnsureG923PSDefaults(InputDevice device)
+        {
+            string brake = PlayerPrefs.GetString("G923_BrakeAxis", "");
+            string gas   = PlayerPrefs.GetString("G923_GasAxis", "");
+            string steer = PlayerPrefs.GetString(PREF_BIND_STEER_AXIS, "");
+
+            // Si los 3 paths críticos ya calzan con G923 PS, respetar
+            // calibración existente (incluyendo rests/presses tuneados).
+            bool pathsOk = brake == "rz" && gas == "z" && steer == "stick/x";
+            if (pathsOk) return;
+
+            Debug.LogWarning($"[UIInputNew] Calibración no calza con G923 PS"
+                + $" (brake={brake}, gas={gas}, steer={steer}). Aplicando defaults.");
+
+            PlayerPrefs.SetString("G923_GasAxis", "z");
+            PlayerPrefs.SetString("G923_BrakeAxis", "rz");
+            PlayerPrefs.SetString(PREF_BIND_STEER_AXIS, "stick/x");
+            // Pedales G923 PS: rest=1.0 (arriba), press=0.0 (abajo).
+            // No usamos -1.0 porque los pedales reales no llegan a -1
+            // (esos son ejes de stick centrados).
+            PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
+            PlayerPrefs.SetFloat("G923_GasPress",   0.0f);
+            PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
+            PlayerPrefs.SetFloat("G923_BrakePress", 0.0f);
+            // Steering rango simétrico estándar.
+            PlayerPrefs.SetFloat("G923_SteerCenter", 0.0f);
+            PlayerPrefs.SetFloat("G923_SteerMax",    1.0f);
+            PlayerPrefs.SetFloat("G923_SteerMin",   -1.0f);
+            PlayerPrefs.Save();
+        }
+
         // Intenta adjuntar al device como volante. Solo retorna true si parece
         // volante por firma (axes y buttons suficientes). NO valida paths
         // específicos — G923s distintos reportan paths distintos (`stick/x` vs
@@ -391,6 +434,14 @@ namespace Gley.UrbanSystem
 
             _hasWheel = true;
             _wheelDevice = device;
+
+            // Si el device es Logitech/G923, asegurar que la calibración
+            // guardada calza con el mapeo G923 PS conocido. Si no, sobrescribir
+            // con defaults. Esto cubre dos casos: primer boot sin calibración,
+            // y calibración corrupta (Pantalla 2 puede elegir paths equivocados
+            // — verificado en logs S3 con G923_BrakeAxis="stick/y" cuando debería
+            // ser "rz"). El operador puede recalibrar via Pantalla 2 si quiere.
+            if (MatchesWheelName(device)) EnsureG923PSDefaults(device);
 
             // Ejes — paths calibrados dinámicamente en la pantalla del menú
             // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().

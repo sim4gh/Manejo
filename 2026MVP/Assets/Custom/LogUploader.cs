@@ -527,16 +527,22 @@ public class LogUploader : MonoBehaviour
         ("Adv_BrakeSoftEnd",       "float"),
         ("Adv_BrakeSoftMaxOutput", "float"),
         ("Adv_GasCurveN",          "float"),
-        ("Bind_SteerAxis",   "string"),
-        ("Bind_Reverse",     "string"),
-        ("Bind_Drive",       "string"),
-        ("Bind_PaddleLeft",  "string"),
-        ("Bind_PaddleRight", "string"),
-        ("Bind_Restart",     "string"),
-        ("Bind_MenuA",       "string"),
-        ("Bind_MenuB",       "string"),
-        ("Bind_RestartA",    "string"),
-        ("Bind_RestartB",    "string"),
+        // Casing CRÍTICO: las keys reales son lowerCamelCase (ej. Bind_steerAxis).
+        // Antes estaban con S/R mayúscula y NUNCA aparecían en el snapshot — perdimos
+        // diagnóstico crítico cuando Bind_steerAxis quedó apuntando a un eje equivocado.
+        ("Bind_steerAxis",   "string"),
+        ("Bind_reverse",     "string"),
+        ("Bind_drive",       "string"),
+        ("Bind_paddleLeft",  "string"),
+        ("Bind_paddleRight", "string"),
+        ("Bind_restart",     "string"),
+        ("Bind_menuA",       "string"),
+        ("Bind_menuB",       "string"),
+        ("Bind_restartA",    "string"),
+        ("Bind_restartB",    "string"),
+        // Estado de calibración Pantalla 2.
+        ("Cal_DeviceFingerprint", "string"),
+        ("Cal_ReverseDone",       "int"),
     };
 
     static string GetDeviceRelativePath(InputControl ctrl, InputDevice dev)
