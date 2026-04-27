@@ -664,13 +664,17 @@ namespace Gley.UrbanSystem
                     verticalInput = gas;
                     brakeInput = brake;
 
-                    // × = Reversa, △ = Drive (solo automático con volante)
+                    // Reversa POSICIONAL: gear = -1 mientras la señal de reversa
+                    // esté activa (palanca H en R, o Cross PS sostenido). Cuando
+                    // se libera, vuelve a Drive automáticamente. Antes era
+                    // edge-trigger y dejaba el coche atorado en R al sacar la
+                    // palanca de la posición de reversa.
                     bool crossNow = IsAnyPressed(_crossCtrls);
-                    if (crossNow && !_lastCrossPressed) _currentGear = -1;
+                    bool triNow   = IsPressed(_triangleCtrl);
+                    if (crossNow)        _currentGear = -1; // reversa mientras se sostenga
+                    else if (triNow)     _currentGear = 1;  // botón Drive explícito
+                    else if (_lastCrossPressed) _currentGear = 1; // soltó reversa → vuelve a Drive
                     _lastCrossPressed = crossNow;
-
-                    bool triNow = IsPressed(_triangleCtrl);
-                    if (triNow && !_lastTrianglePressed) _currentGear = 1;
                     _lastTrianglePressed = triNow;
                 }
                 else
