@@ -1737,16 +1737,21 @@ public class MenuScreenManager : MonoBehaviour
         if (wheel == null) { _reverseAxisBaseline = null; return; }
 
         _reverseAxisBaseline = new System.Collections.Generic.Dictionary<string, float>();
-        // Snapshot baseline en wheel + shifter (si hay) — la palanca R puede
-        // estar en cualquiera de los dos. Prefijos "wheel:"/"shifter:" en las
-        // claves para resolver el control correcto al detectar.
-        SnapshotBaselineForDevice(wheel, "wheel:");
+        // Si no hay SHIFTER conectado, omitimos el prefijo "wheel:" — preservamos
+        // el formato legacy (compat con calibraciones G923 que persisten paths
+        // sin prefijo, y con scripts externos que lean PlayerPrefs). Solo
+        // emitimos prefijos cuando realmente hay ambigüedad multi-device.
+        InputDevice shifter = null;
         foreach (var d in InputSystem.devices)
         {
             if (d == wheel) continue;
-            if (UIInputNew.IsShifterDevice(d))
-                SnapshotBaselineForDevice(d, "shifter:");
+            if (UIInputNew.IsShifterDevice(d)) { shifter = d; break; }
         }
+        string wheelPrefix = shifter != null ? "wheel:" : "";
+
+        SnapshotBaselineForDevice(wheel, wheelPrefix);
+        if (shifter != null)
+            SnapshotBaselineForDevice(shifter, "shifter:");
 
         // No reasignar reversa al volante, gas o freno. Excluir tanto el path
         // crudo como el path con prefijo "wheel:" — los pedales y steering
@@ -1798,14 +1803,16 @@ public class MenuScreenManager : MonoBehaviour
         // Tiebreaker: el SHIFTER tiene prioridad sobre el wheel para reverse.
         // Si el HORI Truck firma button5 en shifter y simultáneamente algo en el
         // wheel, queremos el shifter. Iteramos shifter primero.
+        // Si no hay shifter, el wheel persiste paths sin prefijo (formato legacy).
         var devices = new System.Collections.Generic.List<(InputDevice dev, string prefix)>();
+        InputDevice shifterDev = null;
         foreach (var d in InputSystem.devices)
         {
             if (d == wheel) continue;
-            if (UIInputNew.IsShifterDevice(d))
-                devices.Add((d, "shifter:"));
+            if (UIInputNew.IsShifterDevice(d)) { shifterDev = d; break; }
         }
-        devices.Add((wheel, "wheel:"));
+        if (shifterDev != null) devices.Add((shifterDev, "shifter:"));
+        devices.Add((wheel, shifterDev != null ? "wheel:" : ""));
 
         // 1) Botón recién presionado este frame (en cualquier device)
         foreach (var entry in devices)

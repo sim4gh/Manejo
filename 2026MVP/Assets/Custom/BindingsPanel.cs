@@ -536,15 +536,17 @@ public class BindingsPanel : MonoBehaviour
     }
 
     // Lista de (device, prefix) para iterar al detectar/listar bindings.
-    // El prefijo se concatena al path para distinguir controles homónimos
-    // entre wheel y shifter (HORI Truck reporta dos HIDs).
+    // Cuando hay multi-device (HORI wheel + shifter), prefijos "wheel:"/"shifter:"
+    // distinguen controles homónimos. Cuando solo hay wheel (G923, default),
+    // omitimos el prefijo para preservar formato legacy en PlayerPrefs.
     System.Collections.Generic.List<(InputDevice dev, string prefix)> GetBindingDevices()
     {
         var list = new System.Collections.Generic.List<(InputDevice, string)>();
         var wheel = FindWheelDevice();
-        if (wheel != null) list.Add((wheel, "wheel:"));
         var shifter = FindShifterDevice();
-        if (shifter != null && shifter != wheel) list.Add((shifter, "shifter:"));
+        bool hasShifter = shifter != null && shifter != wheel;
+        if (wheel != null) list.Add((wheel, hasShifter ? "wheel:" : ""));
+        if (hasShifter) list.Add((shifter, "shifter:"));
         return list;
     }
 
