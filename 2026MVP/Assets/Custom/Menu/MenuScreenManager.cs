@@ -1234,7 +1234,7 @@ public class MenuScreenManager : MonoBehaviour
         // y saltar TODA la calibración dinámica. La calibración capturaba señales
         // fantasma (button19, stick/y, stick/down siempre on en este G923) y
         // tomó 3 días destrabarlo. El operador puede F9 para tunear curvas.
-        if (dev != null && UIInputNew.MatchesWheelName(dev))
+        if (dev != null && UIInputNew.IsLogitechG923Family(dev))
         {
             UIInputNew.EnsureG923PSDefaults(dev);
             string fp = ComputeDeviceFingerprint(dev);
@@ -1724,10 +1724,36 @@ public class MenuScreenManager : MonoBehaviour
 
     void SnapshotReverseBaseline()
     {
-        InputDevice dev = TryAttachToDevice();
-        if (dev == null) { _reverseAxisBaseline = null; return; }
+        InputDevice wheel = TryAttachToDevice();
+        if (wheel == null) { _reverseAxisBaseline = null; return; }
 
         _reverseAxisBaseline = new System.Collections.Generic.Dictionary<string, float>();
+        // Snapshot baseline en wheel + shifter (si hay) — la palanca R puede
+        // estar en cualquiera de los dos. Prefijos "wheel:"/"shifter:" en las
+        // claves para resolver el control correcto al detectar.
+        SnapshotBaselineForDevice(wheel, "wheel:");
+        foreach (var d in InputSystem.devices)
+        {
+            if (d == wheel) continue;
+            if (UIInputNew.IsShifterDevice(d))
+                SnapshotBaselineForDevice(d, "shifter:");
+        }
+
+        // No reasignar reversa al volante, gas o freno. Excluir tanto el path
+        // crudo como el path con prefijo "wheel:" — los pedales y steering
+        // solo viven en el wheel, así que no exponemos variantes de shifter.
+        _reverseExcludedPaths = new System.Collections.Generic.HashSet<string>();
+        string steerP = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, "");
+        string gasP   = PlayerPrefs.GetString("G923_GasAxis", "");
+        string brakeP = PlayerPrefs.GetString("G923_BrakeAxis", "");
+        AddExclusion(_reverseExcludedPaths, steerP);
+        AddExclusion(_reverseExcludedPaths, gasP);
+        AddExclusion(_reverseExcludedPaths, brakeP);
+    }
+
+    void SnapshotBaselineForDevice(InputDevice dev, string prefix)
+    {
+        if (dev == null) return;
         string devPath = dev.path ?? "";
         foreach (var c in dev.allControls)
         {
@@ -1736,17 +1762,19 @@ public class MenuScreenManager : MonoBehaviour
             string p = c.path ?? "";
             if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
                 p = p.Substring(devPath.Length + 1);
-            _reverseAxisBaseline[p] = fc.ReadValue();
+            _reverseAxisBaseline[prefix + p] = fc.ReadValue();
         }
+    }
 
-        // No reasignar reversa al volante, gas o freno
-        _reverseExcludedPaths = new System.Collections.Generic.HashSet<string>();
-        string steerP = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, "");
-        string gasP   = PlayerPrefs.GetString("G923_GasAxis", "");
-        string brakeP = PlayerPrefs.GetString("G923_BrakeAxis", "");
-        if (!string.IsNullOrEmpty(steerP)) _reverseExcludedPaths.Add(steerP);
-        if (!string.IsNullOrEmpty(gasP))   _reverseExcludedPaths.Add(gasP);
-        if (!string.IsNullOrEmpty(brakeP)) _reverseExcludedPaths.Add(brakeP);
+    static void AddExclusion(System.Collections.Generic.HashSet<string> set, string path)
+    {
+        if (set == null || string.IsNullOrEmpty(path)) return;
+        // Cubrir variantes: el binding persistido puede venir con o sin prefijo
+        // ("wheel:stick/x" vs "stick/x"). La detección compara ambas formas.
+        string stripped = UIInputNew.StripDevicePrefix(path);
+        set.Add(path);
+        if (stripped != path) set.Add(stripped);
+        else set.Add("wheel:" + stripped);
     }
 
     // Devuelve el path (relativo al device) del control que activa reversa, o
@@ -1755,12 +1783,49 @@ public class MenuScreenManager : MonoBehaviour
     string TryDetectReverseInput(out bool isAxis)
     {
         isAxis = false;
-        InputDevice dev = TryAttachToDevice();
+        InputDevice wheel = TryAttachToDevice();
+        if (wheel == null) return "";
+
+        // Tiebreaker: el SHIFTER tiene prioridad sobre el wheel para reverse.
+        // Si el HORI Truck firma button5 en shifter y simultáneamente algo en el
+        // wheel, queremos el shifter. Iteramos shifter primero.
+        var devices = new System.Collections.Generic.List<(InputDevice dev, string prefix)>();
+        foreach (var d in InputSystem.devices)
+        {
+            if (d == wheel) continue;
+            if (UIInputNew.IsShifterDevice(d))
+                devices.Add((d, "shifter:"));
+        }
+        devices.Add((wheel, "wheel:"));
+
+        // 1) Botón recién presionado este frame (en cualquier device)
+        foreach (var entry in devices)
+        {
+            string r = TryDetectReverseButton(entry.dev, entry.prefix);
+            if (!string.IsNullOrEmpty(r)) return r;
+        }
+
+        // 2) Eje discreto con delta grande contra baseline (palanca H, en cualquier device)
+        if (_reverseAxisBaseline != null)
+        {
+            foreach (var entry in devices)
+            {
+                string r = TryDetectReverseAxis(entry.dev, entry.prefix);
+                if (!string.IsNullOrEmpty(r))
+                {
+                    isAxis = true;
+                    return r;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    string TryDetectReverseButton(InputDevice dev, string prefix)
+    {
         if (dev == null) return "";
-
         string devPath = dev.path ?? "";
-
-        // 1) Botón recién presionado este frame
         foreach (var c in dev.allControls)
         {
             if (!(c is ButtonControl btn)) continue;
@@ -1768,31 +1833,33 @@ public class MenuScreenManager : MonoBehaviour
             string p = c.path ?? "";
             if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
                 p = p.Substring(devPath.Length + 1);
-            if (_reverseExcludedPaths != null && _reverseExcludedPaths.Contains(p)) continue;
-            return p;
+            string prefixed = prefix + p;
+            if (_reverseExcludedPaths != null
+                && (_reverseExcludedPaths.Contains(p) || _reverseExcludedPaths.Contains(prefixed))) continue;
+            return prefixed;
         }
+        return "";
+    }
 
-        // 2) Eje discreto con delta grande contra baseline (palanca H)
-        if (_reverseAxisBaseline != null)
+    string TryDetectReverseAxis(InputDevice dev, string prefix)
+    {
+        if (dev == null) return "";
+        string devPath = dev.path ?? "";
+        foreach (var c in dev.allControls)
         {
-            foreach (var c in dev.allControls)
-            {
-                if (!(c is AxisControl) || c is ButtonControl) continue;
-                if (!(c is InputControl<float> fc)) continue;
-                string p = c.path ?? "";
-                if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
-                    p = p.Substring(devPath.Length + 1);
-                if (_reverseExcludedPaths != null && _reverseExcludedPaths.Contains(p)) continue;
-                if (!_reverseAxisBaseline.TryGetValue(p, out float baseline)) continue;
-                if (!SafeReadFloat(fc, out var rxv)) continue;
-                if (Mathf.Abs(rxv - baseline) >= REVERSE_AXIS_DETECT_DELTA)
-                {
-                    isAxis = true;
-                    return p;
-                }
-            }
+            if (!(c is AxisControl) || c is ButtonControl) continue;
+            if (!(c is InputControl<float> fc)) continue;
+            string p = c.path ?? "";
+            if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
+                p = p.Substring(devPath.Length + 1);
+            string prefixed = prefix + p;
+            if (_reverseExcludedPaths != null
+                && (_reverseExcludedPaths.Contains(p) || _reverseExcludedPaths.Contains(prefixed))) continue;
+            if (!_reverseAxisBaseline.TryGetValue(prefixed, out float baseline)) continue;
+            if (!SafeReadFloat(fc, out var rxv)) continue;
+            if (Mathf.Abs(rxv - baseline) >= REVERSE_AXIS_DETECT_DELTA)
+                return prefixed;
         }
-
         return "";
     }
 
@@ -1817,25 +1884,37 @@ public class MenuScreenManager : MonoBehaviour
 
         string steerSubpath = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, UIInputNew.DEFAULT_BIND_STEER_AXIS);
 
-        // 1) Buscar G923 / Logitech por nombre (camino preferido)
+        // El path del binding puede venir con prefijo "wheel:" o "shifter:" —
+        // el AttachToDevice lo concatena al path del device, así que necesita
+        // strip si existe para no construir "<HID>/wheel:button5" inválido.
+        string steerSubpathRaw = UIInputNew.StripDevicePrefix(steerSubpath);
+
+        // 1) Buscar wheel candidato por nombre (G923, Logitech, HORI, genéricos).
+        //    Excluimos SHIFTER explícitamente — un device-shifter solo-botones no
+        //    es un wheel y no debe adoptarse como tal en el menú.
         foreach (var device in InputSystem.devices)
         {
-            string name = device.displayName ?? "";
-            string desc = device.description.product ?? "";
-            if (name.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                desc.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
-                name.IndexOf("Logitech", System.StringComparison.OrdinalIgnoreCase) >= 0)
+            if (UIInputNew.IsShifterDevice(device)) continue;
+            if (UIInputNew.IsKnownWheelCandidate(device))
             {
-                AttachToDevice(device, steerSubpath, $"Volante detectado: {name}");
+                AttachToDevice(device, steerSubpathRaw, $"Volante detectado: {device.displayName}");
                 return device;
             }
         }
 
-        // 2) Fallback: cualquier joystick HID genérico (otros modelos de volante)
-        if (Joystick.current != null)
+        // 2) Fallback estable: el primer Joystick con axes >= 3 (heurística de
+        //    wheel) que no sea un SHIFTER. NO usamos Joystick.current — con
+        //    HORI hay dos HIDs y "último activo" suele ser el shifter.
+        foreach (var device in InputSystem.devices)
         {
-            AttachToDevice(Joystick.current, steerSubpath, $"Joystick fallback: {Joystick.current.displayName}");
-            return Joystick.current;
+            if (!(device is Joystick)) continue;
+            if (UIInputNew.IsShifterDevice(device)) continue;
+            int axisCount = 0;
+            foreach (var c in device.allControls)
+                if (c is AxisControl) axisCount++;
+            if (axisCount < 3) continue;
+            AttachToDevice(device, steerSubpathRaw, $"Joystick fallback: {device.displayName}");
+            return device;
         }
 
         // 3) Fallback final: Gamepad (el path del volante no aplica aquí, usa leftStick)
@@ -1877,11 +1956,28 @@ public class MenuScreenManager : MonoBehaviour
 
     // Identidad estable del dispositivo: product + manufacturer + serial.
     // Si cambia, la calibración guardada se invalida (axis pueden ser otros).
+    // Para volantes que reportan wheel + shifter como devices separados (HORI),
+    // concatenamos las huellas con "||" para invalidar también si solo el
+    // shifter cambia (el conjunto ya no es el mismo aunque el wheel sea idéntico).
     string ComputeDeviceFingerprint(InputDevice d)
     {
         if (d == null) return "";
         var desc = d.description;
-        return $"{desc.product ?? ""}|{desc.manufacturer ?? ""}|{desc.serial ?? ""}";
+        string wheelFp = $"{desc.product ?? ""}|{desc.manufacturer ?? ""}|{desc.serial ?? ""}";
+
+        // Buscar shifter conectado y, si existe, anexarlo al fingerprint.
+        string shifterFp = "";
+        foreach (var dev in InputSystem.devices)
+        {
+            if (dev == d) continue;
+            if (UIInputNew.IsShifterDevice(dev))
+            {
+                var sd = dev.description;
+                shifterFp = $"{sd.product ?? ""}|{sd.manufacturer ?? ""}|{sd.serial ?? ""}";
+                break;
+            }
+        }
+        return string.IsNullOrEmpty(shifterFp) ? wheelFp : $"{wheelFp}||{shifterFp}";
     }
 
     void ClearWheelCalibration()

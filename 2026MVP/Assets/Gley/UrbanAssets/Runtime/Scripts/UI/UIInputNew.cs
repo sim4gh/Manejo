@@ -30,6 +30,10 @@ namespace Gley.UrbanSystem
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         private InputAction _moveAction;
         private InputDevice _wheelDevice;
+        // Shifter device separado (HORI Truck reporta wheel + shifter como dos
+        // HIDs USB independientes). null si no aplica. Bindings con prefijo
+        // "shifter:" resuelven aquí; sin prefijo, fallback desde el wheel.
+        private InputDevice _shifterDevice;
         private bool _hasWheel;
         // Handler cacheado para poder unsubscribe en OnDestroy.
         private System.Action<InputDevice, InputDeviceChange> _deviceChangeHandler;
@@ -146,6 +150,13 @@ namespace Gley.UrbanSystem
         private string _bindMenuB = "button8";      // R2
         private string _bindRestartA = "button11";  // L3
         private string _bindRestartB = "button12";  // R3
+        // Gears 1-6: vacío → legacy fallback (buttons 13-19).
+        private string _bindGear1 = "";
+        private string _bindGear2 = "";
+        private string _bindGear3 = "";
+        private string _bindGear4 = "";
+        private string _bindGear5 = "";
+        private string _bindGear6 = "";
 
         public const string PREF_BIND_STEER_AXIS = "Bind_steerAxis";
         public const string PREF_BIND_REVERSE = "Bind_reverse";
@@ -157,6 +168,17 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_MENU_B = "Bind_menuB";
         public const string PREF_BIND_RESTART_A = "Bind_restartA";
         public const string PREF_BIND_RESTART_B = "Bind_restartB";
+        // Gears 1-6 — opcionales. Si los 6 están vacíos, _gearControls cae al
+        // mapeo legacy hardcoded buttons 13-19 (preserva G923 sin recalibrar).
+        // Al persistirse desde Discovery o F8 deberían venir con prefijo
+        // "wheel:" o "shifter:" para evitar ambigüedad cross-device (HORI Truck
+        // tiene H-pattern en device separado del volante).
+        public const string PREF_BIND_GEAR1 = "Bind_gear1";
+        public const string PREF_BIND_GEAR2 = "Bind_gear2";
+        public const string PREF_BIND_GEAR3 = "Bind_gear3";
+        public const string PREF_BIND_GEAR4 = "Bind_gear4";
+        public const string PREF_BIND_GEAR5 = "Bind_gear5";
+        public const string PREF_BIND_GEAR6 = "Bind_gear6";
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
         // En el G923 PS del kiosk de la demo, la posición R del H-shifter
@@ -172,6 +194,14 @@ namespace Gley.UrbanSystem
         public const string DEFAULT_BIND_MENU_B = "button8";
         public const string DEFAULT_BIND_RESTART_A = "button11";
         public const string DEFAULT_BIND_RESTART_B = "button12";
+        // Gears default vacío: si no hay calibración explícita, _gearControls
+        // usa el legacy buttons 13-19 (G923 H-shifter).
+        public const string DEFAULT_BIND_GEAR1 = "";
+        public const string DEFAULT_BIND_GEAR2 = "";
+        public const string DEFAULT_BIND_GEAR3 = "";
+        public const string DEFAULT_BIND_GEAR4 = "";
+        public const string DEFAULT_BIND_GEAR5 = "";
+        public const string DEFAULT_BIND_GEAR6 = "";
 
         /// <summary>
         /// Relee los bindings configurables desde PlayerPrefs y re-cachea los
@@ -198,6 +228,12 @@ namespace Gley.UrbanSystem
             _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
             _bindRestartA     = PlayerPrefs.GetString(PREF_BIND_RESTART_A, DEFAULT_BIND_RESTART_A);
             _bindRestartB     = PlayerPrefs.GetString(PREF_BIND_RESTART_B, DEFAULT_BIND_RESTART_B);
+            _bindGear1        = PlayerPrefs.GetString(PREF_BIND_GEAR1, DEFAULT_BIND_GEAR1);
+            _bindGear2        = PlayerPrefs.GetString(PREF_BIND_GEAR2, DEFAULT_BIND_GEAR2);
+            _bindGear3        = PlayerPrefs.GetString(PREF_BIND_GEAR3, DEFAULT_BIND_GEAR3);
+            _bindGear4        = PlayerPrefs.GetString(PREF_BIND_GEAR4, DEFAULT_BIND_GEAR4);
+            _bindGear5        = PlayerPrefs.GetString(PREF_BIND_GEAR5, DEFAULT_BIND_GEAR5);
+            _bindGear6        = PlayerPrefs.GetString(PREF_BIND_GEAR6, DEFAULT_BIND_GEAR6);
             if (_wheelDevice != null) ReCacheBindings();
         }
 
@@ -213,12 +249,85 @@ namespace Gley.UrbanSystem
             _r2Ctrl       = CacheBindingCtrl(_bindMenuB);
             _l3Ctrl       = CacheBindingCtrl(_bindRestartA);
             _r3Ctrl       = CacheBindingCtrl(_bindRestartB);
+            ReCacheGearControls();
         }
+
+        // Construye _gearControls desde los Bind_gear1..6 si hay al menos uno
+        // configurado; si todos están vacíos, fallback a los buttons 13-19
+        // hardcoded (preserva el comportamiento G923 sin recalibrar).
+        // _gearValues queda en sync: índice i → marcha en gearValues[i].
+        void ReCacheGearControls()
+        {
+            string[] gearBinds = { _bindGear1, _bindGear2, _bindGear3, _bindGear4, _bindGear5, _bindGear6 };
+            bool anyConfigured = false;
+            foreach (var b in gearBinds) if (!string.IsNullOrEmpty(b)) { anyConfigured = true; break; }
+
+            if (!anyConfigured)
+            {
+                // Legacy: buttons 13-19 → gears 1-6, R (mapeo G923 H-shifter).
+                _gearControls = new InputControl<float>[7];
+                for (int i = 0; i < 7; i++) _gearControls[i] = CacheButton(13 + i);
+                _gearValues = new int[] { 1, 2, 3, 4, 5, 6, -1 };
+                return;
+            }
+
+            // Modo configurado: cachear cada gear que tenga binding (los vacíos
+            // se omiten). La reversa se sigue leyendo del _crossCtrls existente,
+            // así que solo cacheamos gears D aquí; R se entiende por separado.
+            var ctrls = new System.Collections.Generic.List<InputControl<float>>();
+            var vals = new System.Collections.Generic.List<int>();
+            for (int i = 0; i < gearBinds.Length; i++)
+            {
+                if (string.IsNullOrEmpty(gearBinds[i])) continue;
+                var c = CacheBindingCtrl(gearBinds[i]);
+                if (c == null) continue;
+                ctrls.Add(c);
+                vals.Add(i + 1);
+            }
+            _gearControls = ctrls.ToArray();
+            _gearValues = vals.ToArray();
+        }
+
+        // Tabla de gears en sincronía con _gearControls.
+        private int[] _gearValues = { 1, 2, 3, 4, 5, 6, -1 };
 
         InputControl<float> CacheBindingCtrl(string path)
         {
             if (string.IsNullOrEmpty(path)) return null;
-            return _wheelDevice.TryGetChildControl(path) as InputControl<float>;
+            return ResolveControlPath(path);
+        }
+
+        // Resuelve un path en el device correcto:
+        //   "wheel:button5"   → solo en _wheelDevice (path stripped)
+        //   "shifter:button5" → solo en _shifterDevice (path stripped)
+        //   "button5"         → wheel primero, fallback shifter (legacy prefs)
+        // Devuelve null si el control no existe o el device target no está.
+        private InputControl<float> ResolveControlPath(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            const string WHEEL_PREFIX = "wheel:";
+            const string SHIFTER_PREFIX = "shifter:";
+
+            if (path.StartsWith(WHEEL_PREFIX, System.StringComparison.OrdinalIgnoreCase))
+            {
+                string sub = path.Substring(WHEEL_PREFIX.Length);
+                if (_wheelDevice == null) return null;
+                return _wheelDevice.TryGetChildControl(sub) as InputControl<float>;
+            }
+            if (path.StartsWith(SHIFTER_PREFIX, System.StringComparison.OrdinalIgnoreCase))
+            {
+                string sub = path.Substring(SHIFTER_PREFIX.Length);
+                if (_shifterDevice == null) return null;
+                return _shifterDevice.TryGetChildControl(sub) as InputControl<float>;
+            }
+            // Sin prefijo: legacy. Busca en wheel; si no resuelve y hay shifter,
+            // intenta ahí. Útil para PlayerPrefs viejas que no tienen prefijo.
+            InputControl<float> ctrl = null;
+            if (_wheelDevice != null)
+                ctrl = _wheelDevice.TryGetChildControl(path) as InputControl<float>;
+            if (ctrl == null && _shifterDevice != null)
+                ctrl = _shifterDevice.TryGetChildControl(path) as InputControl<float>;
+            return ctrl;
         }
 
         // Parsea un binding compuesto separado por '|' (ej: "button18|stick/down")
@@ -238,9 +347,6 @@ namespace Gley.UrbanSystem
         }
 
         public InputDevice WheelDevice => _wheelDevice;
-
-        // Mapeo gear: indice 0-6 → gear 1-6, R(-1)
-        private static readonly int[] GearValues = { 1, 2, 3, 4, 5, 6, -1 };
 #endif
 
         public UIInputNew Initialize()
@@ -294,14 +400,37 @@ namespace Gley.UrbanSystem
         // no implican device inválido (solo resetean estado interno).
         private void OnDeviceChange(InputDevice device, InputDeviceChange change)
         {
-            if (device != _wheelDevice) return;
+            // Manejar añadido de shifter después de Initialize (ej. usuario
+            // conecta el USB del shifter HORI más tarde) — re-cachear bindings
+            // que tengan paths "shifter:" pendientes de resolver.
+            if (change == InputDeviceChange.Added && _hasWheel
+                && _shifterDevice == null && IsShifterDevice(device))
+            {
+                TryDetectShifter();
+                return;
+            }
+
+            bool isWheel = device == _wheelDevice;
+            bool isShifter = device == _shifterDevice;
+            if (!isWheel && !isShifter) return;
             if (change != InputDeviceChange.Removed
                 && change != InputDeviceChange.Disconnected
                 && change != InputDeviceChange.Disabled) return;
 
+            if (isShifter)
+            {
+                Debug.LogWarning($"[UIInputNew] Shifter device {change}: {device.displayName}. Limpiando shifter cache.");
+                _shifterDevice = null;
+                // Re-cachear: paths "shifter:" caen a null, paths sin prefijo
+                // que vivían en el shifter también dejan de resolver.
+                if (_hasWheel) ReCacheBindings();
+                return;
+            }
+
             Debug.LogWarning($"[UIInputNew] Wheel device {change}: {device.displayName}. Reseteando cache.");
             _hasWheel = false;
             _wheelDevice = null;
+            _shifterDevice = null;
             _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
             _crossCtrls = System.Array.Empty<InputControl<float>>();
             _triangleCtrl = null; _restartCtrl = null;
@@ -339,11 +468,19 @@ namespace Gley.UrbanSystem
         {
             if (_hasWheel) return true;
 
-            // 1) Match por nombre conocido (preferido — más específico)
+            // 1) Match por nombre conocido (preferido — más específico).
+            //    Excluir devices SHIFTER por nombre antes de la validación
+            //    heurística: el HORI SHIFTER tiene 0 axes así que falla por
+            //    AttachToWheelDevice de todos modos, pero ser explícito evita
+            //    falsos positivos si Unity reporta axes ficticios.
             foreach (var device in InputSystem.devices)
             {
-                if (MatchesWheelName(device) && AttachToWheelDevice(device, "named match"))
+                if (IsShifterDevice(device)) continue;
+                if (IsKnownWheelCandidate(device) && AttachToWheelDevice(device, "named match"))
+                {
+                    TryDetectShifter();
                     return true;
+                }
             }
 
             // 2) Fallback: cualquier Joystick que pase la validación heurística.
@@ -353,27 +490,116 @@ namespace Gley.UrbanSystem
             foreach (var device in InputSystem.devices)
             {
                 if (!(device is Joystick)) continue;
+                if (IsShifterDevice(device)) continue;
                 if (AttachToWheelDevice(device, "Joystick fallback"))
+                {
+                    TryDetectShifter();
                     return true;
+                }
             }
 
             return false;
         }
 
-        // Hacer match por nombre tanto en displayName como en description.product.
-        // Pantalla 2 ya hace esto — product suele ser más estable entre drivers.
-        public static bool MatchesWheelName(InputDevice d)
+        // Adopta el SHIFTER del HORI Truck (device USB separado) si está conectado.
+        // No es fatal si falla — el HORI Truck wheel solo también es usable en
+        // modo automático. ReCacheBindings se llama luego para resolver paths
+        // con prefijo "shifter:" contra este device.
+        private bool TryDetectShifter()
+        {
+            if (_shifterDevice != null && _shifterDevice.added) return true;
+            foreach (var device in InputSystem.devices)
+            {
+                if (device == _wheelDevice) continue;
+                if (!IsShifterDevice(device)) continue;
+                _shifterDevice = device;
+                int axisCount = 0, buttonCount = 0;
+                foreach (var c in device.allControls)
+                {
+                    if (c is ButtonControl) buttonCount++;
+                    else if (c is AxisControl) axisCount++;
+                }
+                Debug.Log($"[UIInputNew] Shifter adjuntado: {device.displayName}"
+                    + $" | layout={device.layout} | product='{device.description.product}'"
+                    + $" | deviceId={device.deviceId}"
+                    + $" | axes={axisCount} buttons={buttonCount}");
+                ReCacheBindings();
+                return true;
+            }
+            return false;
+        }
+
+        // Detección con dos responsabilidades distintas:
+        //   - IsLogitechG923Family: gatilla el fast-path G923 (EnsureG923PSDefaults
+        //     y skip de Pantalla 2). Solo familias Logitech con mapping conocido.
+        //   - IsKnownWheelCandidate: superset usado para adopción al boot. Incluye
+        //     HORI y descriptores genéricos. NO debe gatillar el fast-path G923 —
+        //     un HORI matcheado por el superset cae en Discovery normal.
+        // Mantener separadas evita el bug silencioso: agregar "HORI" al matcher
+        // único forzaría EnsureG923PSDefaults sobre un device con mapping distinto.
+        public static bool IsLogitechG923Family(InputDevice d)
         {
             string name = d.displayName ?? string.Empty;
             string product = d.description.product ?? string.Empty;
-            string[] patterns = { "G923", "G920", "Driving Force", "Racing Wheel",
-                                  "Steering Wheel", "Driving Wheel", "Logitech" };
+            string[] patterns = { "G923", "G920", "Driving Force", "Logitech" };
             foreach (var p in patterns)
             {
                 if (name.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
                 if (product.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
             }
             return false;
+        }
+
+        public static bool IsKnownWheelCandidate(InputDevice d)
+        {
+            if (IsLogitechG923Family(d)) return true;
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            string[] patterns = { "HORI", "Truck Control", "Racing Wheel",
+                                  "Steering Wheel", "Driving Wheel" };
+            foreach (var p in patterns)
+            {
+                if (name.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+                if (product.IndexOf(p, System.StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            }
+            return false;
+        }
+
+        // Backwards-compat: callers viejos. Equivalente a IsKnownWheelCandidate.
+        // Mantenerlo evita romper código de terceros o scripts editor sin recompilar.
+        public static bool MatchesWheelName(InputDevice d) => IsKnownWheelCandidate(d);
+
+        // Quita el prefijo "wheel:" o "shifter:" de un path si lo tiene.
+        // Útil cuando un binding persistido con prefijo se concatena al path
+        // del device para construir un InputAction binding (ahí no aplica el
+        // prefijo, hay que pasar el subpath crudo).
+        public static string StripDevicePrefix(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return path;
+            const string WHEEL_PREFIX = "wheel:";
+            const string SHIFTER_PREFIX = "shifter:";
+            if (path.StartsWith(WHEEL_PREFIX, System.StringComparison.OrdinalIgnoreCase))
+                return path.Substring(WHEEL_PREFIX.Length);
+            if (path.StartsWith(SHIFTER_PREFIX, System.StringComparison.OrdinalIgnoreCase))
+                return path.Substring(SHIFTER_PREFIX.Length);
+            return path;
+        }
+
+        // Detecta el SHIFTER del HORI Truck (device USB independiente del wheel,
+        // contiene los buttons del H-pattern + sequential). Heurística:
+        // displayName/product contiene "SHIFTER" y NO contiene "WHEEL".
+        public static bool IsShifterDevice(InputDevice d)
+        {
+            if (d == null) return false;
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            bool hasShifter =
+                name.IndexOf("SHIFTER", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                product.IndexOf("SHIFTER", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            bool hasWheel =
+                name.IndexOf("WHEEL", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                product.IndexOf("WHEEL", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            return hasShifter && !hasWheel;
         }
 
         // Mapeo G923 conocido por modo. El switch físico del G923 (PS/Xbox)
@@ -462,7 +688,7 @@ namespace Gley.UrbanSystem
             // y calibración corrupta (Pantalla 2 puede elegir paths equivocados
             // — verificado en logs S3 con G923_BrakeAxis="stick/y" cuando debería
             // ser "rz"). El operador puede recalibrar via Pantalla 2 si quiere.
-            if (MatchesWheelName(device)) EnsureG923PSDefaults(device);
+            if (IsLogitechG923Family(device)) EnsureG923PSDefaults(device);
 
             // Ejes — paths calibrados dinámicamente en la pantalla del menú
             // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
@@ -471,12 +697,9 @@ namespace Gley.UrbanSystem
             _gasCtrl   = CacheControl(gasPath);
             _brakeCtrl = CacheControl(brakePath);
 
-            // H-shifter: buttons 13-19 (no configurable — hardcoded)
-            _gearControls = new InputControl<float>[7];
-            for (int i = 0; i < 7; i++)
-                _gearControls[i] = CacheButton(13 + i);
-
-            // Bindings configurables (reversa, paddles, combos, restart)
+            // Bindings configurables (reversa, paddles, combos, restart, gears).
+            // ReloadBindings() llama a ReCacheBindings() que también construye
+            // _gearControls (Bind_gear1..6 si configurados, fallback buttons 13-19).
             ReloadBindings();
 
             // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
@@ -573,8 +796,7 @@ namespace Gley.UrbanSystem
 
         private InputControl<float> CacheControl(string path)
         {
-            var ctrl = _wheelDevice.TryGetChildControl(path);
-            return ctrl as InputControl<float>;
+            return ResolveControlPath(path);
         }
 
         private bool IsPressed(InputControl<float> ctrl)
@@ -769,7 +991,8 @@ namespace Gley.UrbanSystem
                         {
                             if (IsPressed(_gearControls[i]))
                             {
-                                _currentGear = GearValues[i];
+                                _currentGear = (_gearValues != null && i < _gearValues.Length)
+                                    ? _gearValues[i] : 0;
                                 break;
                             }
                         }

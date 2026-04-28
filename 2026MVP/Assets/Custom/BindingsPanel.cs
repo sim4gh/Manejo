@@ -83,6 +83,14 @@ public class BindingsPanel : MonoBehaviour
         actions.Add(new ActionEntry { id = "menuB",       prefKey = UIInputNew.PREF_BIND_MENU_B,        defaultValue = UIInputNew.DEFAULT_BIND_MENU_B,        displayName = "Combo menú B" });
         actions.Add(new ActionEntry { id = "restartA",    prefKey = UIInputNew.PREF_BIND_RESTART_A,     defaultValue = UIInputNew.DEFAULT_BIND_RESTART_A,     displayName = "Combo restart A (hold + B)" });
         actions.Add(new ActionEntry { id = "restartB",    prefKey = UIInputNew.PREF_BIND_RESTART_B,     defaultValue = UIInputNew.DEFAULT_BIND_RESTART_B,     displayName = "Combo restart B" });
+        // Marchas H-shifter (vacíos = legacy buttons 13-19 G923). Configurar
+        // explícitamente cuando el shifter no es el del G923 (HORI Truck, etc.).
+        actions.Add(new ActionEntry { id = "gear1",       prefKey = UIInputNew.PREF_BIND_GEAR1,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR1,         displayName = "Marcha 1" });
+        actions.Add(new ActionEntry { id = "gear2",       prefKey = UIInputNew.PREF_BIND_GEAR2,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR2,         displayName = "Marcha 2" });
+        actions.Add(new ActionEntry { id = "gear3",       prefKey = UIInputNew.PREF_BIND_GEAR3,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR3,         displayName = "Marcha 3" });
+        actions.Add(new ActionEntry { id = "gear4",       prefKey = UIInputNew.PREF_BIND_GEAR4,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR4,         displayName = "Marcha 4" });
+        actions.Add(new ActionEntry { id = "gear5",       prefKey = UIInputNew.PREF_BIND_GEAR5,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR5,         displayName = "Marcha 5" });
+        actions.Add(new ActionEntry { id = "gear6",       prefKey = UIInputNew.PREF_BIND_GEAR6,         defaultValue = UIInputNew.DEFAULT_BIND_GEAR6,         displayName = "Marcha 6" });
     }
 
     void Update()
@@ -120,53 +128,65 @@ public class BindingsPanel : MonoBehaviour
         // Modo escucha: detectar input según el tipo de acción
         if (listening != null)
         {
-            InputDevice dev = FindWheelDevice();
-            if (dev == null) return;
+            var devices = GetBindingDevices();
+            if (devices.Count == 0) return;
 
             if (listening.kind == ActionKind.Button)
             {
                 // Detectar transición not-pressed → pressed contra el snapshot
                 // tomado al entrar listening. wasPressedThisFrame solo no basta
                 // porque un H-shifter ya puesto en posición no dispara flanco.
-                foreach (var ctrl in dev.allControls)
+                bool assigned = false;
+                foreach (var entry in devices)
                 {
-                    if (!(ctrl is ButtonControl btn)) continue;
-                    string path = GetDeviceRelativePath(ctrl, dev);
-                    if (IsPhantomPath(path)) continue; // saltar siempre-pressed del G923
-                    bool nowPressed = btn.isPressed;
-                    if (buttonBaseline == null) break;
-                    if (!buttonBaseline.TryGetValue(path, out bool wasPressed))
+                    foreach (var ctrl in entry.dev.allControls)
                     {
-                        // control nuevo (device hot-plug u otro) → registrar baseline
+                        if (!(ctrl is ButtonControl btn)) continue;
+                        string rawPath = GetDeviceRelativePath(ctrl, entry.dev);
+                        if (IsPhantomPath(rawPath)) continue; // saltar siempre-pressed del G923
+                        string path = entry.prefix + rawPath;
+                        bool nowPressed = btn.isPressed;
+                        if (buttonBaseline == null) break;
+                        if (!buttonBaseline.TryGetValue(path, out bool wasPressed))
+                        {
+                            buttonBaseline[path] = nowPressed;
+                            continue;
+                        }
+                        if (nowPressed && !wasPressed)
+                        {
+                            AssignBinding(listening, path);
+                            StopListening();
+                            assigned = true;
+                            break;
+                        }
                         buttonBaseline[path] = nowPressed;
-                        continue;
                     }
-                    if (nowPressed && !wasPressed)
-                    {
-                        AssignBinding(listening, path);
-                        StopListening();
-                        break;
-                    }
-                    // refrescar baseline para captar futuros flancos sin atarse al snapshot inicial
-                    buttonBaseline[path] = nowPressed;
+                    if (assigned) break;
                 }
             }
             else // Axis
             {
-                foreach (var ctrl in dev.allControls)
+                bool assigned = false;
+                foreach (var entry in devices)
                 {
-                    if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
-                    string path = GetDeviceRelativePath(ctrl, dev);
-                    if (IsPhantomPath(path)) continue; // skip stick/y phantom
-                    float cur = ReadAxis(ctrl);
-                    if (!axisBaseline.ContainsKey(path)) axisBaseline[path] = cur;
-                    float baseline = axisBaseline[path];
-                    if (Mathf.Abs(cur - baseline) >= AXIS_DETECT_DELTA)
+                    foreach (var ctrl in entry.dev.allControls)
                     {
-                        AssignBinding(listening, path);
-                        StopListening();
-                        break;
+                        if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
+                        string rawPath = GetDeviceRelativePath(ctrl, entry.dev);
+                        if (IsPhantomPath(rawPath)) continue; // skip stick/y phantom
+                        string path = entry.prefix + rawPath;
+                        float cur = ReadAxis(ctrl);
+                        if (!axisBaseline.ContainsKey(path)) axisBaseline[path] = cur;
+                        float baseline = axisBaseline[path];
+                        if (Mathf.Abs(cur - baseline) >= AXIS_DETECT_DELTA)
+                        {
+                            AssignBinding(listening, path);
+                            StopListening();
+                            assigned = true;
+                            break;
+                        }
                     }
+                    if (assigned) break;
                 }
             }
         }
@@ -352,15 +372,14 @@ public class BindingsPanel : MonoBehaviour
         if (a.kind == ActionKind.Axis)
         {
             axisBaseline = new Dictionary<string, float>();
-            InputDevice dev = FindWheelDevice();
-            if (dev != null)
+            foreach (var entry in GetBindingDevices())
             {
-                foreach (var ctrl in dev.allControls)
+                foreach (var ctrl in entry.dev.allControls)
                 {
                     if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
-                    string path = GetDeviceRelativePath(ctrl, dev);
-                    if (IsPhantomPath(path)) continue;
-                    axisBaseline[path] = ReadAxis(ctrl);
+                    string rawPath = GetDeviceRelativePath(ctrl, entry.dev);
+                    if (IsPhantomPath(rawPath)) continue;
+                    axisBaseline[entry.prefix + rawPath] = ReadAxis(ctrl);
                 }
             }
         }
@@ -370,15 +389,14 @@ public class BindingsPanel : MonoBehaviour
             // entrar listening NO se autoasignan — el usuario debe transicionar
             // (sacar y volver a meter la palanca) para registrar la asignación.
             buttonBaseline = new Dictionary<string, bool>();
-            InputDevice dev = FindWheelDevice();
-            if (dev != null)
+            foreach (var entry in GetBindingDevices())
             {
-                foreach (var ctrl in dev.allControls)
+                foreach (var ctrl in entry.dev.allControls)
                 {
                     if (!(ctrl is ButtonControl btn)) continue;
-                    string path = GetDeviceRelativePath(ctrl, dev);
-                    if (IsPhantomPath(path)) continue;
-                    buttonBaseline[path] = btn.isPressed;
+                    string rawPath = GetDeviceRelativePath(ctrl, entry.dev);
+                    if (IsPhantomPath(rawPath)) continue;
+                    buttonBaseline[entry.prefix + rawPath] = btn.isPressed;
                 }
             }
         }
@@ -439,8 +457,8 @@ public class BindingsPanel : MonoBehaviour
     void RefreshLiveInputs()
     {
         if (liveInputsLabel == null) return;
-        InputDevice dev = FindWheelDevice();
-        if (dev == null)
+        var devices = GetBindingDevices();
+        if (devices.Count == 0)
         {
             liveInputsLabel.text = "(sin volante detectado)";
             return;
@@ -448,34 +466,44 @@ public class BindingsPanel : MonoBehaviour
 
         System.Text.StringBuilder sb = new System.Text.StringBuilder(512);
         sb.Append("<b>Device:</b> ");
-        sb.Append(dev.displayName ?? "?");
+        for (int i = 0; i < devices.Count; i++)
+        {
+            if (i > 0) sb.Append(" + ");
+            sb.Append(devices[i].dev.displayName ?? "?");
+        }
         sb.Append("\n<b>Botones:</b> ");
         bool anyBtn = false;
-        foreach (var ctrl in dev.allControls)
+        foreach (var entry in devices)
         {
-            if (!(ctrl is ButtonControl btn)) continue;
-            if (btn.isPressed)
+            foreach (var ctrl in entry.dev.allControls)
             {
-                if (anyBtn) sb.Append(" · ");
-                sb.Append(GetDeviceRelativePath(ctrl, dev));
-                anyBtn = true;
+                if (!(ctrl is ButtonControl btn)) continue;
+                if (btn.isPressed)
+                {
+                    if (anyBtn) sb.Append(" · ");
+                    sb.Append(GetPrefixedPath(ctrl, entry.dev, entry.prefix));
+                    anyBtn = true;
+                }
             }
         }
         if (!anyBtn) sb.Append("(ninguno)");
 
         sb.Append("\n<b>Ejes activos (|v|>0.1):</b> ");
         bool anyAxis = false;
-        foreach (var ctrl in dev.allControls)
+        foreach (var entry in devices)
         {
-            if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
-            float v = ReadAxis(ctrl);
-            if (Mathf.Abs(v) > 0.1f)
+            foreach (var ctrl in entry.dev.allControls)
             {
-                if (anyAxis) sb.Append(" · ");
-                sb.Append(GetDeviceRelativePath(ctrl, dev));
-                sb.Append("=");
-                sb.Append(v.ToString("F2"));
-                anyAxis = true;
+                if (!(ctrl is AxisControl) || ctrl is ButtonControl) continue;
+                float v = ReadAxis(ctrl);
+                if (Mathf.Abs(v) > 0.1f)
+                {
+                    if (anyAxis) sb.Append(" · ");
+                    sb.Append(GetPrefixedPath(ctrl, entry.dev, entry.prefix));
+                    sb.Append("=");
+                    sb.Append(v.ToString("F2"));
+                    anyAxis = true;
+                }
             }
         }
         if (!anyAxis) sb.Append("(ninguno)");
@@ -491,18 +519,33 @@ public class BindingsPanel : MonoBehaviour
         var input = Object.FindObjectOfType<UIInputNew>();
 #pragma warning restore CS0618
         if (input != null && input.WheelDevice != null) return input.WheelDevice;
-        // Fallback: buscar por nombre
+        // Fallback: buscar por nombre — excluir SHIFTER explícitamente.
         foreach (var d in InputSystem.devices)
         {
-            string n = d.displayName ?? "";
-            if (n.IndexOf("G923", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || n.IndexOf("G920", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || n.IndexOf("Racing Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || n.IndexOf("Steering Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || n.IndexOf("Driving Wheel", System.StringComparison.OrdinalIgnoreCase) >= 0)
-                return d;
+            if (UIInputNew.IsShifterDevice(d)) continue;
+            if (UIInputNew.IsKnownWheelCandidate(d)) return d;
         }
         return null;
+    }
+
+    InputDevice FindShifterDevice()
+    {
+        foreach (var d in InputSystem.devices)
+            if (UIInputNew.IsShifterDevice(d)) return d;
+        return null;
+    }
+
+    // Lista de (device, prefix) para iterar al detectar/listar bindings.
+    // El prefijo se concatena al path para distinguir controles homónimos
+    // entre wheel y shifter (HORI Truck reporta dos HIDs).
+    System.Collections.Generic.List<(InputDevice dev, string prefix)> GetBindingDevices()
+    {
+        var list = new System.Collections.Generic.List<(InputDevice, string)>();
+        var wheel = FindWheelDevice();
+        if (wheel != null) list.Add((wheel, "wheel:"));
+        var shifter = FindShifterDevice();
+        if (shifter != null && shifter != wheel) list.Add((shifter, "shifter:"));
+        return list;
     }
 
     static string GetDeviceRelativePath(InputControl ctrl, InputDevice dev)
@@ -512,6 +555,11 @@ public class BindingsPanel : MonoBehaviour
         if (!string.IsNullOrEmpty(dp) && p.StartsWith(dp + "/"))
             return p.Substring(dp.Length + 1);
         return ctrl.name ?? p;
+    }
+
+    static string GetPrefixedPath(InputControl ctrl, InputDevice dev, string prefix)
+    {
+        return prefix + GetDeviceRelativePath(ctrl, dev);
     }
 
     // ── UI helpers ──────────────────────────────────────────────────
