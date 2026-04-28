@@ -18,8 +18,9 @@ public class NotificationManager : MonoBehaviour
             notificationText.gameObject.SetActive(false);                         
     }                                                                             
                                                                                 
-    public void ShowNotification(string message, Color color)                     
-    {                                                                             
+    public void ShowNotification(string message, Color color)
+    {
+        if (SimulatorConfig.Instance != null && !SimulatorConfig.Instance.data.showNotifications) return;
         if (notificationText == null) return;                                     
                                                                                 
         notificationText.text = message;                                          

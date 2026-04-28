@@ -870,6 +870,7 @@ public class MenuScreenManager : MonoBehaviour
     private TextMeshProUGUI adminNetworkLabel;
     private TextMeshProUGUI adminSimulatorLabel;
     private Toggle adminDisplayToggle;
+    private Toggle adminNotificationsToggle;
     private TextMeshProUGUI adminDisplayMapLabel;
 
     void BuildScreen3_Admin()
@@ -922,6 +923,12 @@ public class MenuScreenManager : MonoBehaviour
             "Modo prueba (1 pantalla)", config.displayCount == 1);
         displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
         adminDisplayToggle = displayToggleGo.GetComponent<Toggle>();
+
+        // ── Notificaciones en pantalla ──
+        GameObject notifToggleGo = MenuCardBuilder.CreateToggle(ct,
+            "Mostrar notificaciones en pantalla", config.showNotifications);
+        notifToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
+        adminNotificationsToggle = notifToggleGo.GetComponent<Toggle>();
 
         // ── Intercambiar displays ──
         adminDisplayMapLabel = AdminAddLabel(ct, "Displays", DisplayMapString(config));
@@ -1073,6 +1080,8 @@ public class MenuScreenManager : MonoBehaviour
         data.apiBaseUrl = adminApiUrlInput?.text ?? data.apiBaseUrl;
         if (adminDisplayToggle != null)
             data.displayCount = adminDisplayToggle.isOn ? 1 : 3;
+        if (adminNotificationsToggle != null)
+            data.showNotifications = adminNotificationsToggle.isOn;
 
         SimulatorConfig.Instance.Save();
 

@@ -21,6 +21,7 @@ public class SimulatorConfig : MonoBehaviour
         public int displayCenter = 0;
         public int displayLeft = 1;
         public int displayRight = 2;
+        public bool showNotifications = false;
     }
 
     public ConfigData data = new ConfigData();
