@@ -4,14 +4,14 @@ using UnityEngine.SceneManagement;
 
 public class PlayerEngineSound : MonoBehaviour
 {
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
-    static void AutoCreate()
-    {
-        Debug.Log("[PlayerEngineSound] AutoCreate");
-        var go = new GameObject("[PlayerEngineSound]");
-        go.AddComponent<PlayerEngineSound>();
-        DontDestroyOnLoad(go);
-    }
+  //  [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    //static void AutoCreate()
+    //{
+    //    Debug.Log("[PlayerEngineSound] AutoCreate");
+    //    var go = new GameObject("[PlayerEngineSound]");
+    //    go.AddComponent<PlayerEngineSound>();
+    //   // DontDestroyOnLoad(go);
+    //}
 
     public enum AudioProfile { Sedan, SUV, Bus, Truck, None }
 

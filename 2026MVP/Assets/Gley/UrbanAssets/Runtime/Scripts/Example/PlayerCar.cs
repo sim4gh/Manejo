@@ -42,7 +42,7 @@ namespace Gley.UrbanSystem
         [Header("Rotacion Volante")]
         public Transform steeringWheel;
         public float steeringWheelMaxRotation = 450f;
-        public float steeringWheelSmoothTime = 0.08f; 
+        public float steeringWheelSmoothTime = 0.08f;
 
         private float currentSteeringInput;
         private float steeringWheelVelocity;
@@ -58,9 +58,65 @@ namespace Gley.UrbanSystem
         private float brakeStartSpeed;
 
 
+        [Header("Sonido Motor")]
+        public AudioSource motor;
+
+        [Tooltip("Pitch cuando el carro está en ralentí (parado)")]
+        public float idlePitch = 0.8f;
+
+        [Tooltip("Pitch máximo en avance a velocidad tope")]
+        public float maxPitch = 1.8f;
+
+        [Tooltip("Pitch máximo en reversa (más contenido)")]
+        public float maxPitchReverse = 1.2f;
+
+        [Tooltip("Volumen en ralentí (nunca debe ser 0)")]
+        [Range(0f, 1f)] public float idleVolume = 0.3f;
+
+        [Tooltip("Volumen a velocidad máxima")]
+        [Range(0f, 1f)] public float maxVolume = 0.7f;
+
+        [Tooltip("Velocidad (km/h) a la que el pitch llega al máximo en avance")]
+        public float maxSpeedForSound = 120f;
+
+        [Tooltip("Velocidad (km/h) a la que el pitch llega al máximo en reversa")]
+        public float maxSpeedForSoundReverse = 40f;
+
+        [Tooltip("Pitch extra al pisar acelerador (motor responde al gas)")]
+        public float accelBoost = 0.15f;
+
+        [Tooltip("Cuánto baja el pitch al frenar")]
+        public float brakeReduction = 0.1f;
+
+        [Tooltip("Tiempo de suavizado del pitch (más bajo = más reactivo)")]
+        public float pitchSmoothTime = 0.3f;
+
+        [Tooltip("Tiempo de suavizado del volumen")]
+        public float volumeSmoothTime = 0.2f;
+
+        // Internas para SmoothDamp
+        private float currentPitch;
+        private float currentVolume;
+        private float pitchVelocity;
+        private float volumeVelocity;
+
 
         private void Start()
         {
+            if (motor == null)
+                motor = GetComponent<AudioSource>();
+
+            motor.loop = true;          // El loop de motor SIEMPRE debe estar en loop
+            motor.playOnAwake = false;
+            motor.pitch = idlePitch;
+            motor.volume = idleVolume;
+            currentPitch = idlePitch;
+            currentVolume = idleVolume;
+
+            if (!motor.isPlaying)
+                motor.Play();
+
+
             GetComponent<Rigidbody>().centerOfMass = centerOfMass.localPosition;
 #if ENABLE_LEGACY_INPUT_MANAGER
             inputScript = gameObject.AddComponent<UIInputOld>().Initialize();
@@ -77,7 +133,7 @@ namespace Gley.UrbanSystem
 
 
             steeringWheelInitialRotation = steeringWheel.localRotation;
-          
+
         }
 
         // finds the corresponding visual wheel
@@ -122,13 +178,13 @@ namespace Gley.UrbanSystem
             float localVelocity = transform.InverseTransformDirection(velocity).z;
 
             // Motor segun gear
-            float motor;
+            float motorTorque;
             if (currentGear == -1) // Reversa
-                motor = -maxMotorTorque * gasInput;
+                motorTorque = -maxMotorTorque * gasInput;
             else if (currentGear == 0) // Neutral
-                motor = 0f;
+                motorTorque = 0f;
             else // 1-6
-                motor = maxMotorTorque * gasInput;
+                motorTorque = maxMotorTorque * gasInput;
 
             // Freno: usa brakeTorque real del WheelCollider
             float brakeTorque = maxBrakeTorque * brakeInputValue;
@@ -146,8 +202,8 @@ namespace Gley.UrbanSystem
                 }
                 if (axleInfo.motor)
                 {
-                    axleInfo.leftWheel.motorTorque = motor;
-                    axleInfo.rightWheel.motorTorque = motor;
+                    axleInfo.leftWheel.motorTorque = motorTorque;
+                    axleInfo.rightWheel.motorTorque = motorTorque;
                     axleInfo.leftWheel.brakeTorque = brakeTorque;
                     axleInfo.rightWheel.brakeTorque = brakeTorque;
                 }
@@ -215,6 +271,7 @@ namespace Gley.UrbanSystem
 
             UpdateSteeringWheel();
             UpdateBrakeDebug();
+            UpdateEngineSound();
         }
 
         void UpdateBrakeDebug()
@@ -263,6 +320,58 @@ namespace Gley.UrbanSystem
                 Quaternion.Euler(0f, 0f, -steeringWheelCurrentAngle);
         }
 
+        void UpdateEngineSound()
+        {
+            if (motor == null) return;
+
+#if UNITY_6000_0_OR_NEWER
+            float speedKmh = rb.linearVelocity.magnitude * 3.6f;
+#else
+            float speedKmh = rb.velocity.magnitude * 3.6f;
+#endif
+
+            float gasInput = Mathf.Clamp01(inputScript.GetVerticalInput());
+            float brakeInput = Mathf.Clamp01(inputScript.GetBrakeInput());
+
+            // Elegir techo de pitch y velocidad según dirección
+            float pitchCeiling;
+            float speedCeiling;
+            if (currentGear == -1)
+            {
+                pitchCeiling = maxPitchReverse;
+                speedCeiling = maxSpeedForSoundReverse;
+            }
+            else
+            {
+                pitchCeiling = maxPitch;
+                speedCeiling = maxSpeedForSound;
+            }
+
+            // Velocidad normalizada 0..1 (clamp para que no se pase del techo)
+            float speedNormalized = Mathf.Clamp01(speedKmh / speedCeiling);
+
+            // Pitch base por velocidad
+            float targetPitch = Mathf.Lerp(idlePitch, pitchCeiling, speedNormalized);
+
+            // Modificadores por input
+            targetPitch += accelBoost * gasInput;
+            targetPitch -= brakeReduction * brakeInput;
+
+            // Clamp final para que nunca baje del idle ni se pase del techo + un margen
+            targetPitch = Mathf.Clamp(targetPitch, idlePitch, pitchCeiling + accelBoost);
+
+            // Volumen base por velocidad, con un pequeño boost al pisar gas
+            float targetVolume = Mathf.Lerp(idleVolume, maxVolume, speedNormalized);
+            targetVolume += 0.1f * gasInput;
+            targetVolume = Mathf.Clamp(targetVolume, idleVolume, maxVolume);
+
+            // Suavizado (mismo patrón que el volante)
+            currentPitch = Mathf.SmoothDamp(currentPitch, targetPitch, ref pitchVelocity, pitchSmoothTime);
+            currentVolume = Mathf.SmoothDamp(currentVolume, targetVolume, ref volumeVelocity, volumeSmoothTime);
+
+            motor.pitch = currentPitch;
+            motor.volume = currentVolume;
+        }
 
 
         private bool GetKeyDownSpace()
