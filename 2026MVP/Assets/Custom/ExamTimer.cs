@@ -67,8 +67,7 @@ public class ExamTimer : MonoBehaviour
 
             Button btn = t.GetComponentInParent<Button>(true);
             GameObject target = btn != null ? btn.gameObject : t.transform.parent.gameObject;
-            target.SetActive(false);
-            Debug.Log($"[ExamTimer] Botón 'Exportar Telemetría' oculto: {target.name}");
+            Destroy(target);
         }
     }
 

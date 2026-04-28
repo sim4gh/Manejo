@@ -722,6 +722,7 @@ public class MenuScreenManager : MonoBehaviour
         if (code == "11111") { tramiteId = "TLX-DEMO11111"; citizenName = "Demo Pasajeros"; licenseType = "publico"; OnSessionVerified(); return; }
         if (code == "22222") { tramiteId = "TLX-DEMO22222"; citizenName = "Demo Moto"; licenseType = "motocicleta"; OnSessionVerified(); return; }
         if (code == "33333") { tramiteId = "TLX-DEMO33333"; citizenName = "Demo Carga"; licenseType = "carga"; OnSessionVerified(); return; }
+        if (code == "44444") { tramiteId = "TLX-DEMO44444"; citizenName = "Demo Ambulancia"; licenseType = "emergencia"; OnSessionVerified(); return; }
 
         if (string.IsNullOrEmpty(code))
         {
@@ -787,6 +788,10 @@ public class MenuScreenManager : MonoBehaviour
                 break;
             case "carga":
                 selectedSceneName = "CamionDCarga";
+                GoToScreen(2);
+                break;
+            case "emergencia":
+                selectedSceneName = "Ambulancia";
                 GoToScreen(2);
                 break;
             case "particular":

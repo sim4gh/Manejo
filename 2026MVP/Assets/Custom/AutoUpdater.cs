@@ -67,8 +67,13 @@ public class AutoUpdater : MonoBehaviour
         ReleaseNotes = data.releaseNotes;
         CurrentStatus = data.status;
 
-        // Si el status ya es DOWNLOADING/DOWNLOADED del lado del backend (retry), permitir re-descarga
-        if (data.status == "PENDING" || data.status == "FAILED")
+        // Re-intentar descarga si el status es cualquiera que no sea INSTALLED.
+        // Cubre: PENDING, FAILED, y también DOWNLOADING/DOWNLOADED/INSTALLING
+        // (que quedan huérfanos si la app reinició mid-proceso — CleanupOldUpdates
+        // ya borró el ZIP, así que hay que re-descargar desde cero).
+        if (data.status == "PENDING" || data.status == "FAILED"
+            || data.status == "DOWNLOADING" || data.status == "DOWNLOADED"
+            || data.status == "INSTALLING")
         {
             // Verificar si ya llegó la hora de scheduledAfter
             if (IsScheduledTimeReached(data.scheduledAfter))
@@ -235,6 +240,9 @@ public class AutoUpdater : MonoBehaviour
         if (string.IsNullOrEmpty(downloadedZipPath) || !File.Exists(downloadedZipPath))
         {
             Debug.LogWarning("[AutoUpdater] No hay ZIP para instalar");
+            StartCoroutine(SimulatorApiClient.ReportUpdateStatus("FAILED", "ZIP not found at install time", null));
+            CurrentStatus = "FAILED";
+            isProcessing = false;
             return;
         }
 

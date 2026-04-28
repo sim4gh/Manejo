@@ -35,7 +35,7 @@ public class Semaforos : MonoBehaviour
     {
         if (other.gameObject.GetComponent<PlayerComponent>()&&_SemaforoVerdeActivo==false)
         {
-            Debug.Log("INFRACCIONNNNNNNNNNNN");
+            Debug.Log("[Semaforos] Infracción: cruce en rojo");
         }
     }
  
