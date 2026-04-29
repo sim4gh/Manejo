@@ -455,6 +455,19 @@ namespace Gley.UrbanSystem
             catch (System.InvalidOperationException) { return false; }
         }
 
+        // Lectura sin procesadores de Unity (bypassa axisDeadzone/stickDeadzone).
+        // Usar para ejes de volante/pedales donde el proyecto tiene su propio
+        // pipeline de calibración, deadzone y curvas.
+        private static bool SafeReadFloatRaw(InputControl<float> ctrl, out float value)
+        {
+            value = 0f;
+            if (ctrl == null) return false;
+            var dev = ctrl.device;
+            if (dev == null || !dev.added) return false;
+            try { value = ctrl.ReadUnprocessedValue(); return true; }
+            catch (System.InvalidOperationException) { return false; }
+        }
+
         // Detecta el volante y cachea todos los controles. Idempotente:
         // llamar múltiples veces es barato si ya se encontró.
         // Estrategia en dos pasos:
@@ -870,7 +883,7 @@ namespace Gley.UrbanSystem
             // ---- Steering: calibrado + deadzone + curva racional ----
             if (_hasWheel)
             {
-                float rawSteer = SafeReadFloat(_steerCtrl, out var rs) ? rs : _steerCenter;
+                float rawSteer = SafeReadFloatRaw(_steerCtrl, out var rs) ? rs : _steerCenter;
                 float norm = NormalizeSteer(rawSteer); // [-1, 1] sobre rango físico real
 
                 // Deadzone: si |norm| < deadzone, considerar centro (elimina micro-ruido)
@@ -916,8 +929,8 @@ namespace Gley.UrbanSystem
                 else if (_hasWheel)
                 {
                     // Sin teclado: pedales del volante, mantener último gear
-                    float gasRaw = SafeReadFloat(_gasCtrl, out var rg) ? rg : _gasRest;
-                    float brakeRaw = SafeReadFloat(_brakeCtrl, out var rb) ? rb : _brakeRest;
+                    float gasRaw = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float brakeRaw = SafeReadFloatRaw(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
                     float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
@@ -965,8 +978,8 @@ namespace Gley.UrbanSystem
                 }
                 else if (_hasWheel)
                 {
-                    float gasRaw = SafeReadFloat(_gasCtrl, out var rg) ? rg : _gasRest;
-                    float brakeRaw = SafeReadFloat(_brakeCtrl, out var rb) ? rb : _brakeRest;
+                    float gasRaw = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float brakeRaw = SafeReadFloatRaw(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
                     float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasLinear : Mathf.Pow(gasLinear, _gasCurveN);
@@ -1075,9 +1088,9 @@ namespace Gley.UrbanSystem
                 if (_debugLogTimer >= 2f)
                 {
                     _debugLogTimer = 0f;
-                    float st = SafeReadFloat(_steerCtrl, out var rds) ? rds : 0f;
-                    float gr = SafeReadFloat(_gasCtrl, out var rdg) ? rdg : 1f;
-                    float br = SafeReadFloat(_brakeCtrl, out var rdb) ? rdb : 1f;
+                    float st = SafeReadFloatRaw(_steerCtrl, out var rds) ? rds : 0f;
+                    float gr = SafeReadFloatRaw(_gasCtrl, out var rdg) ? rdg : 1f;
+                    float br = SafeReadFloatRaw(_brakeCtrl, out var rdb) ? rdb : 1f;
                     bool crossDbg = IsAnyPressed(_crossCtrls);
                     int crossLen = _crossCtrls != null ? _crossCtrls.Length : 0;
                     float reverseAge = Time.realtimeSinceStartup - _reverseLastSeenTime;
@@ -1103,9 +1116,9 @@ namespace Gley.UrbanSystem
             info += "Mode: " + (_isAutomaticMode ? "AUTO" : "MANUAL") + "\n";
             if (_hasWheel)
             {
-                float st = SafeReadFloat(_steerCtrl, out var ovs) ? ovs : 0f;
-                float gr = SafeReadFloat(_gasCtrl, out var ovg) ? ovg : 1f;
-                float br = SafeReadFloat(_brakeCtrl, out var ovb) ? ovb : 1f;
+                float st = SafeReadFloatRaw(_steerCtrl, out var ovs) ? ovs : 0f;
+                float gr = SafeReadFloatRaw(_gasCtrl, out var ovg) ? ovg : 1f;
+                float br = SafeReadFloatRaw(_brakeCtrl, out var ovb) ? ovb : 1f;
                 info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3}\n";
                 info += $"CALC V={verticalInput:F3} B={brakeInput:F3} gear={_currentGear}\n";
                 info += $"CAL  gas rest={_gasRest:F2} press={_gasPress:F2}\n";

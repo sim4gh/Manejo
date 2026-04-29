@@ -144,7 +144,7 @@ public class LogConsolePanel : MonoBehaviour
             if (ctrl is ButtonControl) continue;
             if (!(ctrl is AxisControl ax)) continue;
             string key = $"{dev.deviceId}::{ctrl.path}";
-            float v = ax.ReadValue();
+            float v = ax.ReadUnprocessedValue();
             axisInfos[key] = new AxisInfo
             {
                 baseline = v, current = v, minSeen = v, maxSeen = v
@@ -162,11 +162,11 @@ public class LogConsolePanel : MonoBehaviour
             string key = $"{dev.deviceId}::{ctrl.path}";
             if (!axisInfos.TryGetValue(key, out var info))
             {
-                float v0 = ax.ReadValue();
+                float v0 = ax.ReadUnprocessedValue();
                 info = new AxisInfo { baseline = v0, current = v0, minSeen = v0, maxSeen = v0 };
                 axisInfos[key] = info;
             }
-            float v = ax.ReadValue();
+            float v = ax.ReadUnprocessedValue();
             info.current = v;
             if (v > info.maxSeen) info.maxSeen = v;
             if (v < info.minSeen) info.minSeen = v;

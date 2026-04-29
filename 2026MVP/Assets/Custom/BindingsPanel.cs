@@ -194,7 +194,7 @@ public class BindingsPanel : MonoBehaviour
 
     static float ReadAxis(InputControl ctrl)
     {
-        if (ctrl is AxisControl a) return a.ReadValue();
+        if (ctrl is AxisControl a) return a.ReadUnprocessedValue();
         return 0f;
     }
 
