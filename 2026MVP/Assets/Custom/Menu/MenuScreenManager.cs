@@ -878,7 +878,6 @@ public class MenuScreenManager : MonoBehaviour
     private TMP_InputField adminNameInput;
     private TMP_InputField adminApiUrlInput;
     private TextMeshProUGUI adminUidLabel;
-    private TextMeshProUGUI adminNetworkLabel;
     private TextMeshProUGUI adminSimulatorLabel;
     private Toggle adminDisplayToggle;
     private Toggle adminNotificationsToggle;
@@ -910,11 +909,11 @@ public class MenuScreenManager : MonoBehaviour
         contentRt.sizeDelta = new Vector2(900, 0);
 
         var layout = contentObj.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 8f;
-        layout.padding = new RectOffset(30, 30, 10, 10);
+        layout.spacing = 4f;
+        layout.padding = new RectOffset(30, 30, 4, 4);
         layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
-        layout.childControlHeight = false;
+        layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
         contentObj.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
@@ -942,13 +941,13 @@ public class MenuScreenManager : MonoBehaviour
         // ── Modo de pantallas (1 prueba / 3 producción) ──
         GameObject displayToggleGo = MenuCardBuilder.CreateToggle(ct,
             "Modo prueba (1 pantalla)", config.displayCount == 1);
-        displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 40f;
+        displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 38f;
         adminDisplayToggle = displayToggleGo.GetComponent<Toggle>();
 
         // ── Notificaciones en pantalla ──
         GameObject notifToggleGo = MenuCardBuilder.CreateToggle(ct,
             "Mostrar notificaciones en pantalla", config.showNotifications);
-        notifToggleGo.AddComponent<LayoutElement>().preferredHeight = 40f;
+        notifToggleGo.AddComponent<LayoutElement>().preferredHeight = 38f;
         adminNotificationsToggle = notifToggleGo.GetComponent<Toggle>();
 
         // ── Intercambiar displays ──
@@ -966,22 +965,16 @@ public class MenuScreenManager : MonoBehaviour
         swapRow.AddComponent<LayoutElement>().preferredHeight = 45f;
 
         MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Centro", "secondary",
-            new Vector2(140f, 40f), () => OnSwapDisplays("left", "center"));
+            new Vector2(190f, 40f), () => OnSwapDisplays("left", "center"));
         MenuCardBuilder.CreateButton(swapRow.transform, "Centro / Der", "secondary",
-            new Vector2(140f, 40f), () => OnSwapDisplays("center", "right"));
+            new Vector2(190f, 40f), () => OnSwapDisplays("center", "right"));
         MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Der", "secondary",
-            new Vector2(140f, 40f), () => OnSwapDisplays("left", "right"));
-
-        // ── Estado ──
-        adminNetworkLabel = AdminAddLabel(ct, "Estado", "Sin verificar");
+            new Vector2(190f, 40f), () => OnSwapDisplays("left", "right"));
 
         // ── Simulador asignado ──
-        string simDisplay = !string.IsNullOrEmpty(config.simulatorId)
-            ? $"{config.simulatorId} — {config.simulatorName}"
-            : "Sin asignar";
-        adminSimulatorLabel = AdminAddLabel(ct, "Simulador", simDisplay);
+        adminSimulatorLabel = AdminAddLabel(ct, "Simulador", FormatSimulatorDisplay(config));
 
-        AdminAddSpacer(ct, 10f);
+        AdminAddSpacer(ct, 8f);
 
         // ── Botones ──
         GameObject btnRow = new GameObject("ButtonRow");
@@ -999,8 +992,8 @@ public class MenuScreenManager : MonoBehaviour
         MenuCardBuilder.CreateButton(btnRow.transform, "Guardar", "primary",
             new Vector2(220f, 50f), OnAdminSave);
 
-        // Auto-check network on panel open
-        StartCoroutine(AdminCheckNetwork());
+        // Refresh simulator assignment from backend on panel open
+        StartCoroutine(AdminRefreshSimulator());
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(contentRt);
     }
@@ -1025,7 +1018,10 @@ public class MenuScreenManager : MonoBehaviour
     {
         GameObject container = MenuCardBuilder.CreateInputField(parent, label, placeholder,
             new Vector2(0, 45f));
-        container.AddComponent<LayoutElement>().preferredHeight = 68f;
+        // CreateInputField sets sizeDelta.y = size.y + 25 (label + input).
+        // With childControlHeight=true, the layout rewrites height — match exactly
+        // so the input doesn't get clipped by 2px.
+        container.AddComponent<LayoutElement>().preferredHeight = 70f;
         TMP_InputField input = container.GetComponentInChildren<TMP_InputField>();
         if (input != null) input.text = value ?? "";
         return input;
@@ -1161,20 +1157,21 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
-    IEnumerator AdminCheckNetwork()
+    string FormatSimulatorDisplay(SimulatorConfig.ConfigData cfg)
     {
-        if (adminNetworkLabel != null) adminNetworkLabel.text = "Verificando...";
-        string url = (SimulatorConfig.Instance?.data.apiBaseUrl ?? "https://d6twaegbhg.execute-api.us-east-1.amazonaws.com")
-            + "/simulator/lookup?code=test";
+        if (cfg == null || string.IsNullOrEmpty(cfg.simulatorId))
+            return "Sin asignar";
+        return string.IsNullOrEmpty(cfg.simulatorName) ? cfg.simulatorId : cfg.simulatorName;
+    }
 
-        using (var req = UnityEngine.Networking.UnityWebRequest.Get(url))
-        {
-            req.timeout = 5;
-            yield return req.SendWebRequest();
-            if (adminNetworkLabel != null)
-                adminNetworkLabel.text = (req.result == UnityEngine.Networking.UnityWebRequest.Result.Success
-                    || req.responseCode == 400 || req.responseCode == 404) ? "Conectado" : "Sin conexion";
-        }
+    IEnumerator AdminRefreshSimulator()
+    {
+        // SendBootRegister consulta el backend (/simulator/register) y
+        // sincroniza simulatorId/Name al config local sin pisar el name del PC.
+        yield return SimulatorApiClient.SendBootRegister();
+
+        if (adminSimulatorLabel != null)
+            adminSimulatorLabel.text = FormatSimulatorDisplay(SimulatorConfig.Instance?.data);
     }
 
     /// <summary>Llamado desde AdminPanel.cs cuando F10 abre el admin.</summary>
