@@ -433,8 +433,20 @@ public static class SimulatorApiClient
     private class HeartbeatResponse
     {
         public bool ok;
+        public string name;
         public PendingConfig pendingConfig;
         public PendingUpdateData pendingUpdate;
+    }
+
+    [System.Serializable]
+    private class RegisterResponse
+    {
+        public bool success;
+        public string pcId;
+        public string name;
+        public string simulatorId;
+        public string simulatorName;
+        public bool created;
     }
 
     [System.Serializable]
@@ -505,6 +517,15 @@ public static class SimulatorApiClient
             {
                 var response = JsonUtility.FromJson<HeartbeatResponse>(request.downloadHandler.text);
 
+                // Sincronizar name canónico desde backend (ver register/PATCH admin).
+                // Backend es source-of-truth — Unity sólo refleja.
+                if (response != null && !string.IsNullOrEmpty(response.name) && response.name != config.name)
+                {
+                    Debug.Log($"[SimulatorAPI] Nombre PC sincronizado: {config.name} → {response.name}");
+                    config.name = response.name;
+                    SimulatorConfig.Instance.Save();
+                }
+
                 // Procesar pending update si existe
                 if (response?.pendingUpdate != null && !string.IsNullOrEmpty(response.pendingUpdate.version))
                 {
@@ -520,10 +541,13 @@ public static class SimulatorApiClient
 
                     newEnv = response.pendingConfig.environment;
                     newRegUrl = $"{config.apiBaseUrl}/simulator/register";
+                    // Re-register tras cambio de ambiente: NO mandar name. Backend
+                    // usa if_not_exists para preservar el name actual (que en el
+                    // ambiente nuevo puede no existir todavía → seed con default).
                     newRegJson = JsonUtility.ToJson(new RegisterRequest
                     {
                         pcId = config.pcId,
-                        name = config.name,
+                        name = "",
                         appVersion = UnityEngine.Application.version,
                         platform = "windows"
                     });
@@ -561,6 +585,70 @@ public static class SimulatorApiClient
         public string name;
         public string appVersion;
         public string platform;
+    }
+
+    /// <summary>
+    /// POST /simulator/register al arranque, SIN mandar name. El backend crea
+    /// el record si no existe (con un name default derivado del pcId) y
+    /// preserva el actual si ya existe (no pisa renames hechos desde el portal
+    /// admin). El name canónico viene en la response y se sincroniza local.
+    /// </summary>
+    public static IEnumerator SendBootRegister()
+    {
+        var config = SimulatorConfig.Instance?.data;
+        if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
+
+        string url = $"{BaseUrl}/simulator/register";
+        string json = JsonUtility.ToJson(new RegisterRequest
+        {
+            pcId = config.pcId,
+            // name vacío → backend usa if_not_exists. NO autoridad sobre el
+            // name desde un boot — sólo F10 explícito y PATCH admin lo cambian.
+            name = "",
+            appVersion = UnityEngine.Application.version,
+            platform = "windows",
+        });
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            request.uploadHandler = new UploadHandlerRaw(System.Text.Encoding.UTF8.GetBytes(json));
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = 10;
+            yield return request.SendWebRequest();
+
+            if (request.result != UnityWebRequest.Result.Success)
+            {
+                Debug.LogWarning($"[SimulatorAPI] Boot register failed: {request.error}");
+                yield break;
+            }
+
+            try
+            {
+                var response = JsonUtility.FromJson<RegisterResponse>(request.downloadHandler.text);
+                if (response != null)
+                {
+                    bool changed = false;
+                    if (!string.IsNullOrEmpty(response.name) && response.name != config.name)
+                    {
+                        Debug.Log($"[SimulatorAPI] Nombre PC sincronizado al boot: {config.name} → {response.name}");
+                        config.name = response.name;
+                        changed = true;
+                    }
+                    if (!string.IsNullOrEmpty(response.simulatorId) && response.simulatorId != config.simulatorId)
+                    {
+                        config.simulatorId = response.simulatorId;
+                        config.simulatorName = response.simulatorName ?? "";
+                        changed = true;
+                    }
+                    if (changed) SimulatorConfig.Instance.Save();
+                }
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[SimulatorAPI] Error parseando boot register response: {e.Message}");
+            }
+        }
     }
 
     // ── API: Solicitar URL de descarga de update ──────────────────────
