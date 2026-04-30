@@ -140,12 +140,51 @@ Para descubrir el nombre tecnico de cualquier control del volante (reversa, padd
 
 **macOS:** las teclas F7-F12 son media keys por defecto (anterior/play/siguiente/mute/vol). Activar Sys Settings -> Keyboard -> "Use F1, F2, etc. keys as standard function keys", o usar `fn+F8`. Si nada aparece en LogConsolePanel al mantener una F-key, el SO la esta interceptando.
 
+## Lectura de ejes: `ReadUnprocessedValue()` (FIX#27, v1.2.0)
+
+Unity Input System aplica procesadores a nivel de control. En particular, `StickControl.cs` agrega `axisDeadzone` (12.5% default) a `stick/x` y `stick/y`. En el G923 con 900° de rango, esto crea ~56-90° de zona muerta antes de que el pipeline del proyecto (`NormalizeSteer`, deadzone propia de 2%, curva racional) vea cualquier valor.
+
+### `SafeReadFloat` vs `SafeReadFloatRaw`
+
+```
+SafeReadFloat(ctrl)     → ctrl.ReadValue()            → CON procesadores (axisDeadzone, etc.)
+SafeReadFloatRaw(ctrl)  → ctrl.ReadUnprocessedValue()  → SIN procesadores (valor HID crudo)
+```
+
+**Regla:** Usar `SafeReadFloatRaw` para TODOS los ejes de volante/pedales (steering, gas, brake). Usar `SafeReadFloat` para botones y controles digitales donde los procesadores son inofensivos o deseables.
+
+Archivos con ambos metodos: `UIInputNew.cs`, `MenuScreenManager.cs`.
+
+### Archivos alineados con `ReadUnprocessedValue()`
+
+| Archivo | Contexto |
+|---------|----------|
+| `UIInputNew.cs` | 10 call sites de ejes (steering, gas, brake, debug, overlay) |
+| `MenuScreenManager.cs` | 8 call sites + 3 bare `.ReadUnprocessedValue()` + `ReadSteerInput()` |
+| `LogConsolePanel.cs` | 3 reads en F7 (para que diagnostico muestre lo mismo que el runtime) |
+| `BindingsPanel.cs` | 1 read en `ReadAxis()` de F8 |
+
+### `Cal_FormatVersion` — migracion automatica de calibracion
+
+Los valores de calibracion en PlayerPrefs (`G923_Steer*`, `G923_Gas*`, `G923_Brake*`) se capturan en el espacio de valores que el codigo usa al leerlos. Al cambiar de `ReadValue()` a `ReadUnprocessedValue()`, los valores guardados quedan en espacio "procesado" (con deadzone aplicada) pero el runtime los lee en espacio "raw" — creando una inconsistencia.
+
+`Cal_FormatVersion` (int en PlayerPrefs) resuelve esto:
+- Al entrar a Pantalla 2, si `Cal_FormatVersion < 2`, se ejecuta `ClearWheelCalibration()` + `DeleteKey("Cal_ReverseDone")` y se fuerza Discovery completo.
+- Esto migra automaticamente todos los kioskos sin intervencion manual.
+
+### `steeringWheelSmoothTime` — clamp en `PlayerCar.Start()`
+
+La rueda visual del cockpit usa `Mathf.SmoothDamp` con `steeringWheelSmoothTime`. Muchas escenas tenian este valor en 1.5s (configurado originalmente para teclado, donde el smooth daba animacion suave). Con volante analogico, 1.5s de lag visual causa que el usuario sobrecompense el input (percibe momentum/overshoot).
+
+**Fix:** `PlayerCar.Start()` aplica `if (steeringWheelSmoothTime > 0.1f) steeringWheelSmoothTime = 0.05f;`. Esto cubre TODAS las escenas sin editar cada .unity/.prefab. La fisica del steering (WheelCollider.steerAngle) se aplica directamente en FixedUpdate sin smooth — solo la visual estaba afectada.
+
 ## Notas tecnicas
 
-- **Ejes via InputAction, botones via device directo:** Los InputAction bindings resuelven ejes pero NO botones en HID genericos. Para botones, cachear `InputControl<float>` via `TryGetChildControl()` en setup y poll con `ReadValue()` en Update.
+- **Ejes via InputAction, botones via device directo:** Los InputAction bindings resuelven ejes pero NO botones en HID genericos. Para botones, cachear `InputControl<float>` via `TryGetChildControl()` en setup y poll con `SafeReadFloat` (procesado) en Update. Para ejes de volante/pedales, usar `SafeReadFloatRaw` (`ReadUnprocessedValue()`).
 - **NO agregar** bindings del G923 a `_moveAction` (Vector2) — causa error `Cannot read value of type Vector2`
 - Sin G923 conectado, todo funciona con teclado (WASD/flechas) via `_moveAction`
 - El vehiculo **no usa RCCP** — usa `PlayerCar` de Gley con WheelColliders de Unity
 - **InputActions se disposan** en OnDestroy (Disable + Dispose) para evitar memory leaks
 - Gear strings cacheados como `static readonly` para evitar GC allocation por frame
 - Force Feedback no implementado (requiere Logitech SDK, no prioritario para examen de manejo)
+- **`stick/right`, `stick/left`** etc. son `ButtonControl` sinteticos derivados del eje `stick/x` por Unity — aparecen en F7 cuando `stick/x > ~0.5`. Son cosmeticos, no afectan gameplay.
