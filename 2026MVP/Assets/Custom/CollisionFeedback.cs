@@ -44,6 +44,9 @@ public class CollisionFeedback : MonoBehaviour
     private Coroutine flashCoroutine;
     private Coroutine ffbCoroutine;
 
+    // Tracker de conexión del wheel para reactivar centering en hot-plug (wheel conectado tras boot)
+    private bool prevWheelConnected;
+
     private void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -52,8 +55,15 @@ public class CollisionFeedback : MonoBehaviour
         BuildCanvas();
         LoadImpactClips();
         SetupAudioSource();
-        LogitechFFB.TryInitialize();
-        Debug.Log("[CollisionFeedback] Inicializado.");
+
+        // Inicializar SDK Logitech y restaurar centering/damping nativo.
+        // Sin EnableNaturalCentering, el SDK toma control del wheel y desactiva el spring
+        // automático del G HUB → wheel queda "muerto" sin fuerza de centrado.
+        if (LogitechFFB.TryInitialize() && LogitechFFB.IsConnected())
+        {
+            LogitechFFB.EnableNaturalCentering();
+        }
+        Debug.Log("[CollisionFeedback] Inicializado. ffbConnected=" + LogitechFFB.IsConnected());
     }
 
     private void OnEnable()
@@ -70,6 +80,7 @@ public class CollisionFeedback : MonoBehaviour
     {
         LogitechFFB.StopConstantForce();
         LogitechFFB.StopBumpyRoad();
+        LogitechFFB.DisableNaturalCentering();
         LogitechFFB.Shutdown();
     }
 
@@ -77,6 +88,17 @@ public class CollisionFeedback : MonoBehaviour
     {
         // El SDK Logitech requiere update por frame para mantener efectos vivos.
         LogitechFFB.Update();
+
+        // Hot-plug del wheel: si se conectó después del boot, reactivar centering.
+        // Si el wheel YA estaba conectado en Awake, esto es no-op porque prevWheelConnected
+        // queda en true tras el primer frame y no hay transición a observar.
+        bool nowConnected = LogitechFFB.IsConnected();
+        if (nowConnected && !prevWheelConnected)
+        {
+            Debug.Log("[CollisionFeedback] Wheel detectado mid-session, activando centering.");
+            LogitechFFB.EnableNaturalCentering();
+        }
+        prevWheelConnected = nowConnected;
     }
 
     private void BuildCanvas()

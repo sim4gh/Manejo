@@ -297,6 +297,10 @@ public class ViolationDetector : MonoBehaviour
         }
         else
         {
+            // Diagnóstico: colisión a velocidad significativa contra layer Default sin tag conocido.
+            // Útil para detectar geometría sin clasificar (paredes, edificios) que el examinado
+            // choca pero no recibe feedback. Si aparece seguido, agregar tag/layer apropiado.
+            Debug.Log($"[ViolationDetector] Colisión sin clasificar (no feedback): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
             return; // No fue penalizado, no activar cooldown
         }
 

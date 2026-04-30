@@ -24,6 +24,10 @@ public static class LogitechFFB
     [DllImport(DLL)] private static extern bool LogiStopConstantForce(int index);
     [DllImport(DLL)] private static extern bool LogiPlayBumpyRoadEffect(int index, int magnitudePercentage);
     [DllImport(DLL)] private static extern bool LogiStopBumpyRoadEffect(int index);
+    [DllImport(DLL)] private static extern bool LogiPlaySpringForce(int index, int offsetPercentage, int saturationPercentage, int coefficientPercentage);
+    [DllImport(DLL)] private static extern bool LogiStopSpringForce(int index);
+    [DllImport(DLL)] private static extern bool LogiPlayDamperForce(int index, int coefficientPercentage);
+    [DllImport(DLL)] private static extern bool LogiStopDamperForce(int index);
     [DllImport(DLL)] private static extern bool LogiSteeringShutdown();
 #endif
 
@@ -132,6 +136,42 @@ public static class LogitechFFB
 #if UNITY_STANDALONE_WIN
         if (!sdkAvailable) return;
         try { LogiStopBumpyRoadEffect(WHEEL_INDEX); }
+        catch { }
+#endif
+    }
+
+    /// <summary>
+    /// Activa centering + damping persistente para que el wheel se sienta firme.
+    /// CRÍTICO: al llamar LogiSteeringInitialize, el SDK desactiva el feedback nativo del
+    /// G HUB (centering automático del G923). Sin esto, el wheel queda "muerto" / sin fuerza.
+    /// Llamar UNA vez tras TryInitialize. Los efectos persisten hasta Stop o Shutdown.
+    ///
+    /// - SpringForce: empuja al centro. coefficient=fuerza con que regresa, saturation=fuerza máxima.
+    /// - DamperForce: resistencia al movimiento (sensación de viscosidad/peso).
+    /// </summary>
+    public static void EnableNaturalCentering(int springCoefficient = 60, int springSaturation = 80, int damperCoefficient = 30)
+    {
+#if UNITY_STANDALONE_WIN
+        if (!sdkAvailable) return;
+        try
+        {
+            LogiPlaySpringForce(WHEEL_INDEX, 0, Mathf.Clamp(springSaturation, 0, 100), Mathf.Clamp(springCoefficient, 0, 100));
+            LogiPlayDamperForce(WHEEL_INDEX, Mathf.Clamp(damperCoefficient, 0, 100));
+            Debug.Log($"[LogitechFFB] Centering activo: spring(coef={springCoefficient}, sat={springSaturation}) + damper={damperCoefficient}");
+        }
+        catch { }
+#endif
+    }
+
+    public static void DisableNaturalCentering()
+    {
+#if UNITY_STANDALONE_WIN
+        if (!sdkAvailable) return;
+        try
+        {
+            LogiStopSpringForce(WHEEL_INDEX);
+            LogiStopDamperForce(WHEEL_INDEX);
+        }
         catch { }
 #endif
     }
