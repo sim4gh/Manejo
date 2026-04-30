@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
@@ -712,6 +713,7 @@ public class MenuScreenManager : MonoBehaviour
                 tramiteId = response.tramiteId;
                 citizenName = response.citizenName;
                 licenseType = response.licenseType;
+                GameManager.Instance.LocationId = 1;
                 OnSessionVerified();
                 yield break;
             }
@@ -724,16 +726,32 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
+    // Demo codes: prefijo de 4 dígitos → (tramiteId, citizenName, licenseType).
+    // El 5° dígito es el sufijo de ubicación: 0 = aleatorio, 1..5 = spawn fijo.
+    static readonly Dictionary<string, (string id, string name, string type)> DEMO_PREFIXES = new Dictionary<string, (string, string, string)>
+    {
+        { "0000", ("TLX-DEMO00000", "Demo Automóvil",  "particular")  },
+        { "1111", ("TLX-DEMO11111", "Demo Pasajeros",  "publico")     },
+        { "2222", ("TLX-DEMO22222", "Demo Moto",       "motocicleta") },
+        { "3333", ("TLX-DEMO33333", "Demo Carga",      "carga")       },
+        { "4444", ("TLX-DEMO44444", "Demo Ambulancia", "emergencia")  },
+    };
+
     void OnVerifyCode()
     {
         string code = codeInput != null ? codeInput.text.Trim().ToUpper() : "";
 
-        // Demo codes para testing sin backend
-        if (code == "00000") { tramiteId = "TLX-DEMO00000"; citizenName = "Demo Automóvil"; licenseType = "particular"; OnSessionVerified(); return; }
-        if (code == "11111") { tramiteId = "TLX-DEMO11111"; citizenName = "Demo Pasajeros"; licenseType = "publico"; OnSessionVerified(); return; }
-        if (code == "22222") { tramiteId = "TLX-DEMO22222"; citizenName = "Demo Moto"; licenseType = "motocicleta"; OnSessionVerified(); return; }
-        if (code == "33333") { tramiteId = "TLX-DEMO33333"; citizenName = "Demo Carga"; licenseType = "carga"; OnSessionVerified(); return; }
-        if (code == "44444") { tramiteId = "TLX-DEMO44444"; citizenName = "Demo Ambulancia"; licenseType = "emergencia"; OnSessionVerified(); return; }
+        // Demo codes para testing sin backend (5 dígitos: 4 de tipo + 1 de ubicación 0..5)
+        if (code.Length == 5 && DEMO_PREFIXES.TryGetValue(code.Substring(0, 4), out var demo)
+            && code[4] >= '0' && code[4] <= '5')
+        {
+            tramiteId = demo.id;
+            citizenName = demo.name;
+            licenseType = demo.type;
+            GameManager.Instance.LocationId = code[4] - '0';
+            OnSessionVerified();
+            return;
+        }
 
         if (string.IsNullOrEmpty(code))
         {
@@ -774,6 +792,7 @@ public class MenuScreenManager : MonoBehaviour
         tramiteId = response.tramiteId;
         citizenName = response.citizenName;
         licenseType = response.licenseType;
+        GameManager.Instance.LocationId = 1;
         OnSessionVerified();
     }
 
