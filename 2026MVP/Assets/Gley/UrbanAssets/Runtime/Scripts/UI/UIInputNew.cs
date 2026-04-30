@@ -79,7 +79,12 @@ namespace Gley.UrbanSystem
         // Sigue siendo configurable por F9 panel.
         public const float DEFAULT_BRAKE_SOFT_END = 0.5f;
         public const float DEFAULT_BRAKE_SOFT_MAX_OUTPUT = 0.5f;
-        public const float DEFAULT_GAS_CURVE_N = 1.0f;
+        // Curva del gas: pow(pedal, N). N=1.0 lineal se siente muy sensible al inicio
+        // en wheels analógicos (un toque suave dispara el coche). N=1.7 da control fino
+        // en 0-50% del pedal y mantiene 100% torque al fondo. Equivalente a curvas
+        // típicas de simuladores reales ("eco/cruise" en zona baja, full al fondo).
+        // Tuneable en runtime desde F9 (AdvancedInputPanel).
+        public const float DEFAULT_GAS_CURVE_N = 1.7f;
         // Keys PlayerPrefs
         public const string PREF_STEER_CURVE_A = "Adv_SteerCurveA";
         public const string PREF_STEER_DEADZONE = "Adv_SteerDeadzone";
@@ -87,12 +92,36 @@ namespace Gley.UrbanSystem
         public const string PREF_BRAKE_SOFT_MAX_OUTPUT = "Adv_BrakeSoftMaxOutput";
         public const string PREF_GAS_CURVE_N = "Adv_GasCurveN";
 
+        // Versión del default de gas curve. Bumpear cuando cambiemos
+        // DEFAULT_GAS_CURVE_N para que kioskos con el viejo default reciban el
+        // nuevo. Kioskos que tunearon explícitamente desde F9 también se migran
+        // una vez — la próxima vez que tuneen F9 queda lo que ellos elijan.
+        private const int GAS_CURVE_DEFAULT_VERSION = 2;
+        private const string PREF_GAS_CURVE_DEFAULT_VERSION = "Adv_GasCurveDefault_v";
+
+        /// <summary>
+        /// Migra el default de gas curve si la versión guardada es vieja. Llamar
+        /// antes de ReloadTuning. Idempotente — solo escribe la primera vez por versión.
+        /// </summary>
+        private void MigrateGasCurveDefault()
+        {
+            int storedVersion = PlayerPrefs.GetInt(PREF_GAS_CURVE_DEFAULT_VERSION, 1);
+            if (storedVersion < GAS_CURVE_DEFAULT_VERSION)
+            {
+                PlayerPrefs.SetFloat(PREF_GAS_CURVE_N, DEFAULT_GAS_CURVE_N);
+                PlayerPrefs.SetInt(PREF_GAS_CURVE_DEFAULT_VERSION, GAS_CURVE_DEFAULT_VERSION);
+                PlayerPrefs.Save();
+                Debug.Log($"[UIInputNew] Migrated gas curve default to {DEFAULT_GAS_CURVE_N} (v{storedVersion}→{GAS_CURVE_DEFAULT_VERSION})");
+            }
+        }
+
         /// <summary>
         /// Relee los parámetros de tuning desde PlayerPrefs. Llamar al iniciar
         /// y cuando el AdvancedInputPanel modifique valores (efecto en vivo).
         /// </summary>
         public void ReloadTuning()
         {
+            MigrateGasCurveDefault();
             _steerCurveA = PlayerPrefs.GetFloat(PREF_STEER_CURVE_A, DEFAULT_STEER_CURVE_A);
             _steerDeadzone = PlayerPrefs.GetFloat(PREF_STEER_DEADZONE, DEFAULT_STEER_DEADZONE);
             _brakeSoftEnd = PlayerPrefs.GetFloat(PREF_BRAKE_SOFT_END, DEFAULT_BRAKE_SOFT_END);
