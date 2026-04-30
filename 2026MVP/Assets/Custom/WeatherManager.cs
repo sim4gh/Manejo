@@ -142,7 +142,6 @@ public class WeatherManager : MonoBehaviour
                 ? current.constantMax : current.constant;
             float newRate = baseRate * HAIL_RAIN_RATE_MULTIPLIER;
             emission.rateOverTime = new ParticleSystem.MinMaxCurve(newRate);
-            Debug.Log($"[WeatherManager]   LLuvia[{i}] rate {baseRate} → {newRate}");
         }
     }
 
@@ -173,7 +172,6 @@ public class WeatherManager : MonoBehaviour
             main.startSize = new ParticleSystem.MinMaxCurve(
                 min * HAIL_SIZE_MULTIPLIER,
                 max * HAIL_SIZE_MULTIPLIER);
-            Debug.Log($"[WeatherManager]   Granizo[{i}] size {min}..{max} → {min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER} (size3D=false)");
         }
     }
 
