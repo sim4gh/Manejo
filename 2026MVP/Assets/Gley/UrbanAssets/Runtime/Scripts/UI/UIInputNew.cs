@@ -681,6 +681,11 @@ namespace Gley.UrbanSystem
             PlayerPrefs.SetFloat("G923_SteerMax",    1.0f);
             PlayerPrefs.SetFloat("G923_SteerMin",   -1.0f);
 
+            // Botón dedicado de intermitentes (luces de emergencia). En Logitech
+            // G923 ambas variantes (PS/Xbox) exponen button24 — alternativa al
+            // combo L1+R1 (paddles) que sigue funcionando como fallback.
+            PlayerPrefs.SetString(PREF_BIND_HAZARD, "button24");
+
             if (isXboxMode)
             {
                 // Xbox mode: gas=stick/y (idle=-1, pressed va hacia +1),
