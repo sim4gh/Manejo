@@ -114,6 +114,12 @@ Coroutines usan `Time.unscaledDeltaTime` para que feedback siga animándose si l
 
 **Para extender**: si se necesita variar el feedback por tipo de violación (no solo magnitud), `info.violationType` está disponible en el handler. Ej: peatón siempre máximo, sin importar velocidad.
 
+### Weather System (`Assets/Custom/WeatherManager.cs`)
+
+Sistema de clima aleatorio (Sol / Lluvia / Granizo). Singleton bootstrapped (`AfterSceneLoad`) que activa/desactiva los GO `LLuvia` y `Granizo` preexistentes en cada escena según `PlayerPrefs.GetInt("Clima")`. Sorteo + override demo codes en `MenuScreenManager.PickAndSetWeather`.
+
+Ver [`WEATHER_SYSTEM.md`](WEATHER_SYSTEM.md) para arquitectura completa, gotchas (`size3D`, `AfterSceneLoad`, `rateOverTimeMultiplier`), demo codes `TTTXY` y TODOs.
+
 ### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
 
 Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Hardened en 1.2.2 (abr 2026) tras analisis exhaustivo + revision Codex.
