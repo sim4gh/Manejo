@@ -27,14 +27,34 @@ Al iniciar la aplicacion, aparece la pantalla **"Prueba de Manejo"** con dos opc
 
 ## Codigos Demo (para pruebas sin backend)
 
-Estos codigos funcionan sin conexion al servidor:
+Estos codigos funcionan sin conexion al servidor. **Los primeros 4 digitos** definen el tipo de licencia / vehiculo; **el 5° digito** controla en que parte de la ciudad arranca el examinado.
 
-| Codigo | Tipo de licencia | Escena |
-|--------|-----------------|--------|
-| `00000` | Particular (Automovil) | Sedan / Jetta / Camioneta |
-| `11111` | Publico (Pasajeros) | Bus de Pasajeros |
-| `22222` | Motocicleta | Motocicleta |
-| `33333` | Carga (Camion) | Camion de Carga |
+| Prefijo (4 digitos) | Tipo de licencia | Escena |
+|---|---|---|
+| `0000X` | Particular (Automovil) | Sedan / Jetta / Camioneta |
+| `1111X` | Publico (Pasajeros) | Bus de Pasajeros |
+| `2222X` | Motocicleta | Motocicleta |
+| `3333X` | Carga (Camion) | Camion de Carga |
+| `4444X` | Emergencia | Ambulancia |
+
+### Sufijo de ubicacion (5° digito)
+
+| Sufijo | Comportamiento |
+|---|---|
+| `1` | Spawn fijo en zona 1 |
+| `2` | Spawn fijo en zona 2 |
+| `3` | Spawn fijo en zona 3 (antes de la glorieta) |
+| `4` | Spawn fijo en zona 4 |
+| `5` | Spawn fijo en zona 5 |
+| `0` | Aleatorio entre las 5 zonas |
+| `6..9` | No es demo: el sistema lo manda al backend como codigo real |
+
+Ejemplos:
+- `11113` → Bus en la zona 3 (antes de la glorieta).
+- `22220` → Motocicleta en zona aleatoria.
+- `00001` → Auto en zona 1.
+
+Para descubrir o refinar los waypoints de cada zona: durante un examen, posiciona el vehiculo donde quieras que arranque y presiona la tecla **`K`**. En la consola F7 aparece `[WaypointDebug] ... idx=NNN ...` — ese numero se hardcodea en `Assets/Custom/SpawnLocationManager.cs` (`DEFAULT_WAYPOINTS`).
 
 ---
 

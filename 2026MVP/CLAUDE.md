@@ -204,11 +204,29 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 - **QR**: POST `/kiosk/sessions` → genera QR → poll cada 10s → al verificarse obtiene `tramiteId`, `citizenName`, `licenseType`
 - **Codigo manual**: Input "TLX-XXXXXX" → GET `/simulator/lookup?code={code}` → misma info
 - **Demo codes** (5 digitos, normalizados con `.Trim().ToUpper()`):
-  - `00000` → `TLX-DEMO00000` "Demo Automovil" `particular` (abre Pantalla 1 de seleccion de modelo)
-  - `11111` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
-  - `22222` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
-  - `33333` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
-  - `44444` → `TLX-DEMO44444` "Demo Ambulancia" `emergencia` (escena `Ambulancia`)
+  - **Primeros 4 digitos = tipo de licencia/vehiculo**, **5° digito = ubicacion de spawn (0..5)**.
+  - `0000X` → `TLX-DEMO00000` "Demo Automovil" `particular` (abre Pantalla 1 de seleccion de modelo)
+  - `1111X` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
+  - `2222X` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
+  - `3333X` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
+  - `4444X` → `TLX-DEMO44444` "Demo Ambulancia" `emergencia` (escena `Ambulancia`)
+  - **Sufijo X**: `1..5` = waypoint Gley fijo (ver `SpawnLocationManager.DEFAULT_WAYPOINTS`), `0` = aleatorio entre los 5. Cualquier otro digito (`6..9`) cae al flujo backend normal.
+  - Compat: `11111` sigue valido (= zona 1), `22222`, etc.
+
+### Spawn por sufijo (ubicaciones en la ciudad)
+
+`Assets/Custom/SpawnLocationManager.cs` (singleton bootstrap, post-merge feature/spawn-locations-by-suffix):
+
+- Lee `GameManager.LocationId` (1..5 = fijo, 0 = random) y teleporta al `Player` (busca por `Gley.UrbanSystem.PlayerCar` → tag `Player` → name `Player`) al waypoint Gley correspondiente.
+- Reusa la red de Gley TrafficSystem ya cargada — no requiere editar las escenas en el editor.
+- Tabla `DEFAULT_WAYPOINTS = { 3170, 4588, 3170, 6765, 4588 }` (slots 1..5; slots 1 y 5 son espejo temporal de 3 y 2 hasta capturar puntos definitivos).
+- Solo activo en escenas whitelist: `Sedan`, `Camioneta`, `Motocicleta`, `BusPasajeros`, `CamionDCarga`, `Ambulancia`. En MainMenu nunca se inyecta.
+- Usa `UNASSIGNED = -1` como sentinel: si el slot vale `-1`, el runner deja el spawn original (legacy).
+- `LocationId` se resetea a `1` antes de `OnSessionVerified` en flujos backend (LookupByCode + QR poll) para no heredar sufijo de demos previos.
+
+**Helper de debug**: tecla `K` en escena de manejo loguea `[WaypointDebug] ... idx=NNN ...` con el waypoint Gley mas cercano al Player. Util para descubrir indices y refinar `DEFAULT_WAYPOINTS` sin abrir el editor.
+
+**Bug evitado** (no repetir): la version inicial usaba `DontDestroyOnLoad` en el debugger/runner → al volver al MainMenu seguian vivos y `WaypointDebugger.Update()` tocaba `TrafficAPI.GetClosestWaypoint()` con Gley descargado → race / NRE / crash. Solucion actual: sin `DontDestroyOnLoad` + guard whitelist en `Update()`.
 - **Clima**: aleatorio (`PlayerPrefs["Cargolluvia"] = Random.Range(0,2)`)
 - Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
 
