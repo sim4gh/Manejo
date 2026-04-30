@@ -41,24 +41,43 @@ public class WeatherManager : MonoBehaviour
     private AudioSource weatherAudio;
     private Coroutine fadeCoroutine;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void Bootstrap()
     {
         if (Instance != null) return;
         var go = new GameObject("[WeatherManager]");
         DontDestroyOnLoad(go);
         Instance = go.AddComponent<WeatherManager>();
+        Debug.Log($"[WeatherManager] Bootstrap creó singleton (instanceId={Instance.GetInstanceID()})");
+
+        // La escena inicial ya está cargada cuando AfterSceneLoad se ejecuta, así
+        // que sceneLoaded NO va a disparar para ella. Aplicamos clima manualmente
+        // si esa escena no es MainMenu.
+        var active = SceneManager.GetActiveScene();
+        if (active.IsValid() && active.name != "MainMenu")
+        {
+            Debug.Log($"[WeatherManager] Escena inicial '{active.name}' ya cargada — aplicando clima inmediatamente.");
+            Instance.ApplyClima();
+        }
     }
 
     private void Awake()
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        if (Instance != null && Instance != this)
+        {
+            Debug.LogWarning($"[WeatherManager] Awake — Instance ya existe ({Instance.GetInstanceID()}); destruyo el duplicado ({GetInstanceID()}).");
+            Destroy(gameObject);
+            return;
+        }
         Instance = this;
         SceneManager.sceneLoaded += OnSceneLoaded;
+        Debug.Log($"[WeatherManager] Awake — suscrito a sceneLoaded (instanceId={GetInstanceID()})");
     }
 
     private void OnDestroy()
     {
+        Debug.LogWarning($"[WeatherManager] OnDestroy — desuscrito (instanceId={GetInstanceID()}, eraInstance={Instance == this})");
+        if (Instance == this) Instance = null;
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
