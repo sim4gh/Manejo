@@ -73,54 +73,29 @@ public class ExamTimer : MonoBehaviour
 
     void CreateTimerUI()
     {
-        // Buscar Canvas root activo — priorizar el que renderiza en el display principal
-#pragma warning disable CS0618
-        Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
-#pragma warning restore CS0618
+        // Canvas dedicado, child de este GameObject — el HUD vive aquí, NO
+        // parented a un Canvas externo. Si el ExamTimer se destruye (al cambiar
+        // de escena), todo el árbol UI se va con él. Antes el container se hacía
+        // child de un Canvas encontrado con FindObjectsOfType, y si ese Canvas
+        // pertenecía a un GameObject persistente entre escenas, el HUD quedaba
+        // colgado → al volver a iniciar el examen aparecían 2 timers acumulados.
+        var canvasGo = new GameObject("ExamTimerCanvas");
+        canvasGo.transform.SetParent(transform, false);
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 1000;
+        canvas.targetDisplay = DisplayHelper.CockpitDisplay;
 
-        Canvas targetCanvas = null;
-        int desiredDisplay = DisplayHelper.CockpitDisplay;
-        // Primera pasada: Canvas overlay root que ya esté en el display de la
-        // cámara cockpit (evita reasignaciones innecesarias).
-        foreach (var canvas in canvases)
-        {
-            if (canvas.renderMode == RenderMode.ScreenSpaceOverlay
-                && canvas.transform.parent == null
-                && canvas.targetDisplay == desiredDisplay)
-            {
-                targetCanvas = canvas;
-                break;
-            }
-        }
-        // Fallback: cualquier overlay root
-        if (targetCanvas == null)
-        {
-            foreach (var canvas in canvases)
-            {
-                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay && canvas.transform.parent == null)
-                {
-                    targetCanvas = canvas;
-                    break;
-                }
-            }
-        }
-        if (targetCanvas == null && canvases.Length > 0)
-            targetCanvas = canvases[0];
-
-        // Si la escena no expone ningún Canvas activo (caso Motocicleta: el único
-        // Canvas vive bajo un GameObject "Player" desactivado), creamos uno propio
-        // como root para que el HUD del timer se renderice de todos modos.
-        if (targetCanvas == null)
-        {
-            targetCanvas = CreateFallbackRootCanvas();
-        }
-
-        // Garantizar que el Canvas elegido renderice en pantalla principal
-        DisplayHelper.EnsureOnMainDisplay(targetCanvas, "[ExamTimer]");
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
+        canvasGo.AddComponent<GraphicRaycaster>();
 
         // Contenedor del timer
         GameObject container = new GameObject("ExamTimerHUD");
-        container.transform.SetParent(targetCanvas.transform, false);
+        container.transform.SetParent(canvasGo.transform, false);
         RectTransform containerRt = container.AddComponent<RectTransform>();
         // Top-center
         containerRt.anchorMin = new Vector2(0.5f, 1f);
