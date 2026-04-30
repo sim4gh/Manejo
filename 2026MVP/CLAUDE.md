@@ -423,7 +423,9 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 
 ## Build
 
-- **Ejecutable:** `WindowsIntelBuild0.0.4/Tlax2026MVP.exe`
+- **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)
 - **Target:** Windows x64
 - **Company:** Tlaxcala
-- **Product:** Tlax2026MVP
+- **Product:** Tlax2026-RC
+
+**CRÍTICO:** El productName en `ProjectSettings/ProjectSettings.asset` debe quedarse en `Tlax2026-RC` para coincidir con los exes que ya corren en los kioskos. Si cambia (ej. alguien lo pone a `Tlax2026MVP` por error), el OTA entra en loop infinito porque `update.bat` extrae el ZIP nuevo pero relanza el exe viejo (lookup por nombre vía `tasklist`). Ver `feedback_unity_build_checklist.md` en `~/.claude/projects/-Users-sim4r4-sim4r4-repos-simulador/memory/`.

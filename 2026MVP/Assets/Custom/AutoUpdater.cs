@@ -143,7 +143,7 @@ public class AutoUpdater : MonoBehaviour
         }
         if (tempDirFailed) yield break;
 
-        downloadedZipPath = Path.Combine(tempDir, $"Tlax2026MVP-v{pendingData.version}.zip");
+        downloadedZipPath = Path.Combine(tempDir, $"{Application.productName}-v{pendingData.version}.zip");
 
         // Si ya existe el archivo (descarga previa), verificar hash
         bool existingZipValid = false;
