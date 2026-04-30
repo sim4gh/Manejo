@@ -118,6 +118,7 @@ namespace Gley.UrbanSystem
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
+        private InputControl<float> _hazardCtrl;       // botón dedicado de intermitentes
         // Reversa soporta multi-path: el binding string puede contener varios
         // paths separados por '|' (OR). Útil cuando un mismo shifter firma
         // reversa en varios controles a la vez.
@@ -145,6 +146,7 @@ namespace Gley.UrbanSystem
         private string _bindDrive = "button4";
         private string _bindPaddleLeft = "button6";
         private string _bindPaddleRight = "button5";
+        private string _bindHazard = "";
         private string _bindRestart = "";           // vacío = deshabilitado
         private string _bindMenuA = "button7";      // L2
         private string _bindMenuB = "button8";      // R2
@@ -163,6 +165,7 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
         public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
+        public const string PREF_BIND_HAZARD = "Bind_hazard";
         public const string PREF_BIND_RESTART = "Bind_restart";
         public const string PREF_BIND_MENU_A = "Bind_menuA";
         public const string PREF_BIND_MENU_B = "Bind_menuB";
@@ -189,6 +192,7 @@ namespace Gley.UrbanSystem
         public const string DEFAULT_BIND_DRIVE = "button4";
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
+        public const string DEFAULT_BIND_HAZARD = "";
         public const string DEFAULT_BIND_RESTART = "";
         public const string DEFAULT_BIND_MENU_A = "button7";
         public const string DEFAULT_BIND_MENU_B = "button8";
@@ -223,6 +227,7 @@ namespace Gley.UrbanSystem
             _bindDrive        = PlayerPrefs.GetString(PREF_BIND_DRIVE, DEFAULT_BIND_DRIVE);
             _bindPaddleLeft   = PlayerPrefs.GetString(PREF_BIND_PADDLE_LEFT, DEFAULT_BIND_PADDLE_LEFT);
             _bindPaddleRight  = PlayerPrefs.GetString(PREF_BIND_PADDLE_RIGHT, DEFAULT_BIND_PADDLE_RIGHT);
+            _bindHazard       = PlayerPrefs.GetString(PREF_BIND_HAZARD, DEFAULT_BIND_HAZARD);
             _bindRestart      = PlayerPrefs.GetString(PREF_BIND_RESTART, DEFAULT_BIND_RESTART);
             _bindMenuA        = PlayerPrefs.GetString(PREF_BIND_MENU_A, DEFAULT_BIND_MENU_A);
             _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
@@ -244,6 +249,7 @@ namespace Gley.UrbanSystem
             _triangleCtrl = CacheBindingCtrl(_bindDrive);
             _l1Ctrl       = CacheBindingCtrl(_bindPaddleLeft);
             _r1Ctrl       = CacheBindingCtrl(_bindPaddleRight);
+            _hazardCtrl   = CacheBindingCtrl(_bindHazard);
             _restartCtrl  = CacheBindingCtrl(_bindRestart);
             _l2Ctrl       = CacheBindingCtrl(_bindMenuA);
             _r2Ctrl       = CacheBindingCtrl(_bindMenuB);
@@ -578,6 +584,14 @@ namespace Gley.UrbanSystem
             return false;
         }
 
+        public static bool IsHORITruck(InputDevice d)
+        {
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            return name.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || product.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         // Backwards-compat: callers viejos. Equivalente a IsKnownWheelCandidate.
         // Mantenerlo evita romper código de terceros o scripts editor sin recompilar.
         public static bool MatchesWheelName(InputDevice d) => IsKnownWheelCandidate(d);
@@ -702,6 +716,16 @@ namespace Gley.UrbanSystem
             // — verificado en logs S3 con G923_BrakeAxis="stick/y" cuando debería
             // ser "rz"). El operador puede recalibrar via Pantalla 2 si quiere.
             if (IsLogitechG923Family(device)) EnsureG923PSDefaults(device);
+
+            if (IsHORITruck(device))
+            {
+                Debug.Log("[UIInputNew] HORI Truck detectado — aplicando defaults");
+                PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
+                PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
+                PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
+                PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
+                PlayerPrefs.Save();
+            }
 
             // Ejes — paths calibrados dinámicamente en la pantalla del menú
             // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
@@ -1016,12 +1040,12 @@ namespace Gley.UrbanSystem
             // ---- Paddles G923 (solo con volante) ----
             if (_hasWheel && _wheelDevice != null)
             {
-                // Paddles → direccionales
                 bool l1 = IsPressed(_l1Ctrl);
                 bool r1 = IsPressed(_r1Ctrl);
-                if (l1 && r1) _indicatorInput = 2;       // ambos = hazard
-                else if (l1) _indicatorInput = -1;        // izquierda
-                else if (r1) _indicatorInput = 1;         // derecha
+                bool hazard = IsPressed(_hazardCtrl);
+                if (hazard || (l1 && r1)) _indicatorInput = 2;
+                else if (l1) _indicatorInput = -1;
+                else if (r1) _indicatorInput = 1;
                 else _indicatorInput = 0;
             }
 

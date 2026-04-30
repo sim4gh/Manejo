@@ -1,4 +1,4 @@
-# Investigación: HORI Truck Control System (HPC-044U) para Unity
+# HORI Truck Control System (HPC-044U) — Mapeo verificado
 
 ## Resumen del dispositivo
 
@@ -6,36 +6,66 @@
 - **Plataforma:** Windows 10/11 solamente (NO macOS)
 - **Protocolo:** DirectInput (no XInput)
 - **Conexiones USB:** 2 dispositivos separados:
-  - `HORI CONTROLLER SYSTEM WHEEL` — volante + pedales + palancas
-  - `HORI CONTROLLER SYSTEM SHIFTER` — panel de shifter + botones
+  - `HORI TRUCK CONTROL SYSTEM WHEEL` — volante + pedales + palancas
+  - `HORI TRUCK CONTROL SYSTEM SHIFTER` — panel de shifter + botones
 
 ## Hardware
 
 | Componente | Especificaciones |
 |------------|-----------------|
-| Volante | 40cm diámetro, 1800° rotación, force feedback dual motor |
+| Volante | 40cm diametro, 1800° rotacion, force feedback dual motor |
 | Pedales | 3 pedales (clutch, brake, gas), sensores Hall Effect |
 | Shifter | H-pattern (6+R) + sequential, resistencia ajustable, 18 velocidades con splitter |
 | Botones | 39 en volante + 30 en panel shifter = ~69 botones total |
 | Palancas | 2 palancas montadas en columna (direccionales, wipers) |
 | Sticks | 2 analog sticks en el volante |
 
-## Mapeo de ejes (DirectInput → Unity)
+## Mapeo verificado (F7 en Unity Input System, 2026-04-29)
 
-Según la info encontrada, el HORI usa ejes DIFERENTES al G923:
+### Pedales (WHEEL device, verificados en reposo)
 
-| Eje DirectInput | Físico | Nota |
-|-----------------|--------|------|
-| Axis 4 (X) | Volante izq/der | **NO es stick/x como G923** |
-| Axis 10 (Dial) | Acelerador | Eje no estándar |
-| Axis 12 (Slider) | Freno | Eje no estándar |
-| Axis 11 (RZ) | Clutch | |
-| Axis 0 (Y) | Left Stick Up/Down | |
-| Axis 1 (Z) | Left Stick Left/Right | |
-| Axis 2 (RX) | Right Stick Left/Right | |
-| Axis 3 (RY) | Right Stick Up/Down | |
+| Eje Unity | Fisico | Reposo | Rango |
+|-----------|--------|--------|-------|
+| `rz` | Pedal (verificar cual) | -1.000 | [-1.00, 1.00] |
+| `slider` | Pedal (verificar cual) | -1.000 | [-1.00, 1.00] |
+| `slider1` | Pedal (verificar cual) | -1.000 | [-1.00, 1.00] |
 
-**IMPORTANTE:** El steering usa el eje Z (no X), y los pedales usan Dial/Slider/RZ que son ejes no estándar. Unity Input System podría mapearlos diferente.
+Los 3 pedales tienen rest=-1.0 y press hacia +1.0 (inverso al G923 que tiene rest=1.0, press=-1.0).
+
+### Botones verificados
+
+| Boton | Device | Funcion |
+|-------|--------|---------|
+| `button40` | WHEEL | Direccional izquierda |
+| `button41` | WHEEL | Direccional derecha |
+| `button27` | SHIFTER | Intermitentes (hazard) |
+| `button7` | SHIFTER | Reversa |
+
+### Steering
+
+Pendiente de verificar el eje exacto. Pantalla 2 lo descubre dinamicamente.
+
+## Implementacion (completada 2026-04-29)
+
+### Cambios realizados
+
+1. **`MenuScreenManager.cs`**: Agregados `"slider"` y `"slider1"` a `PEDAL_AXIS_CANDIDATES` para que Pantalla 2 pueda descubrir los pedales del HORI.
+
+2. **`UIInputNew.cs`**:
+   - `IsHORITruck()`: detecta HORI por displayName/product
+   - Defaults automaticos en `AttachToWheelDevice()` al detectar HORI:
+     - `Bind_paddleLeft = "button40"` (direccional izquierda)
+     - `Bind_paddleRight = "button41"` (direccional derecha)
+     - `Bind_hazard = "shifter:button27"` (intermitentes)
+     - `Bind_reverse = "shifter:button7"` (reversa)
+   - Nuevo binding `Bind_hazard` con boton dedicado de intermitentes (G923 usa combo L1+R1)
+
+### Que NO necesito cambio
+
+- Pantalla 2 Discovery: ya maneja rest/press dinamicamente
+- `NormalizePedal()`: agnostico a la direccion del eje
+- LogConsolePanel (F7): ya muestra slider/slider1
+- Prefijo `shifter:` en bindings: ya soportado por `CacheBindingCtrl()`
 
 ## Diferencias clave vs G923
 
@@ -43,41 +73,22 @@ Según la info encontrada, el HORI usa ejes DIFERENTES al G923:
 |---------|------|------------|
 | Plataforma | macOS + Windows | Windows only |
 | USB devices | 1 | 2 (wheel + shifter) |
-| Steering axis | stick/x | X o Z (verificar) |
-| Gas | z | Dial (verificar) |
-| Brake | rz | Slider (verificar) |
-| Clutch | stick/y | RZ |
+| Pedales reposo | 1.0 (press hacia -1.0) | -1.0 (press hacia +1.0) |
+| Pedal axes | z, rz, stick/y | rz, slider, slider1 |
+| Direccionales | paddles (button5/6) | palancas columna (button40/41) |
+| Intermitentes | combo L1+R1 | boton dedicado (shifter:button27) |
+| Reversa | button19 (PS) / button12 (Xbox) | shifter:button7 |
+| Rotacion | 900° | 1800° |
 | Botones | 19 | ~69 |
-| Direccionales | paddles | palancas de columna |
-| Shifter | H-pattern externo | H-pattern + sequential integrado |
-| Rotación | 900° | 1800° |
-| Force feedback | Sí | Sí (dual motor) |
 
-## Impacto en el código
+## Pendiente
 
-### UIInputNew.cs necesita:
-1. **Detectar ambos dispositivos**: buscar "HORI" en `displayName` de AMBOS devices
-2. **Mapear ejes diferentes**: los ejes del HORI no son los mismos que el G923
-3. **Más botones**: las palancas de columna reemplazan los paddles para direccionales
-4. **Shifter como device separado**: los botones del H-shifter están en un device diferente
-
-### Enfoque recomendado:
-- Ampliar la detección en `SetupDesktopInput()` para buscar "HORI" además de "G923"
-- Cachear AMBOS devices HORI (wheel + shifter)
-- Mapear ejes según el device detectado
-- **Necesario**: conectar el HORI a una PC Windows y correr `DetectaControl.cs` para obtener los nombres exactos de controles en Unity Input System
-
-## Siguiente paso crítico
-
-**No se puede implementar sin verificar los ejes reales.** Los nombres de ejes en DirectInput (Dial, Slider) pueden mapearse diferente en Unity Input System. Se necesita:
-
-1. Conectar el HORI a la PC Windows del kiosko
-2. Correr `DetectaControl.cs` en Unity
-3. Anotar los nombres exactos de todos los controles (`stick/x`, `z`, `rz`, `dial`, `slider`, etc.)
-4. Con esa info, implementar el mapeo en UIInputNew
+- Verificar cual pedal fisico corresponde a cual eje (rz/slider/slider1)
+- Verificar eje del steering en Unity
+- Mapear marchas del H-shifter (buttons en SHIFTER device)
+- Verificar funcionamiento del force feedback
 
 ## Sources
 - [HORI USA Product Page](https://stores.horiusa.com/HPC-044U)
 - [HORI Europe Mapping](https://horieurope.com/pages/hori-force-feedback-truck-control-system-mapping)
 - [SCS Software Forum Discussion](https://forum.scssoft.com/viewtopic.php?t=334942&start=50)
-- [BikmanTech Overview](https://bikmantech.com/blogs/blogs/hori-truck-control-system-everything-you-need-to-know)

@@ -68,7 +68,7 @@ public class MenuScreenManager : MonoBehaviour
     // elegido para gas y gana otro distinto. Cubre mapeos cruzados (ej. en
     // este G923 Xbox: gas=stick/y, brake=z).
     private static readonly string[] PEDAL_AXIS_CANDIDATES = {
-        "z", "rz", "stick/y", "stick/z", "ry", "rx"
+        "z", "rz", "stick/y", "stick/z", "ry", "rx", "slider", "slider1"
     };
     private InputControl<float>[] pedalCandidates;
     // Calibración por delta signado desde el reposo — funciona con ejes
