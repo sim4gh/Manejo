@@ -33,6 +33,19 @@ public static class LogitechFFB
 #if UNITY_STANDALONE_WIN
         if (initialized) return sdkAvailable;
         initialized = true;
+
+        // La DLL es PE32+ Windows x64 — solo cargable en Windows player o editor.
+        // En el editor de macOS/Linux, P/Invoke fallaría con DllNotFoundException aunque
+        // el archivo exista, porque el SO no puede ejecutar binarios Windows. Skipeamos
+        // silenciosamente (un Debug.Log informativo, no un Warning).
+        if (Application.platform != RuntimePlatform.WindowsEditor &&
+            Application.platform != RuntimePlatform.WindowsPlayer)
+        {
+            sdkAvailable = false;
+            Debug.Log("[LogitechFFB] Plataforma no-Windows: FFB inactivo (esperado en editor macOS/Linux).");
+            return false;
+        }
+
         try
         {
             sdkAvailable = LogiSteeringInitialize(false);
