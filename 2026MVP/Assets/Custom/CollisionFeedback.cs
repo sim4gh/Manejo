@@ -159,13 +159,13 @@ public class CollisionFeedback : MonoBehaviour
 
         float t = Mathf.Clamp01(info.magnitude / 50f);
 
-        // Overlay cristal roto
+        // Overlay cristal roto — total visible ~4.3-6s (fadeIn + hold + fadeOut)
         if (crackCoroutine != null) StopCoroutine(crackCoroutine);
         crackCoroutine = StartCoroutine(CrackOverlayRoutine(
             alphaTarget: 0.85f + t * 0.15f,
             fadeIn: 0.05f,
-            hold: 1.2f + t * 0.6f,
-            fadeOut: 0.5f));
+            hold: 3.0f + t * 1.5f,
+            fadeOut: 1.2f));
 
         // Camera shake
         StartCameraShake(
