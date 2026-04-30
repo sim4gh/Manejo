@@ -206,20 +206,35 @@ public class ExamResultsScreen : MonoBehaviour
 
     IEnumerator AutoReturnCoroutine()
     {
-        float remaining = AUTO_RETURN_SECONDS;
-        while (remaining > 0f)
+        // Deadline absoluto basado en realtime — inmune a timing drift de
+        // WaitForSecondsRealtime con timeScale=0 (que en Unity 6 puede colgarse
+        // en el último segundo, dejando "Regresando al menu en 1s..." stuck).
+        float deadline = Time.realtimeSinceStartup + AUTO_RETURN_SECONDS;
+        while (Time.realtimeSinceStartup < deadline)
         {
             if (countdownText != null)
-                countdownText.text = $"Regresando al menu en {(int)remaining}s...";
-            yield return new WaitForSecondsRealtime(1f);
-            remaining -= 1f;
+            {
+                int remaining = Mathf.CeilToInt(deadline - Time.realtimeSinceStartup);
+                if (remaining < 1) remaining = 1;
+                countdownText.text = $"Regresando al menu en {remaining}s...";
+            }
+            yield return null;
         }
         ReturnToMenu();
     }
 
     void ReturnToMenu()
     {
-        Time.timeScale = 1f;
-        SceneManager.LoadScene("MainMenu");
+        try
+        {
+            Time.timeScale = 1f;
+            SceneManager.LoadScene("MainMenu");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[ExamResultsScreen] ReturnToMenu falló: {e}. Forzando reload.");
+            Time.timeScale = 1f;
+            SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
+        }
     }
 }
