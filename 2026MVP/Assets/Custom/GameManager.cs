@@ -29,6 +29,9 @@ public class GameManager : MonoBehaviour
     /// <summary>ID del simulador asignado (de backend).</summary>
     public string SimulatorId { get; set; }
 
+    /// <summary>0 = aleatorio entre 1..5; 1..5 = waypoint fijo. Default 1 (legacy).</summary>
+    public int LocationId { get; set; } = 1;
+
     void Awake()
     {
         if (Instance == null)
@@ -115,5 +118,6 @@ public class GameManager : MonoBehaviour
         CitizenName = null;
         LicenseType = null;
         SessionId = null;
+        LocationId = 1;
     }
 }
