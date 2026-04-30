@@ -32,10 +32,11 @@ public class WeatherManager : MonoBehaviour
     // de emisión de cada GO LLuvia). 0.3 = 30% del rate normal por instancia.
     private const float HAIL_RAIN_RATE_MULTIPLIER = 0.3f;
 
-    // Tamaño del granizo en modo granizo: 1.5 = 50% más grande en X/Y/Z (size3D=1
-    // en el ParticleSystem serializado, así que el escalar `startSizeMultiplier` no
-    // es confiable — hay que tocar X/Y/Z explícitamente).
-    private const float HAIL_SIZE_MULTIPLIER = 1.5f;
+    // Tamaño del granizo en modo granizo. El render es Mesh (PiedraGranizo.fbx),
+    // no billboard, así que el size escala el mesh 3D. Subido a 2.0 para que el
+    // cambio sea claramente visible — si con 2.0 igual no se nota, el problema no
+    // es el factor sino que el multiplier no aplica.
+    private const float HAIL_SIZE_MULTIPLIER = 2.0f;
 
     private AudioSource weatherAudio;
     private Coroutine fadeCoroutine;
@@ -144,10 +145,13 @@ public class WeatherManager : MonoBehaviour
         }
     }
 
-    // Granizo más grande: activa el GO y escribe directamente startSize escalado
-    // por `HAIL_SIZE_MULTIPLIER`. Tocar `constantMin/Max` directamente (modo
-    // TwoConstants en el YAML) en lugar de los `startSizeXMultiplier` porque éstos
-    // no aplican con `minMaxState=3`.
+    // Granizo más grande: activa el GO y reasigna `startSize` con un nuevo
+    // MinMaxCurve escalado. Importante:
+    // - El render es Mesh (PiedraGranizo.fbx), no billboard. startSize escala el mesh.
+    // - Reasignamos `main.startSize = new MinMaxCurve(...)` en vez de mutar la
+    //   instancia existente, porque MinMaxCurve es struct y la mutación in-place
+    //   no siempre persiste por valor en MainModule.
+    // - Forzamos modo TwoConstants en el nuevo MinMaxCurve, igual al modo serializado.
     private static void ActivateHailLarge(List<ParticleSystem> systems)
     {
         foreach (var ps in systems)
@@ -155,12 +159,16 @@ public class WeatherManager : MonoBehaviour
             if (ps == null) continue;
             ps.gameObject.SetActive(true);
             var main = ps.main;
-            var size = main.startSize;
-            // MinMaxCurve.constantMin/Max requieren mode=TwoConstants; el YAML ya
-            // tiene minMaxState=3 (TwoConstants) en ambos PS, así que es seguro.
-            size.constantMin = size.constantMin * HAIL_SIZE_MULTIPLIER;
-            size.constantMax = size.constantMax * HAIL_SIZE_MULTIPLIER;
-            main.startSize = size;
+            var current = main.startSize;
+            // Lee tanto constant como constantMin/Max para cubrir cualquier modo.
+            float min = current.mode == ParticleSystemCurveMode.TwoConstants
+                ? current.constantMin : current.constant;
+            float max = current.mode == ParticleSystemCurveMode.TwoConstants
+                ? current.constantMax : current.constant;
+            main.startSize = new ParticleSystem.MinMaxCurve(
+                min * HAIL_SIZE_MULTIPLIER,
+                max * HAIL_SIZE_MULTIPLIER);
+            Debug.Log($"[WeatherManager] Hail PS '{ps.name}' size: {min}..{max} → {min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER}");
         }
     }
 
