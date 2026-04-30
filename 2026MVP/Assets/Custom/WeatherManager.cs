@@ -166,10 +166,14 @@ public class WeatherManager : MonoBehaviour
                 ? current.constantMin : current.constant;
             float max = current.mode == ParticleSystemCurveMode.TwoConstants
                 ? current.constantMax : current.constant;
+            // Desactivar startSize3D para que startSize aplique a los 3 ejes
+            // uniformemente. Si lo dejamos en true, startSize solo escala X y las
+            // partículas (mesh) salen como discos aplastados (X grande, Y/Z normal).
+            main.startSize3D = false;
             main.startSize = new ParticleSystem.MinMaxCurve(
                 min * HAIL_SIZE_MULTIPLIER,
                 max * HAIL_SIZE_MULTIPLIER);
-            Debug.Log($"[WeatherManager]   Granizo[{i}] size {min}..{max} → {min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER}");
+            Debug.Log($"[WeatherManager]   Granizo[{i}] size {min}..{max} → {min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER} (size3D=false)");
         }
     }
 
