@@ -30,7 +30,9 @@ public static class SpawnLocationManager
     // a un waypoint arbitrario (especialmente el índice 0, que es válido en
     // Gley pero rara vez es la zona deseada).
     const int UNASSIGNED = -1;
-    static readonly int[] DEFAULT_WAYPOINTS = { UNASSIGNED, 4588, 3170, 6765, UNASSIGNED };
+    // Slots 1 y 5 reusan temporalmente los waypoints de 3 y 2 hasta que se
+    // capturen los puntos definitivos con la tecla [K].
+    static readonly int[] DEFAULT_WAYPOINTS = { 3170, 4588, 3170, 6765, 4588 };
 
     // Override por escena solo si el mapa Gley difiere (ej. moto). Si no aparece
     // aquí, se usa DEFAULT_WAYPOINTS.
