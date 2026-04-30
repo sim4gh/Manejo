@@ -68,7 +68,7 @@ public class MenuScreenManager : MonoBehaviour
     // elegido para gas y gana otro distinto. Cubre mapeos cruzados (ej. en
     // este G923 Xbox: gas=stick/y, brake=z).
     private static readonly string[] PEDAL_AXIS_CANDIDATES = {
-        "z", "rz", "stick/y", "stick/z", "ry", "rx"
+        "z", "rz", "stick/y", "stick/z", "ry", "rx", "slider", "slider1"
     };
     private InputControl<float>[] pedalCandidates;
     // Calibración por delta signado desde el reposo — funciona con ejes
@@ -215,6 +215,16 @@ public class MenuScreenManager : MonoBehaviour
         var dev = ctrl.device;
         if (dev == null || !dev.added) return false;
         try { value = ctrl.ReadValue(); return true; }
+        catch (System.InvalidOperationException) { return false; }
+    }
+
+    private static bool SafeReadFloatRaw(InputControl<float> ctrl, out float value)
+    {
+        value = 0f;
+        if (ctrl == null) return false;
+        var dev = ctrl.device;
+        if (dev == null || !dev.added) return false;
+        try { value = ctrl.ReadUnprocessedValue(); return true; }
         catch (System.InvalidOperationException) { return false; }
     }
 
@@ -1233,6 +1243,18 @@ public class MenuScreenManager : MonoBehaviour
         // Cancelar splash en curso si la pantalla se reabre
         if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
 
+        // Migración de formato: los valores de calibración pre-v2 fueron capturados
+        // con ReadValue() (con axisDeadzone de Unity). Ahora se usan lecturas raw
+        // (ReadUnprocessedValue). Forzar re-discovery para capturar valores consistentes.
+        const int CAL_FORMAT_VERSION = 2;
+        if (PlayerPrefs.GetInt("Cal_FormatVersion", 0) < CAL_FORMAT_VERSION)
+        {
+            ClearWheelCalibration();
+            PlayerPrefs.SetInt("Cal_FormatVersion", CAL_FORMAT_VERSION);
+            PlayerPrefs.Save();
+            Debug.Log("[MenuScreenManager] Calibration format upgraded → forcing re-discovery");
+        }
+
         if (Time.timeScale != 1f)
             Debug.LogWarning($"[MenuScreenManager] PrepareWheelScreen: timeScale={Time.timeScale}");
 
@@ -1410,7 +1432,7 @@ public class MenuScreenManager : MonoBehaviour
             {
                 for (int i = 0; i < _steerCandidates.Length; i++)
                 {
-                    if (!SafeReadFloat(_steerCandidates[i], out var sv)) continue;
+                    if (!SafeReadFloatRaw(_steerCandidates[i], out var sv)) continue;
                     float delta = sv - _steerCandidateBaselines[i];
                     if (delta > bestPositiveDelta) { bestPositiveDelta = delta; bestIdx = i; }
                 }
@@ -1439,7 +1461,7 @@ public class MenuScreenManager : MonoBehaviour
                 // el siguiente Update seguirá actualizando steerMaxSeen/MinSeen
                 // a través del bloque genérico de tracking.
                 steerCenter  = _steerCandidateBaselines[bestIdx];
-                steerMaxSeen = SafeReadFloat(_steerCandidates[bestIdx], out var smv) ? smv : steerCenter;
+                steerMaxSeen = SafeReadFloatRaw(_steerCandidates[bestIdx], out var smv) ? smv : steerCenter;
                 steerMinSeen = steerCenter;
                 steerCenterCaptured = true;
 
@@ -1664,7 +1686,7 @@ public class MenuScreenManager : MonoBehaviour
         for (int i = 0; i < pedalCandidates.Length; i++)
         {
             if (pedalCandidates[i] != null)
-                pedalCandidateRests[i] = pedalCandidates[i].ReadValue();
+                pedalCandidateRests[i] = pedalCandidates[i].ReadUnprocessedValue();
             pedalCandidateMaxDeltas[i] = 0f;
         }
     }
@@ -1682,7 +1704,7 @@ public class MenuScreenManager : MonoBehaviour
         for (int i = 0; i < pedalCandidates.Length; i++)
         {
             if (pedalCandidates[i] == null) continue;
-            if (!SafeReadFloat(pedalCandidates[i], out var v)) continue;
+            if (!SafeReadFloatRaw(pedalCandidates[i], out var v)) continue;
             float delta = v - pedalCandidateRests[i];
             if (Mathf.Abs(delta) > Mathf.Abs(pedalCandidateMaxDeltas[i]))
                 pedalCandidateMaxDeltas[i] = delta; // preserva signo
@@ -1728,7 +1750,7 @@ public class MenuScreenManager : MonoBehaviour
         _steerCandidatePaths = paths.ToArray();
         _steerCandidateBaselines = new float[_steerCandidates.Length];
         for (int i = 0; i < _steerCandidates.Length; i++)
-            _steerCandidateBaselines[i] = _steerCandidates[i].ReadValue();
+            _steerCandidateBaselines[i] = _steerCandidates[i].ReadUnprocessedValue();
     }
 
     void SnapshotReverseBaseline()
@@ -1776,7 +1798,7 @@ public class MenuScreenManager : MonoBehaviour
             string p = c.path ?? "";
             if (!string.IsNullOrEmpty(devPath) && p.StartsWith(devPath + "/"))
                 p = p.Substring(devPath.Length + 1);
-            _reverseAxisBaseline[prefix + p] = fc.ReadValue();
+            _reverseAxisBaseline[prefix + p] = fc.ReadUnprocessedValue();
         }
     }
 
@@ -1872,7 +1894,7 @@ public class MenuScreenManager : MonoBehaviour
             if (_reverseExcludedPaths != null
                 && (_reverseExcludedPaths.Contains(p) || _reverseExcludedPaths.Contains(prefixed))) continue;
             if (!_reverseAxisBaseline.TryGetValue(prefixed, out float baseline)) continue;
-            if (!SafeReadFloat(fc, out var rxv)) continue;
+            if (!SafeReadFloatRaw(fc, out var rxv)) continue;
             if (Mathf.Abs(rxv - baseline) >= REVERSE_AXIS_DETECT_DELTA)
                 return prefixed;
         }
@@ -1883,6 +1905,9 @@ public class MenuScreenManager : MonoBehaviour
     {
         if (steerAction == null) TryAttachToDevice();
         if (steerAction == null) return 0f;
+        var ctrls = steerAction.controls;
+        if (ctrls.Count > 0 && ctrls[0] is InputControl<float> fc)
+            return SafeReadFloatRaw(fc, out var v) ? v : 0f;
         return steerAction.ReadValue<float>();
     }
 
@@ -2062,8 +2087,8 @@ public class MenuScreenManager : MonoBehaviour
             // Durante el splash, el usuario no debería estar pisando nada.
             // Un delta grande contra el rest guardado indica hardware
             // desconectado o axis distinto al que se calibró.
-            if (SafeReadFloat(gasC, out var gv) && Mathf.Abs(gv - gasRest) > 0.5f) { degraded = true; break; }
-            if (SafeReadFloat(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; break; }
+            if (SafeReadFloatRaw(gasC, out var gv) && Mathf.Abs(gv - gasRest) > 0.5f) { degraded = true; break; }
+            if (SafeReadFloatRaw(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; break; }
             t += Time.unscaledDeltaTime;
             yield return null;
         }

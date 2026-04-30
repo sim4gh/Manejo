@@ -48,7 +48,7 @@ Los 4 paneles se auto-instancian via `RuntimeInitializeOnLoadMethod(BeforeSceneL
 
 | Tecla | Script | Proposito |
 |-------|--------|-----------|
-| **F7 hold 1.5s** | `LogConsolePanel.cs` | Consola de diagnostico tipo terminal. 4 paneles: devices conectados, PlayerPrefs relevantes (G923_*, Adv_*, Bind_*), inputs en vivo (todo boton presionado + todo eje movido con valor/baseline/rango), feed de `Debug.Log/Warn/Error` con timestamp. Boton "Copiar al portapapeles" exporta texto plano sin tags TMP. Util para descubrir nombres tecnicos de cualquier control sin recompilar. |
+| **F7 hold 1.5s** | `LogConsolePanel.cs` | Consola de diagnostico tipo terminal. 4 paneles: devices conectados, PlayerPrefs relevantes (G923_*, Adv_*, Bind_*, Cal_*), inputs en vivo (todo boton presionado + todo eje movido con valor/baseline/rango), feed de `Debug.Log/Warn/Error` con timestamp. Boton "Copiar al portapapeles" exporta texto plano sin tags TMP. Util para descubrir nombres tecnicos de cualquier control sin recompilar. Los valores de ejes se leen con `ReadUnprocessedValue()` para mostrar lo mismo que el runtime. |
 | **F8 hold 1.5s** | `BindingsPanel.cs` | Remapeo de controles del volante (reversa, drive, paddles, restart, combos menu). Click en `[Detectar]` y mueve/presiona el control que quieres asignar — guarda en PlayerPrefs `Bind_*` y notifica a `UIInputNew.ReloadBindings()`. Tambien muestra inputs en vivo en la parte inferior. |
 | **F9 hold 1.5s** | `AdvancedInputPanel.cs` | Tunear sensibilidades del volante/freno/acelerador en runtime: curva del volante (`Adv_SteerCurveA`), deadzone (`Adv_SteerDeadzone`), punto de quiebre del freno (`Adv_BrakeSoftEnd`/`Adv_BrakeSoftMaxOutput`), curva del gas (`Adv_GasCurveN`). Sliders en vivo, llaman a `UIInputNew.ReloadTuning()`. |
 | **F10 hold 1.5s** | `AdminPanel.cs` | Solo en escena `MainMenu`. Navega a la pantalla admin del `MenuScreenManager`. |
@@ -75,21 +75,27 @@ Tras 3 fallos consecutivos descarta el buffer (evita memory leak si la red esta 
 
 ### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
 
-Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Flujo:
+Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Hardened en 1.2.2 (abr 2026) tras analisis exhaustivo + revision Codex.
 
+**Flujo:**
 1. `SimulatorApiClient.SendHeartbeat()` recibe `pendingUpdate` del backend cada ~3 min.
-2. `AutoUpdater.ProcessPendingUpdate(data)` filtra por status (PENDING o FAILED — DOWNLOADING/INSTALLING ya en progreso, INSTALLED ignorado).
-3. `RequestAndDownload()`: POST `/simulator/request-update` -> recibe `downloadUrl` (CloudFront `cdn.{env}.simuladores.mexicalab.com`), reporta DOWNLOADING, descarga con `UnityWebRequest.Get` + `DownloadHandlerFile`, valida SHA256.
-4. Reporta DOWNLOADED, llama `InstallUpdate()`.
-5. `InstallUpdate()`: reporta INSTALLING (fire-and-forget), genera `update.bat` en `persistentDataPath/update.bat`, ejecuta y hace `Application.Quit()`.
-6. El bat extrae el ZIP a staging, **`xcopy /s /e /y "<staging>\*" "<appDir>\"`** copia archivos root + subdirs preservando estructura, corre `Unblock-File` para limpiar Mark-of-the-Web, lanza `Tlax2026MVP.exe` nuevo.
-7. El nuevo `.exe` arranca, su heartbeat reporta `Application.version = nuevaVersion` -> backend matchea `pendingUpdate.version` -> auto-confirma INSTALLED honestamente.
+2. `ProcessPendingUpdate(data)` filtra por status reanudable (PENDING, FAILED, DOWNLOADING, DOWNLOADED, INSTALLING). Setea `isDownloading`/`isProcessing` ANTES de `StartCoroutine` para prevenir race con heartbeats rapidos.
+3. `RequestAndDownload()`: POST `/simulator/request-update` con 1 retry (3s delay). Rechaza si SHA256 vacio. Reporta DOWNLOADING, descarga con `UnityWebRequest.Get` + `DownloadHandlerFile`, valida SHA256.
+4. Reporta DOWNLOADED, llama `InstallUpdateCoroutine()` (coroutine que espera a que INSTALLING report llegue al backend antes de quit).
+5. `InstallUpdateCoroutine()`: genera `update.bat` hardened, ejecuta via `cmd.exe /c` (WDAC-safe), `Application.Quit()`.
+6. Bat espera a que Unity cierre (tasklist loop, max 30s), extrae ZIP, xcopy, Unblock-File, relanza exe. Si CUALQUIER paso falla → `:fail` label relanza el exe original (el kiosko NUNCA queda muerto).
+7. El nuevo `.exe` arranca, heartbeat reporta `Application.version = nuevaVersion` → backend auto-confirma INSTALLED.
 
-**Bug histórico (resuelto en 1.0.10+):** el bat tenia `for /d %%D in ("staging\*")` que solo iteraba subdirectorios y NUNCA copiaba `Tlax2026MVP.exe` ni `UnityPlayer.dll` (archivos root del ZIP). Por eso el OTA fallaba en silencio entre 1.0.7-1.0.8 — la PC seguia corriendo el .exe viejo.
+**Mecanismos de proteccion (1.2.2+):**
+- `FailUpdate(reason)` centralizado: resetea `isDownloading`/`isProcessing` + reporta FAILED con version. Todas las rutas de error pasan por aqui.
+- Try-catch alrededor de toda I/O en coroutines (C# mata coroutines silenciosamente en excepciones no capturadas). Flag pattern para `yield break` fuera del catch (CS1626).
+- `ReportUpdateStatus` incluye `version` en body — backend ignora reports de rollouts viejos.
+- Bat sin `enabledelayedexpansion` (rompe paths con `!`). Usa `if errorlevel 1` + `goto fail`.
+- Paths normalizados (`/` → `\`) y escapados (`%` → `%%` para bat, `'` → `''` para PowerShell).
 
-**Logs locales:** `<appDir>\install.log` con timestamps de cada step (Expand-Archive OK, xcopy OK, etc.) — primer lugar a mirar si un install falla.
+**Logs locales:** `<appDir>\install.log` con timestamps de cada step — primer lugar a mirar si un install falla.
 
-**Bootstrap manual:** `Manejo/2026MVP/scripts/bootstrap-install.ps1` para migrar PCs con bat viejo a una build nueva. Una vez por kiosko, despues los OTA siguientes funcionan solos.
+**Bootstrap manual:** `Manejo/2026MVP/scripts/bootstrap-install.ps1` para migrar PCs con codigo pre-1.2.2 a una build nueva. Una vez por kiosko, despues los OTA siguientes funcionan solos. Cualquier kiosko corriendo >= 1.2.2 ya no necesita bootstrap.
 
 ### NPCs - Sistema de Camion (`Assets/NPCs/CamionNPC-s/`)
 
@@ -161,6 +167,7 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
   - `11111` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
   - `22222` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
   - `33333` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
+  - `44444` → `TLX-DEMO44444` "Demo Ambulancia" `emergencia` (escena `Ambulancia`)
 - **Clima**: aleatorio (`PlayerPrefs["Cargolluvia"] = Random.Range(0,2)`)
 - Si `licenseType == "particular"` → Pantalla 1. Si otro → directo a Pantalla 2
 
@@ -207,6 +214,7 @@ invalida automaticamente y la pantalla cae en Discovery.
 | `Bind_steerAxis` | string | Pantalla 2 / F8 | Path del eje del volante, descubierto. Default `stick/x`. |
 | `Bind_reverse` | string | Pantalla 2 / F8 | Path del boton/eje de reversa. Default `button2`. |
 | `G923_Steer*`, `G923_Gas*`, `G923_Brake*` | float | Pantalla 2 | Rangos de calibracion (rest/press/min/max). Consumidos por `UIInputNew.cs`. |
+| `Cal_FormatVersion` | int | Pantalla 2 | Version del formato de calibracion. Si < 2, fuerza re-Discovery completo (migracion automatica tras cambio a `ReadUnprocessedValue`). |
 
 ### Mapeo licenseType → escena
 - `particular` → depende de modelo (Sedan/Camioneta)
@@ -362,10 +370,12 @@ Mismo binary funciona en ambos gracias al dual-detection.
 ### Resumen general
 - **Vehiculo usa `PlayerCar` de Gley** (NO RCCP)
 - **Botones** via device directo con `TryGetChildControl` (InputAction bindings NO funcionan para botones HID genericos)
+- **Lectura de ejes**: `SafeReadFloatRaw` con `ReadUnprocessedValue()` para volante/pedales (bypassa `axisDeadzone` de Unity). `SafeReadFloat` con `ReadValue()` solo para botones. Ver `ARCHITECTURE_G923.md` seccion "Lectura de ejes" (FIX#27)
 - **Steering**: stick/x con `NormalizeSteer` por rango calibrado + curva `f(x)=x/(a+(1-a)x)` con `_steerCurveA=0.65` (FIX#20)
 - **Pedales**: `NormalizePedal(raw, rest, press) = (raw-rest)/(press-rest)` clamp01
 - **Direccionales**: paddles toggle indicator, HUD con flechas verdes parpadeantes
 - **Freno**: brakeTorque separado, curva por tramos `BrakeCurve` con `_brakeSoftEnd=0.5`/`_brakeSoftMaxOutput=0.5` (FIX#20)
+- **Rueda visual cockpit**: `PlayerCar.Start()` clampea `steeringWheelSmoothTime` a 0.05s si > 0.1s (muchas escenas tienen 1.5s de fabrica, que con volante analogico causa lag visual devastador) (FIX#27)
 - **Clutch**: pendiente de implementar
 - **Reversa en automático**: lógica híbrida edge+debounce 300ms (FIX#24) — robusto a pulsos transitorios del HID
 
@@ -383,6 +393,33 @@ NO se filtra `button19` porque en PS variant es la posición R real del H-shifte
 - `SimpleSpeedGauge.cs` — HUD (velocidad, gear, direccionales)
 - `IUIInput.cs` — interfaz de input
 - `MenuScreenManager.cs:PrepareWheelScreen` — fast-path Logitech salta calibración Pantalla 2
+
+## HORI Truck Control System (HPC-044U)
+
+Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
+
+- **Plataforma:** Windows only (NO macOS)
+- **USB:** 2 devices separados — `HORI TRUCK CONTROL SYSTEM WHEEL` + `HORI TRUCK CONTROL SYSTEM SHIFTER`
+- **Deteccion:** `UIInputNew.IsHORITruck()` por displayName/product que contenga "HORI"
+- **Defaults automaticos** en `AttachToWheelDevice()` al detectar HORI (no usa `EnsureG923PSDefaults`)
+
+### Mapping verificado (F7, 2026-04-29)
+
+| Funcion | Path | Device | Reposo |
+|---------|------|--------|--------|
+| Pedales (3) | `rz`, `slider`, `slider1` | WHEEL | -1.0 (press hacia +1.0) |
+| Direccional izq | `button40` | WHEEL | — |
+| Direccional der | `button41` | WHEEL | — |
+| Intermitentes | `shifter:button27` | SHIFTER | — |
+| Reversa | `shifter:button7` | SHIFTER | — |
+
+- **Pedales**: descubiertos por Pantalla 2 Discovery (`slider`/`slider1` agregados a `PEDAL_AXIS_CANDIDATES`)
+- **Intermitentes**: binding dedicado `Bind_hazard` (G923 usa combo L1+R1, HORI tiene boton fisico)
+- **Steering**: descubierto dinamicamente por Pantalla 2 (no verificado el eje exacto)
+
+### Pendiente
+- Mapear marchas H-shifter (buttons en SHIFTER device)
+- Verificar force feedback
 
 ## Build
 

@@ -134,6 +134,10 @@ namespace Gley.UrbanSystem
 
             steeringWheelInitialRotation = steeringWheel.localRotation;
 
+            // Muchas escenas tienen steeringWheelSmoothTime=1.5 (configurado para
+            // teclado). Con volante analógico causa 1.5s de lag visual en el cockpit.
+            if (steeringWheelSmoothTime > 0.1f)
+                steeringWheelSmoothTime = 0.05f;
         }
 
         // finds the corresponding visual wheel

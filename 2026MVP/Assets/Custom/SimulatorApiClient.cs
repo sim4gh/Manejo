@@ -631,12 +631,13 @@ public static class SimulatorApiClient
         public string pcId;
         public string status;
         public string error;
+        public string version;
     }
 
     /// <summary>
     /// POST /simulator/update-status — reporta progreso de la actualización.
     /// </summary>
-    public static IEnumerator ReportUpdateStatus(string status, string error, System.Action<bool> onComplete)
+    public static IEnumerator ReportUpdateStatus(string status, string error, string version, System.Action<bool> onComplete)
     {
         var config = SimulatorConfig.Instance?.data;
         if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
@@ -647,6 +648,7 @@ public static class SimulatorApiClient
             pcId = config.pcId,
             status = status,
             error = error ?? "",
+            version = version ?? "",
         });
 
         Debug.Log($"[SimulatorAPI] POST {url} status={status}");
