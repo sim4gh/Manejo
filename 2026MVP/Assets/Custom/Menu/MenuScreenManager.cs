@@ -247,9 +247,10 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0.5f, 0.5f), ppu);
         }
 
-        // Clima aleatorio
-        PlayerPrefs.SetInt("Cargolluvia", Random.Range(0, 2));
-        PlayerPrefs.Save();
+        // El clima se sortea al verificar la sesión (ver PickAndSetWeather), no aquí.
+        // Antes hacíamos `Cargolluvia = Random.Range(0,2)` en este punto, pero el sorteo
+        // aplicaba al menu (no a la escena de manejo) y los demo codes lo sobreescribían
+        // de todas formas.
 
         // Garantizar GameManager
         if (GameManager.Instance == null)
@@ -714,6 +715,7 @@ public class MenuScreenManager : MonoBehaviour
                 citizenName = response.citizenName;
                 licenseType = response.licenseType;
                 GameManager.Instance.LocationId = 1;
+                PickAndSetWeather(-1); // sin override en flujo backend
                 OnSessionVerified();
                 yield break;
             }
@@ -726,29 +728,42 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
-    // Demo codes: prefijo de 4 dígitos → (tramiteId, citizenName, licenseType).
-    // El 5° dígito es el sufijo de ubicación: 0 = aleatorio, 1..5 = spawn fijo.
+    // Demo codes formato `TTTXY` (5 dígitos):
+    //   TTT = primeros 3 dígitos repetidos del tipo (000=particular, 111=pasajeros,
+    //         222=moto, 333=carga, 444=ambulancia)
+    //   X   = override de clima (0=sol, 1=lluvia, 2=granizo); cualquier otro valor
+    //         (3-9) = sin override, sortea random ponderado en PickAndSetWeather.
+    //   Y   = ubicación de spawn (0=random, 1..5=waypoint fijo).
+    // Compat con códigos legacy `TTTTY` (ej. 11111): el 4to dígito coincide con T y
+    // ahora se interpreta como override de clima — para todos los tipos no-particular,
+    // el código repetido (11111, 22222, 33333, 44444) ahora fuerza un clima específico
+    // (lluvia, granizo, ?, ?). Esto es intencional, parte de la extensión del demo override.
     static readonly Dictionary<string, (string id, string name, string type)> DEMO_PREFIXES = new Dictionary<string, (string, string, string)>
     {
-        { "0000", ("TLX-DEMO00000", "Demo Automóvil",  "particular")  },
-        { "1111", ("TLX-DEMO11111", "Demo Pasajeros",  "publico")     },
-        { "2222", ("TLX-DEMO22222", "Demo Moto",       "motocicleta") },
-        { "3333", ("TLX-DEMO33333", "Demo Carga",      "carga")       },
-        { "4444", ("TLX-DEMO44444", "Demo Ambulancia", "emergencia")  },
+        { "000", ("TLX-DEMO00000", "Demo Automóvil",  "particular")  },
+        { "111", ("TLX-DEMO11111", "Demo Pasajeros",  "publico")     },
+        { "222", ("TLX-DEMO22222", "Demo Moto",       "motocicleta") },
+        { "333", ("TLX-DEMO33333", "Demo Carga",      "carga")       },
+        { "444", ("TLX-DEMO44444", "Demo Ambulancia", "emergencia")  },
     };
 
     void OnVerifyCode()
     {
         string code = codeInput != null ? codeInput.text.Trim().ToUpper() : "";
 
-        // Demo codes para testing sin backend (5 dígitos: 4 de tipo + 1 de ubicación 0..5)
-        if (code.Length == 5 && DEMO_PREFIXES.TryGetValue(code.Substring(0, 4), out var demo)
+        // Demo codes para testing sin backend (formato TTTXY, ver DEMO_PREFIXES).
+        if (code.Length == 5 && DEMO_PREFIXES.TryGetValue(code.Substring(0, 3), out var demo)
             && code[4] >= '0' && code[4] <= '5')
         {
             tramiteId = demo.id;
             citizenName = demo.name;
             licenseType = demo.type;
             GameManager.Instance.LocationId = code[4] - '0';
+
+            // Override de clima si el 4to dígito es 0/1/2; otro valor → random ponderado.
+            int weatherOverride = (code[3] >= '0' && code[3] <= '2') ? (code[3] - '0') : -1;
+            PickAndSetWeather(weatherOverride);
+
             OnSessionVerified();
             return;
         }
@@ -759,6 +774,41 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
         StartCoroutine(LookupByCode(code));
+    }
+
+    // Pesos del sorteo de clima.
+    //   Iter actual (granizo desactivado, validación pendiente con TTT2Y):
+    //     60% sol / 40% lluvia / 0% granizo
+    //   Iter futuro (cuando granizo esté validado visualmente):
+    //     ajustar a 40% sol / 30% lluvia / 30% granizo (cambiar las 3 constantes).
+    private const float WEATHER_WEIGHT_SOL = 0.60f;
+    private const float WEATHER_WEIGHT_RAIN = 0.40f;
+    private const float WEATHER_WEIGHT_HAIL = 0.00f;
+
+    // Sortea el clima de la sesión y lo persiste en PlayerPrefs para que WeatherManager
+    // lo lea en la siguiente escena. `overrideClima` ∈ {0,1,2} fuerza valor; -1 sortea
+    // random ponderado. Llamado desde los 3 paths de verificación (demo, QR poll, lookup).
+    void PickAndSetWeather(int overrideClima)
+    {
+        int clima;
+        if (overrideClima >= 0 && overrideClima <= 2)
+        {
+            clima = overrideClima;
+        }
+        else
+        {
+            float r = Random.value;
+            if (r < WEATHER_WEIGHT_SOL) clima = 0;
+            else if (r < WEATHER_WEIGHT_SOL + WEATHER_WEIGHT_RAIN) clima = 1;
+            else clima = 2;
+        }
+        PlayerPrefs.SetInt("Clima", clima);
+        // Mirror al PlayerPref legacy `Cargolluvia` para no romper diagnóstico
+        // (LogConsolePanel y LogUploader lo leen). TODO: eliminar cuando esos
+        // consumidores migren a leer "Clima" directamente.
+        PlayerPrefs.SetInt("Cargolluvia", clima == 1 ? 1 : 0);
+        PlayerPrefs.Save();
+        Debug.Log($"[MenuScreenManager] Clima sorteado: {clima} (override={overrideClima})");
     }
 
     IEnumerator LookupByCode(string code)
@@ -793,6 +843,7 @@ public class MenuScreenManager : MonoBehaviour
         citizenName = response.citizenName;
         licenseType = response.licenseType;
         GameManager.Instance.LocationId = 1;
+        PickAndSetWeather(-1); // sin override en flujo backend
         OnSessionVerified();
     }
 
