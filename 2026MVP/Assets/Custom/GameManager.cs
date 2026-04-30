@@ -65,6 +65,13 @@ public class GameManager : MonoBehaviour
 
     IEnumerator HeartbeatLoop()
     {
+        // Boot register: crea el record en backend si no existe (con name
+        // default derivado del pcId) y sincroniza el name canónico desde el
+        // backend. Sin esto, una PC nueva nunca aparecería en el portal hasta
+        // que un operador abriera F10. NO manda name — el backend usa
+        // if_not_exists para no pisar renames hechos desde el portal admin.
+        yield return StartCoroutine(SimulatorApiClient.SendBootRegister());
+
         // Primer heartbeat inmediato
         yield return StartCoroutine(SimulatorApiClient.SendHeartbeat());
 
