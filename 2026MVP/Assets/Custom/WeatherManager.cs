@@ -12,16 +12,14 @@ using UnityEngine.SceneManagement;
 /// o desactivando los GameObjects "LLuvia" y "Granizo" preexistentes en cada
 /// escena (ambos son ParticleSystem world-space ya colocados):
 ///   - Sol: LLuvia OFF + Granizo OFF.
-///   - Lluvia: LLuvia ON + Granizo OFF + AudioSource loop con RainLoop.
-///   - Granizo: LLuvia OFF + Granizo ON + AudioSource loop con HailLoop.
+///   - Lluvia: LLuvia ON (densidad normal) + Granizo OFF + RainLoop.
+///   - Granizo: LLuvia ON (densidad reducida 30%) + Granizo ON con tamaño +50%
+///     (en X/Y/Z, porque size3D=1) + RainLoop. Modificamos los multipliers del
+///     ParticleSystem en runtime — Unity restaura defaults al recargar escena
+///     (el flujo del juego siempre vuelve a MainMenu antes de re-entrar).
 ///
 /// El sorteo del clima se hace en <see cref="MenuScreenManager.PickAndSetWeather"/>
 /// con pesos ponderados, o forzado por demo code <c>TTTXY</c> donde X∈{0,1,2}.
-///
-/// IMPORTANTE — Granizo en sorteo: en este iter el peso del granizo es 0%
-/// (validación pendiente del tamaño de las partículas). Solo accesible vía
-/// override de demo code <c>TTT2Y</c>. Una vez validado visualmente, ajustar
-/// pesos en <see cref="MenuScreenManager"/>.
 /// </summary>
 public class WeatherManager : MonoBehaviour
 {
@@ -29,11 +27,18 @@ public class WeatherManager : MonoBehaviour
 
     private const float WEATHER_VOLUME = 1.0f;
     private const float FADE_IN_SECONDS = 0.3f;
-    private const float PLAYER_FIND_TIMEOUT = 2f;
+
+    // Densidad de la lluvia ligera que acompaña al granizo (multiplicador del rate
+    // de emisión de cada GO LLuvia). 0.3 = 30% del rate normal por instancia.
+    private const float HAIL_RAIN_RATE_MULTIPLIER = 0.3f;
+
+    // Tamaño del granizo en modo granizo: 1.5 = 50% más grande en X/Y/Z (size3D=1
+    // en el ParticleSystem serializado, así que el escalar `startSizeMultiplier` no
+    // es confiable — hay que tocar X/Y/Z explícitamente).
+    private const float HAIL_SIZE_MULTIPLIER = 1.5f;
 
     private AudioSource weatherAudio;
     private Coroutine fadeCoroutine;
-    private Coroutine applyClimaCoroutine;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Bootstrap()
@@ -64,84 +69,95 @@ public class WeatherManager : MonoBehaviour
         // En MainMenu nunca llueve.
         if (scene.name == "MainMenu") return;
 
-        if (applyClimaCoroutine != null) StopCoroutine(applyClimaCoroutine);
-        applyClimaCoroutine = StartCoroutine(ApplyClimaWhenReady());
+        // Aplicar clima INMEDIATAMENTE — los GO LLuvia/Granizo ya están en escena
+        // (colocados en YAML), no dependen del Player. Antes esperábamos hasta 2s
+        // al Player y eso metía latencia visible al sentir el clima.
+        ApplyClima();
     }
 
-    private IEnumerator ApplyClimaWhenReady()
+    private void ApplyClima()
     {
         int clima = PlayerPrefs.GetInt("Clima", 0);
-
-        // Esperar a que el Player esté disponible (algunas escenas lo cargan tarde).
-        // Aunque el clima en sí no necesita al Player (los GO LLuvia/Granizo ya
-        // están en escena), esperarlo asegura que el log refleje un estado estable.
-        Transform player = null;
-        float t = 0f;
-        while (t < PLAYER_FIND_TIMEOUT && player == null)
-        {
-            player = FindPlayer();
-            if (player != null) break;
-            yield return null;
-            t += Time.unscaledDeltaTime;
-        }
 
         // Buscar todos los GO "LLuvia" y "Granizo" filtrando por componente
         // ParticleSystem para evitar matches falsos por nombre. Algunas escenas
         // tienen 2 instancias de cada uno (BusPasajeros, CamionDCarga, Ambulancia).
         var allParticles = Object.FindObjectsByType<ParticleSystem>(
             FindObjectsInactive.Include, FindObjectsSortMode.None);
-        var rainObjects = new List<GameObject>();
-        var hailObjects = new List<GameObject>();
+        var rainSystems = new List<ParticleSystem>();
+        var hailSystems = new List<ParticleSystem>();
         foreach (var ps in allParticles)
         {
             if (ps == null || ps.gameObject == null) continue;
             var nm = ps.gameObject.name;
-            if (nm == "LLuvia") rainObjects.Add(ps.gameObject);
-            else if (nm == "Granizo") hailObjects.Add(ps.gameObject);
+            if (nm == "LLuvia") rainSystems.Add(ps);
+            else if (nm == "Granizo") hailSystems.Add(ps);
         }
 
         switch (clima)
         {
             case 0: // Sol
-                SetActiveAll(rainObjects, false);
-                SetActiveAll(hailObjects, false);
-                Debug.Log($"[WeatherManager] Clima=Sol. LLuvia({rainObjects.Count})=OFF Granizo({hailObjects.Count})=OFF.");
+                SetActiveAll(rainSystems, false);
+                SetActiveAll(hailSystems, false);
+                Debug.Log($"[WeatherManager] Clima=Sol. LLuvia({rainSystems.Count})=OFF Granizo({hailSystems.Count})=OFF.");
                 break;
-            case 1: // Lluvia
-                SetActiveAll(rainObjects, true);
-                SetActiveAll(hailObjects, false);
+            case 1: // Lluvia normal
+                SetActiveAll(rainSystems, true);
+                SetActiveAll(hailSystems, false);
                 PlayWeatherAudio("Custom/Weather/RainLoop");
-                Debug.Log($"[WeatherManager] Clima=Lluvia. LLuvia({rainObjects.Count})=ON Granizo({hailObjects.Count})=OFF. Player tras {t:F2}s.");
+                Debug.Log($"[WeatherManager] Clima=Lluvia. LLuvia({rainSystems.Count})=ON Granizo({hailSystems.Count})=OFF.");
                 break;
-            case 2: // Granizo
-                SetActiveAll(rainObjects, false);
-                SetActiveAll(hailObjects, true);
-                PlayWeatherAudio("Custom/Weather/HailLoop");
-                Debug.Log($"[WeatherManager] Clima=Granizo. LLuvia({rainObjects.Count})=OFF Granizo({hailObjects.Count})=ON. NOTA: validar visualmente — granizo aún no en sorteo random.");
+            case 2: // Granizo + lluvia ligera
+                ActivateRainLight(rainSystems);
+                ActivateHailLarge(hailSystems);
+                PlayWeatherAudio("Custom/Weather/RainLoop");
+                Debug.Log($"[WeatherManager] Clima=Granizo. LLuvia({rainSystems.Count})=ON@{HAIL_RAIN_RATE_MULTIPLIER:F2}x Granizo({hailSystems.Count})=ON@{HAIL_SIZE_MULTIPLIER:F2}x.");
                 break;
             default:
                 Debug.LogWarning($"[WeatherManager] Valor de Clima desconocido: {clima}, fallback a Sol.");
-                SetActiveAll(rainObjects, false);
-                SetActiveAll(hailObjects, false);
+                SetActiveAll(rainSystems, false);
+                SetActiveAll(hailSystems, false);
                 break;
         }
     }
 
-    private static void SetActiveAll(List<GameObject> gos, bool active)
+    private static void SetActiveAll(List<ParticleSystem> systems, bool active)
     {
-        foreach (var g in gos)
-            if (g != null) g.SetActive(active);
+        foreach (var ps in systems)
+            if (ps != null) ps.gameObject.SetActive(active);
     }
 
-    private Transform FindPlayer()
+    // Lluvia ligera de fondo (modo granizo): activa el PS y baja el rate de emisión
+    // al `HAIL_RAIN_RATE_MULTIPLIER`. `Clear()` antes de modificar evita arrastrar
+    // partículas residuales si el PS ya estaba vivo de un estado anterior.
+    private static void ActivateRainLight(List<ParticleSystem> systems)
     {
-        var pc = Object.FindFirstObjectByType<Gley.UrbanSystem.PlayerCar>(FindObjectsInactive.Include);
-        if (pc != null) return pc.transform;
-        var tagged = GameObject.FindGameObjectWithTag("Player");
-        if (tagged != null) return tagged.transform;
-        var named = GameObject.Find("Player");
-        if (named != null) return named.transform;
-        return null;
+        foreach (var ps in systems)
+        {
+            if (ps == null) continue;
+            ps.gameObject.SetActive(true);
+            ps.Clear();
+            var emission = ps.emission;
+            emission.rateOverTimeMultiplier = HAIL_RAIN_RATE_MULTIPLIER;
+        }
+    }
+
+    // Granizo más grande: activa el PS y multiplica el startSize por
+    // `HAIL_SIZE_MULTIPLIER` en X/Y/Z. Tocamos los tres ejes porque los PS tienen
+    // `size3D=1` en YAML — el escalar `startSizeMultiplier` no es confiable en ese
+    // modo (puede aplicar solo a X). `Clear()` defensivo igual que en lluvia.
+    private static void ActivateHailLarge(List<ParticleSystem> systems)
+    {
+        foreach (var ps in systems)
+        {
+            if (ps == null) continue;
+            ps.gameObject.SetActive(true);
+            ps.Clear();
+            var main = ps.main;
+            main.startSizeXMultiplier = HAIL_SIZE_MULTIPLIER;
+            main.startSizeYMultiplier = HAIL_SIZE_MULTIPLIER;
+            main.startSizeZMultiplier = HAIL_SIZE_MULTIPLIER;
+        }
     }
 
     private void PlayWeatherAudio(string resourcePath)
