@@ -33,10 +33,9 @@ public class WeatherManager : MonoBehaviour
     private const float HAIL_RAIN_RATE_MULTIPLIER = 0.3f;
 
     // Tamaño del granizo en modo granizo. El render es Mesh (PiedraGranizo.fbx),
-    // no billboard, así que el size escala el mesh 3D. Subido a 2.0 para que el
-    // cambio sea claramente visible — si con 2.0 igual no se nota, el problema no
-    // es el factor sino que el multiplier no aplica.
-    private const float HAIL_SIZE_MULTIPLIER = 2.0f;
+    // no billboard, así que el size escala el mesh 3D. 4.0 = bolas 4× más grandes
+    // que el original (validado visualmente con el usuario en Sedan).
+    private const float HAIL_SIZE_MULTIPLIER = 4.0f;
 
     private AudioSource weatherAudio;
     private Coroutine fadeCoroutine;
@@ -48,70 +47,41 @@ public class WeatherManager : MonoBehaviour
         var go = new GameObject("[WeatherManager]");
         DontDestroyOnLoad(go);
         Instance = go.AddComponent<WeatherManager>();
-        Debug.Log($"[WeatherManager] Bootstrap creó singleton (instanceId={Instance.GetInstanceID()})");
 
         // La escena inicial ya está cargada cuando AfterSceneLoad se ejecuta, así
         // que sceneLoaded NO va a disparar para ella. Aplicamos clima manualmente
-        // si esa escena no es MainMenu.
+        // si esa escena no es MainMenu (caso "play directamente desde Sedan" en Editor).
         var active = SceneManager.GetActiveScene();
         if (active.IsValid() && active.name != "MainMenu")
-        {
-            Debug.Log($"[WeatherManager] Escena inicial '{active.name}' ya cargada — aplicando clima inmediatamente.");
             Instance.ApplyClima();
-        }
     }
 
     private void Awake()
     {
-        if (Instance != null && Instance != this)
-        {
-            Debug.LogWarning($"[WeatherManager] Awake — Instance ya existe ({Instance.GetInstanceID()}); destruyo el duplicado ({GetInstanceID()}).");
-            Destroy(gameObject);
-            return;
-        }
+        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
         Instance = this;
         SceneManager.sceneLoaded += OnSceneLoaded;
-        Debug.Log($"[WeatherManager] Awake — suscrito a sceneLoaded (instanceId={GetInstanceID()})");
     }
 
     private void OnDestroy()
     {
-        Debug.LogWarning($"[WeatherManager] OnDestroy — desuscrito (instanceId={GetInstanceID()}, eraInstance={Instance == this})");
         if (Instance == this) Instance = null;
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
     private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
-        Debug.Log($"[WeatherManager] OnSceneLoaded scene='{scene.name}' mode={mode}");
-        // Limpia audio anterior antes de aplicar el clima nuevo.
         CleanupAudio();
-
-        // En MainMenu nunca llueve.
-        if (scene.name == "MainMenu")
-        {
-            Debug.Log("[WeatherManager] Skip MainMenu.");
-            return;
-        }
-
-        // Aplicar clima INMEDIATAMENTE — los GO LLuvia/Granizo ya están en escena
-        // (colocados en YAML), no dependen del Player. Antes esperábamos hasta 2s
-        // al Player y eso metía latencia visible al sentir el clima.
+        if (scene.name == "MainMenu") return;
         ApplyClima();
     }
 
     private void ApplyClima()
     {
         int clima = PlayerPrefs.GetInt("Clima", 0);
-        Debug.Log($"[WeatherManager] ApplyClima clima={clima} (PlayerPref 'Clima')");
 
-        // Buscar todos los GO "LLuvia" y "Granizo" filtrando por componente
-        // ParticleSystem para evitar matches falsos por nombre. Algunas escenas
-        // tienen 2 instancias de cada uno (BusPasajeros, CamionDCarga, Ambulancia).
         var allParticles = Object.FindObjectsByType<ParticleSystem>(
             FindObjectsInactive.Include, FindObjectsSortMode.None);
-        Debug.Log($"[WeatherManager] FindObjectsByType<ParticleSystem> encontró {allParticles.Length} PS totales en escena.");
-
         var rainSystems = new List<ParticleSystem>();
         var hailSystems = new List<ParticleSystem>();
         foreach (var ps in allParticles)
@@ -121,75 +91,44 @@ public class WeatherManager : MonoBehaviour
             if (nm == "LLuvia") rainSystems.Add(ps);
             else if (nm == "Granizo") hailSystems.Add(ps);
         }
-        Debug.Log($"[WeatherManager] Filtrados por nombre: LLuvia={rainSystems.Count}, Granizo={hailSystems.Count}.");
-
-        // Log de estado pre-cambio (activeSelf, activeInHierarchy, parent name)
-        for (int i = 0; i < rainSystems.Count; i++)
-        {
-            var go = rainSystems[i].gameObject;
-            var p = go.transform.parent != null ? go.transform.parent.name : "(root)";
-            Debug.Log($"[WeatherManager]   LLuvia[{i}] activeSelf={go.activeSelf} activeInHierarchy={go.activeInHierarchy} parent='{p}'");
-        }
-        for (int i = 0; i < hailSystems.Count; i++)
-        {
-            var go = hailSystems[i].gameObject;
-            var p = go.transform.parent != null ? go.transform.parent.name : "(root)";
-            Debug.Log($"[WeatherManager]   Granizo[{i}] activeSelf={go.activeSelf} activeInHierarchy={go.activeInHierarchy} parent='{p}'");
-        }
 
         switch (clima)
         {
             case 0: // Sol
-                SetActiveAll(rainSystems, false, "LLuvia");
-                SetActiveAll(hailSystems, false, "Granizo");
-                Debug.Log($"[WeatherManager] Clima=Sol APLICADO.");
+                SetActiveAll(rainSystems, false);
+                SetActiveAll(hailSystems, false);
+                Debug.Log($"[WeatherManager] Clima=Sol. LLuvia({rainSystems.Count})=OFF Granizo({hailSystems.Count})=OFF.");
                 break;
             case 1: // Lluvia normal
-                SetActiveAll(rainSystems, true, "LLuvia");
-                SetActiveAll(hailSystems, false, "Granizo");
+                SetActiveAll(rainSystems, true);
+                SetActiveAll(hailSystems, false);
                 PlayWeatherAudio("Custom/Weather/RainLoop");
-                Debug.Log($"[WeatherManager] Clima=Lluvia APLICADO.");
+                Debug.Log($"[WeatherManager] Clima=Lluvia. LLuvia({rainSystems.Count})=ON Granizo({hailSystems.Count})=OFF.");
                 break;
             case 2: // Granizo + lluvia ligera
                 ActivateRainLight(rainSystems);
                 ActivateHailLarge(hailSystems);
                 PlayWeatherAudio("Custom/Weather/RainLoop");
-                Debug.Log($"[WeatherManager] Clima=Granizo APLICADO.");
+                Debug.Log($"[WeatherManager] Clima=Granizo. LLuvia({rainSystems.Count})=ON@{HAIL_RAIN_RATE_MULTIPLIER:F2}x Granizo({hailSystems.Count})=ON@{HAIL_SIZE_MULTIPLIER:F2}x.");
                 break;
             default:
                 Debug.LogWarning($"[WeatherManager] Valor de Clima desconocido: {clima}, fallback a Sol.");
-                SetActiveAll(rainSystems, false, "LLuvia");
-                SetActiveAll(hailSystems, false, "Granizo");
+                SetActiveAll(rainSystems, false);
+                SetActiveAll(hailSystems, false);
                 break;
         }
-
-        // Log post-cambio
-        for (int i = 0; i < rainSystems.Count; i++)
-        {
-            var go = rainSystems[i].gameObject;
-            Debug.Log($"[WeatherManager]   POST LLuvia[{i}] activeSelf={go.activeSelf} activeInHierarchy={go.activeInHierarchy}");
-        }
-        for (int i = 0; i < hailSystems.Count; i++)
-        {
-            var go = hailSystems[i].gameObject;
-            Debug.Log($"[WeatherManager]   POST Granizo[{i}] activeSelf={go.activeSelf} activeInHierarchy={go.activeInHierarchy}");
-        }
     }
 
-    private static void SetActiveAll(List<ParticleSystem> systems, bool active, string label)
+    private static void SetActiveAll(List<ParticleSystem> systems, bool active)
     {
-        for (int i = 0; i < systems.Count; i++)
-        {
-            var ps = systems[i];
-            if (ps == null) continue;
-            ps.gameObject.SetActive(active);
-            Debug.Log($"[WeatherManager]   SetActive({active}) en {label}[{i}] '{ps.gameObject.name}' (parent='{(ps.transform.parent != null ? ps.transform.parent.name : "root")}')");
-        }
+        foreach (var ps in systems)
+            if (ps != null) ps.gameObject.SetActive(active);
     }
 
-    // Lluvia ligera de fondo (modo granizo): activa el GO y baja el rate de emisión.
-    // Orden: SetActive ANTES de aplicar el multiplier, sino el SetActive reinicializa
-    // el módulo emission desde el valor serializado y pierde nuestro multiplier.
+    // Lluvia ligera de fondo (modo granizo): activa el GO y reasigna `rateOverTime`
+    // con un nuevo MinMaxCurve escalado. Mismo approach que `ActivateHailLarge`
+    // porque el multiplier escalar no aplicaba en pruebas previas (la lluvia se
+    // veía igual de densa o no se veía).
     private static void ActivateRainLight(List<ParticleSystem> systems)
     {
         for (int i = 0; i < systems.Count; i++)
@@ -198,10 +137,12 @@ public class WeatherManager : MonoBehaviour
             if (ps == null) continue;
             ps.gameObject.SetActive(true);
             var emission = ps.emission;
-            float beforeMul = emission.rateOverTimeMultiplier;
-            emission.rateOverTimeMultiplier = HAIL_RAIN_RATE_MULTIPLIER;
-            float rateConst = emission.rateOverTime.constant;
-            Debug.Log($"[WeatherManager]   LLuvia[{i}] rate={rateConst} mul: {beforeMul} → {emission.rateOverTimeMultiplier}");
+            var current = emission.rateOverTime;
+            float baseRate = current.mode == ParticleSystemCurveMode.TwoConstants
+                ? current.constantMax : current.constant;
+            float newRate = baseRate * HAIL_RAIN_RATE_MULTIPLIER;
+            emission.rateOverTime = new ParticleSystem.MinMaxCurve(newRate);
+            Debug.Log($"[WeatherManager]   LLuvia[{i}] rate {baseRate} → {newRate}");
         }
     }
 
@@ -225,17 +166,10 @@ public class WeatherManager : MonoBehaviour
                 ? current.constantMin : current.constant;
             float max = current.mode == ParticleSystemCurveMode.TwoConstants
                 ? current.constantMax : current.constant;
-            float beforeMul = main.startSizeMultiplier;
             main.startSize = new ParticleSystem.MinMaxCurve(
                 min * HAIL_SIZE_MULTIPLIER,
                 max * HAIL_SIZE_MULTIPLIER);
-            // Re-leer para confirmar que la asignación pegó.
-            var after = ps.main.startSize;
-            float afterMin = after.mode == ParticleSystemCurveMode.TwoConstants
-                ? after.constantMin : after.constant;
-            float afterMax = after.mode == ParticleSystemCurveMode.TwoConstants
-                ? after.constantMax : after.constant;
-            Debug.Log($"[WeatherManager]   Granizo[{i}] startSize mode={current.mode} {min}..{max} → wrote new MinMaxCurve({min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER}) → after-read mode={after.mode} {afterMin}..{afterMax}");
+            Debug.Log($"[WeatherManager]   Granizo[{i}] size {min}..{max} → {min*HAIL_SIZE_MULTIPLIER}..{max*HAIL_SIZE_MULTIPLIER}");
         }
     }
 
