@@ -127,34 +127,40 @@ public class WeatherManager : MonoBehaviour
             if (ps != null) ps.gameObject.SetActive(active);
     }
 
-    // Lluvia ligera de fondo (modo granizo): baja el rate de emisión al
-    // `HAIL_RAIN_RATE_MULTIPLIER` y activa el GO. Importante: aplicar el multiplier
-    // ANTES del SetActive — si activamos primero, el PS arranca por playOnAwake con
-    // rate normal y se ve un "flash" denso en el primer frame.
+    // Lluvia ligera de fondo (modo granizo): activa el GO y baja el rate de emisión.
+    // Orden: SetActive ANTES de aplicar el multiplier, sino el SetActive reinicializa
+    // el módulo emission desde el valor serializado y pierde nuestro multiplier.
+    // Después escribimos directamente `startSize` constantes (no multiplier) porque
+    // el escalar `rateOverTimeMultiplier` se respeta al modificar emission en runtime
+    // mientras que `startSizeMultiplier` no funciona con `minMaxState=3` (TwoConstants).
     private static void ActivateRainLight(List<ParticleSystem> systems)
     {
         foreach (var ps in systems)
         {
             if (ps == null) continue;
+            ps.gameObject.SetActive(true);
             var emission = ps.emission;
             emission.rateOverTimeMultiplier = HAIL_RAIN_RATE_MULTIPLIER;
-            ps.gameObject.SetActive(true);
         }
     }
 
-    // Granizo más grande: multiplica el startSize por `HAIL_SIZE_MULTIPLIER` en
-    // X/Y/Z (size3D=1 en YAML, el escalar `startSizeMultiplier` no es confiable
-    // en ese modo). Aplicar antes del SetActive por la misma razón que en lluvia.
+    // Granizo más grande: activa el GO y escribe directamente startSize escalado
+    // por `HAIL_SIZE_MULTIPLIER`. Tocar `constantMin/Max` directamente (modo
+    // TwoConstants en el YAML) en lugar de los `startSizeXMultiplier` porque éstos
+    // no aplican con `minMaxState=3`.
     private static void ActivateHailLarge(List<ParticleSystem> systems)
     {
         foreach (var ps in systems)
         {
             if (ps == null) continue;
-            var main = ps.main;
-            main.startSizeXMultiplier = HAIL_SIZE_MULTIPLIER;
-            main.startSizeYMultiplier = HAIL_SIZE_MULTIPLIER;
-            main.startSizeZMultiplier = HAIL_SIZE_MULTIPLIER;
             ps.gameObject.SetActive(true);
+            var main = ps.main;
+            var size = main.startSize;
+            // MinMaxCurve.constantMin/Max requieren mode=TwoConstants; el YAML ya
+            // tiene minMaxState=3 (TwoConstants) en ambos PS, así que es seguro.
+            size.constantMin = size.constantMin * HAIL_SIZE_MULTIPLIER;
+            size.constantMax = size.constantMax * HAIL_SIZE_MULTIPLIER;
+            main.startSize = size;
         }
     }
 
