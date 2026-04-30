@@ -170,6 +170,15 @@ public class CollisionFeedback : MonoBehaviour
         audioSource.spatialBlend = 0f; // 2D
         audioSource.playOnAwake = false;
         audioSource.loop = false;
+
+        // Pre-warm: la primera reproducción de un AudioSource recién creado paga un
+        // cold-start extra (asignación de voice + warmup del clip). Disparar un
+        // PlayOneShot inaudible al boot deja el motor de audio listo para que la
+        // primera colisión real suene instantánea.
+        if (impactClips != null && impactClips.Length > 0 && impactClips[0] != null)
+        {
+            audioSource.PlayOneShot(impactClips[0], 0f);
+        }
     }
 
     private void HandleImpact(ViolationDetector.CollisionImpactInfo info)
