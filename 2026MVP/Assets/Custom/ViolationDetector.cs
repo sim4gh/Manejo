@@ -54,6 +54,20 @@ public class ViolationDetector : MonoBehaviour
     // Event for UI updates
     public System.Action<float> OnSpeedLimitChanged;
 
+    /// <summary>Info pasado a CollisionFeedback para overlay/shake/flash/audio/FFB.</summary>
+    public struct CollisionImpactInfo
+    {
+        public Vector3 contactPoint;     // Punto de contacto en mundo (collision.GetContact(0).point)
+        public Vector3 impulseWorld;     // collision.impulse
+        public float lateralLocal;       // -1 (impacto izquierdo) … +1 (derecho), en espacio del vehículo
+        public float magnitude;          // collision.impulse.magnitude
+        public string violationType;     // "Pedestrian" | "Bicycle" | "Vehicle" | "Sign" | "Obstacle"
+        public float speedKmh;
+    }
+
+    /// <summary>Disparado tras dedupe + cooldown del ViolationDetector. CollisionFeedback lo consume.</summary>
+    public static event System.Action<CollisionImpactInfo> OnCollisionImpact;
+
     void Start()
     {
         rb = GetComponent<Rigidbody>();
@@ -230,8 +244,10 @@ public class ViolationDetector : MonoBehaviour
         if (!isVehicle) isVehicle = direct.CompareTag("automovil") || direct.layer == LayerMask.NameToLayer("RCCP_Vehicle");
         if (!isSign) isSign = direct.CompareTag("Senalamiento");
 
+        string violationType;
         if (isPedestrian)
         {
+            violationType = "Pedestrian";
             DeductScore(pedestrianPenalty);
             NotificationManager.Instance?.ShowNotification(
                 $"-{pedestrianPenalty} ¡ATROPELLO!", Color.red);
@@ -241,6 +257,7 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (isBicycle)
         {
+            violationType = "Bicycle";
             DeductScore(bicycleCollisionPenalty);
             NotificationManager.Instance?.ShowNotification(
                 $"-{bicycleCollisionPenalty} ¡COLISIÓN CON BICICLETA!", Color.red);
@@ -250,6 +267,7 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (isVehicle)
         {
+            violationType = "Vehicle";
             DeductScore(vehicleCollisionPenalty);
             NotificationManager.Instance?.ShowNotification(
                 $"-{vehicleCollisionPenalty} ¡COLISIÓN VEHICULAR!", Color.red);
@@ -259,6 +277,7 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (isSign)
         {
+            violationType = "Sign";
             DeductScore(signCollisionPenalty);
             NotificationManager.Instance?.ShowNotification(
                 $"-{signCollisionPenalty} ¡COLISIÓN CON SEÑALAMIENTO!", Color.yellow);
@@ -268,6 +287,7 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (layer != LayerMask.NameToLayer("Default"))
         {
+            violationType = "Obstacle";
             DeductScore(obstacleCollisionPenalty);
             NotificationManager.Instance?.ShowNotification(
                 $"-{obstacleCollisionPenalty} ¡COLISIÓN CON OBSTÁCULO!", Color.yellow);
@@ -283,6 +303,37 @@ public class ViolationDetector : MonoBehaviour
         // Registrar cooldown
         lastCollisionTime = Time.time;
         lastCollisionRootId = rootId;
+
+        // Disparar evento para CollisionFeedback (overlay/shake/flash/audio/FFB).
+        // Magnitud del impulso vía Unity Physics; lateral en espacio local del vehículo
+        // determina dirección del golpe direccional al volante (G923).
+        try
+        {
+            float impulseMag = collision.impulse.magnitude;
+            float lateral = 0f;
+            if (impulseMag > 0.001f)
+            {
+                Vector3 impulseLocal = transform.InverseTransformDirection(collision.impulse);
+                lateral = Mathf.Clamp(impulseLocal.x / impulseMag, -1f, 1f);
+            }
+            Vector3 contactPoint = collision.contactCount > 0
+                ? collision.GetContact(0).point
+                : transform.position;
+
+            OnCollisionImpact?.Invoke(new CollisionImpactInfo
+            {
+                contactPoint = contactPoint,
+                impulseWorld = collision.impulse,
+                lateralLocal = lateral,
+                magnitude = impulseMag,
+                violationType = violationType,
+                speedKmh = speed,
+            });
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogError($"[ViolationDetector] OnCollisionImpact subscriber threw: {e}");
+        }
     }
 
     public void ExportTelemetry()
