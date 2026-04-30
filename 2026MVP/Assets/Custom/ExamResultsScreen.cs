@@ -23,11 +23,18 @@ public class ExamResultsScreen : MonoBehaviour
     public static void Show(int finalScore)
     {
         GameObject obj = new GameObject("ExamResultsOverlay");
+        // CRÍTICO: DontDestroyOnLoad para que el overlay sobreviva el LoadScene("MainMenu")
+        // y la coroutine pueda completar + auto-destruirse limpiamente. Sin esto, el
+        // GameObject vive en la escena del examen, se destruye al hacer LoadScene, la
+        // coroutine se cancela mid-frame, pero el backdrop+UI quedan colgados en cualquier
+        // Canvas persistente que hubiera servido de parent → freeze visual con "1s..."
+        DontDestroyOnLoad(obj);
         var screen = obj.AddComponent<ExamResultsScreen>();
         screen.score = finalScore;
     }
 
     private float showTime;
+    private bool isReturning;
 
     void Start()
     {
@@ -71,51 +78,27 @@ public class ExamResultsScreen : MonoBehaviour
 
     void BuildUI()
     {
-        // Buscar Canvas root — priorizar el que renderiza en el display principal
-#pragma warning disable CS0618
-        Canvas[] canvases = Object.FindObjectsOfType<Canvas>();
-#pragma warning restore CS0618
+        // Canvas dedicado, child de este GameObject — todo el UI vive aquí.
+        // Si el GameObject se destruye, todo el árbol se va con él. Antes el overlay
+        // se hacía child de un Canvas externo encontrado con FindObjectsOfType, que
+        // si pertenecía a un GameObject persistente entre escenas, dejaba el backdrop
+        // colgado tras LoadScene → freeze visual. Mismo patrón que CollisionFeedback.
+        var canvasGo = new GameObject("ExamResultsCanvas");
+        canvasGo.transform.SetParent(transform, false);
+        var canvas = canvasGo.AddComponent<Canvas>();
+        canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+        canvas.sortingOrder = 6000; // arriba de CollisionFeedback (5000) y notificaciones
+        canvas.targetDisplay = DisplayHelper.CenterDisplay;
 
-        Canvas targetCanvas = null;
-        // Primera pasada: Canvas overlay root en display principal (targetDisplay == 0)
-        foreach (var canvas in canvases)
-        {
-            if (canvas.renderMode == RenderMode.ScreenSpaceOverlay
-                && canvas.transform.parent == null
-                && canvas.targetDisplay == DisplayHelper.CenterDisplay)
-            {
-                targetCanvas = canvas;
-                break;
-            }
-        }
-        // Fallback: cualquier overlay root
-        if (targetCanvas == null)
-        {
-            foreach (var canvas in canvases)
-            {
-                if (canvas.renderMode == RenderMode.ScreenSpaceOverlay && canvas.transform.parent == null)
-                {
-                    targetCanvas = canvas;
-                    break;
-                }
-            }
-        }
-        if (targetCanvas == null && canvases.Length > 0)
-            targetCanvas = canvases[0];
-
-        if (targetCanvas == null)
-        {
-            Debug.LogWarning("[ExamResultsScreen] No se encontró Canvas");
-            ReturnToMenu();
-            return;
-        }
-
-        // Garantizar pantalla principal (cubre caso ScreenSpaceCamera en display lateral)
-        DisplayHelper.EnsureOnMainDisplay(targetCanvas, "[ExamResultsScreen]");
+        var scaler = canvasGo.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight = 0.5f;
+        canvasGo.AddComponent<GraphicRaycaster>();
 
         // Backdrop oscuro fullscreen
         GameObject backdrop = new GameObject("Backdrop");
-        backdrop.transform.SetParent(targetCanvas.transform, false);
+        backdrop.transform.SetParent(canvasGo.transform, false);
         RectTransform bdRt = backdrop.AddComponent<RectTransform>();
         bdRt.anchorMin = Vector2.zero;
         bdRt.anchorMax = Vector2.one;
@@ -206,9 +189,7 @@ public class ExamResultsScreen : MonoBehaviour
 
     IEnumerator AutoReturnCoroutine()
     {
-        // Deadline absoluto basado en realtime — inmune a timing drift de
-        // WaitForSecondsRealtime con timeScale=0 (que en Unity 6 puede colgarse
-        // en el último segundo, dejando "Regresando al menu en 1s..." stuck).
+        // Deadline absoluto basado en realtime — inmune a timing drift con timeScale=0.
         float deadline = Time.realtimeSinceStartup + AUTO_RETURN_SECONDS;
         while (Time.realtimeSinceStartup < deadline)
         {
@@ -220,11 +201,18 @@ public class ExamResultsScreen : MonoBehaviour
             }
             yield return null;
         }
+        Debug.Log("[ExamResultsScreen] Countdown completo, regresando al menu");
         ReturnToMenu();
     }
 
     void ReturnToMenu()
     {
+        // Guard contra race entre Update (input) y coroutine (timeout) — si ambos
+        // disparan ReturnToMenu en frames adyacentes, sin guard tendríamos doble LoadScene.
+        if (isReturning) return;
+        isReturning = true;
+        Debug.Log("[ExamResultsScreen] ReturnToMenu invocado");
+
         try
         {
             Time.timeScale = 1f;
@@ -236,5 +224,9 @@ public class ExamResultsScreen : MonoBehaviour
             Time.timeScale = 1f;
             SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
         }
+
+        // Limpieza explícita: el overlay es DontDestroyOnLoad, sobrevive el LoadScene.
+        // Sin este Destroy, quedaría visible permanentemente sobre el MainMenu.
+        Destroy(gameObject);
     }
 }
