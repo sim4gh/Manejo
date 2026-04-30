@@ -37,6 +37,7 @@ public class MenuScreenManager : MonoBehaviour
     private GameObject[] screens = new GameObject[4];
     private CanvasGroup[] screenGroups = new CanvasGroup[4];
     private int currentScreen = -1;
+    private GameObject mainTitleGo;
 
     // Pantalla 0
     private RawImage qrImage;
@@ -301,12 +302,12 @@ public class MenuScreenManager : MonoBehaviour
     {
         // Título grande, bold, centrado — como en el wireframe
         // Versión leída dinámicamente de Application.version (Edit > Project Settings > Player > Version)
-        MenuCardBuilder.CreateText(transform, "MainTitle", "Prueba de Manejo  v" + Application.version,
+        mainTitleGo = MenuCardBuilder.CreateText(transform, "MainTitle", "Prueba de Manejo  v" + Application.version,
             MenuTheme.HeaderTitleSize, FontStyles.Bold, MenuTheme.TextPrimary,
-            TextAlignmentOptions.Center)
-            .GetComponent<RectTransform>().Set(
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-                new Vector2(0, -50), new Vector2(0, 100));
+            TextAlignmentOptions.Center);
+        mainTitleGo.GetComponent<RectTransform>().Set(
+            new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
+            new Vector2(0, -50), new Vector2(0, 100));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -889,18 +890,28 @@ public class MenuScreenManager : MonoBehaviour
         screens[3] = screen;
         screenGroups[3] = screen.GetComponent<CanvasGroup>();
 
-        // Content container (centrado, sin scroll necesario)
+        // Botón Cerrar flotante (esquina superior derecha — fuera del Content
+        // para que la layout nunca pueda recortarlo).
+        GameObject closeBtn = MenuCardBuilder.CreateButton(screen.transform, "Cerrar", "primary",
+            new Vector2(140f, 50f), () => GoToScreen(0));
+        closeBtn.GetComponent<RectTransform>().Set(
+            new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 1),
+            new Vector2(-30, -30), new Vector2(140, 50));
+
+        // Content container (top-center, ancho fijo — ContentSizeFitter
+        // controla la altura sin pelearse con anchors estirados).
         GameObject contentObj = new GameObject("Content");
         contentObj.transform.SetParent(screen.transform, false);
         RectTransform contentRt = contentObj.AddComponent<RectTransform>();
-        contentRt.anchorMin = new Vector2(0.15f, 0.15f);
-        contentRt.anchorMax = new Vector2(0.85f, 0.85f);
-        contentRt.offsetMin = Vector2.zero;
-        contentRt.offsetMax = Vector2.zero;
+        contentRt.anchorMin = new Vector2(0.5f, 1f);
+        contentRt.anchorMax = new Vector2(0.5f, 1f);
+        contentRt.pivot     = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = new Vector2(0, -40);
+        contentRt.sizeDelta = new Vector2(900, 0);
 
         var layout = contentObj.AddComponent<VerticalLayoutGroup>();
-        layout.spacing = 12f;
-        layout.padding = new RectOffset(40, 40, 20, 20);
+        layout.spacing = 8f;
+        layout.padding = new RectOffset(30, 30, 10, 10);
         layout.childAlignment = TextAnchor.UpperCenter;
         layout.childControlWidth = true;
         layout.childControlHeight = false;
@@ -912,7 +923,7 @@ public class MenuScreenManager : MonoBehaviour
         var config = SimulatorConfig.Instance?.data ?? new SimulatorConfig.ConfigData();
 
         // ── Header ──
-        AdminAddHeader(ct, "Configuracion");
+        AdminAddHeader(ct, "Configuración  v" + Application.version);
 
         // ── UID (read-only) ──
         string uidDisplay = string.IsNullOrEmpty(config.pcId)
@@ -931,13 +942,13 @@ public class MenuScreenManager : MonoBehaviour
         // ── Modo de pantallas (1 prueba / 3 producción) ──
         GameObject displayToggleGo = MenuCardBuilder.CreateToggle(ct,
             "Modo prueba (1 pantalla)", config.displayCount == 1);
-        displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
+        displayToggleGo.AddComponent<LayoutElement>().preferredHeight = 40f;
         adminDisplayToggle = displayToggleGo.GetComponent<Toggle>();
 
         // ── Notificaciones en pantalla ──
         GameObject notifToggleGo = MenuCardBuilder.CreateToggle(ct,
             "Mostrar notificaciones en pantalla", config.showNotifications);
-        notifToggleGo.AddComponent<LayoutElement>().preferredHeight = 45f;
+        notifToggleGo.AddComponent<LayoutElement>().preferredHeight = 40f;
         adminNotificationsToggle = notifToggleGo.GetComponent<Toggle>();
 
         // ── Intercambiar displays ──
@@ -947,21 +958,19 @@ public class MenuScreenManager : MonoBehaviour
         swapRow.transform.SetParent(ct, false);
         swapRow.AddComponent<RectTransform>();
         var swapLayout = swapRow.AddComponent<HorizontalLayoutGroup>();
-        swapLayout.spacing = 10f;
+        swapLayout.spacing = 12f;
         swapLayout.childAlignment = TextAnchor.MiddleCenter;
         swapLayout.childControlWidth = false;
         swapLayout.childControlHeight = false;
         swapLayout.childForceExpandWidth = false;
         swapRow.AddComponent<LayoutElement>().preferredHeight = 45f;
 
-        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Centro", "ghost",
-            new Vector2(160f, 40f), () => OnSwapDisplays("left", "center"));
-        MenuCardBuilder.CreateButton(swapRow.transform, "Centro / Der", "ghost",
-            new Vector2(160f, 40f), () => OnSwapDisplays("center", "right"));
-        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Der", "ghost",
-            new Vector2(160f, 40f), () => OnSwapDisplays("left", "right"));
-
-        AdminAddSpacer(ct, 5f);
+        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Centro", "secondary",
+            new Vector2(140f, 40f), () => OnSwapDisplays("left", "center"));
+        MenuCardBuilder.CreateButton(swapRow.transform, "Centro / Der", "secondary",
+            new Vector2(140f, 40f), () => OnSwapDisplays("center", "right"));
+        MenuCardBuilder.CreateButton(swapRow.transform, "Izq / Der", "secondary",
+            new Vector2(140f, 40f), () => OnSwapDisplays("left", "right"));
 
         // ── Estado ──
         adminNetworkLabel = AdminAddLabel(ct, "Estado", "Sin verificar");
@@ -972,7 +981,7 @@ public class MenuScreenManager : MonoBehaviour
             : "Sin asignar";
         adminSimulatorLabel = AdminAddLabel(ct, "Simulador", simDisplay);
 
-        AdminAddSpacer(ct, 15f);
+        AdminAddSpacer(ct, 10f);
 
         // ── Botones ──
         GameObject btnRow = new GameObject("ButtonRow");
@@ -988,9 +997,7 @@ public class MenuScreenManager : MonoBehaviour
         btnLe.preferredHeight = 55f;
 
         MenuCardBuilder.CreateButton(btnRow.transform, "Guardar", "primary",
-            new Vector2(200f, 50f), OnAdminSave);
-        MenuCardBuilder.CreateButton(btnRow.transform, "Volver", "ghost",
-            new Vector2(150f, 50f), () => GoToScreen(0));
+            new Vector2(220f, 50f), OnAdminSave);
 
         // Auto-check network on panel open
         StartCoroutine(AdminCheckNetwork());
@@ -1004,7 +1011,7 @@ public class MenuScreenManager : MonoBehaviour
     {
         var obj = MenuCardBuilder.CreateText(parent, "H_" + text, text,
             36f, FontStyles.Bold, MenuTheme.PrimaryPurple, TextAlignmentOptions.Center);
-        obj.AddComponent<LayoutElement>().preferredHeight = 50f;
+        obj.AddComponent<LayoutElement>().preferredHeight = 56f;
     }
 
     void AdminAddSection(Transform parent, string text)
@@ -1018,7 +1025,7 @@ public class MenuScreenManager : MonoBehaviour
     {
         GameObject container = MenuCardBuilder.CreateInputField(parent, label, placeholder,
             new Vector2(0, 45f));
-        container.AddComponent<LayoutElement>().preferredHeight = 75f;
+        container.AddComponent<LayoutElement>().preferredHeight = 68f;
         TMP_InputField input = container.GetComponentInChildren<TMP_InputField>();
         if (input != null) input.text = value ?? "";
         return input;
@@ -1205,6 +1212,8 @@ public class MenuScreenManager : MonoBehaviour
                 screenGroups[currentScreen], 1f, 0f, MenuTheme.ScreenFadeDuration));
 
         currentScreen = index;
+
+        if (mainTitleGo != null) mainTitleGo.SetActive(index != 3);
 
         // Preparar pantalla
         if (index == 1 && examInfoText != null)
@@ -1394,6 +1403,13 @@ public class MenuScreenManager : MonoBehaviour
 
     void Update()
     {
+        if (currentScreen == 3 && Keyboard.current != null
+            && Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            GoToScreen(0);
+            return;
+        }
+
         if (currentScreen == 0)
             UpdatePinDpad();
         else if (currentScreen == 1)

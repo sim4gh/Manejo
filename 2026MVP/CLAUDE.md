@@ -73,6 +73,47 @@ Tras 3 fallos consecutivos descarta el buffer (evita memory leak si la red esta 
 
 `bundleVersion` se reporta al backend en `appVersion` via `Application.version` (cambiar en `Edit -> Project Settings -> Player -> Version`). Desde **1.0.11** se manda en cada heartbeat (campo `appVersion` en `HeartbeatRequest`) — el backend lo usa para auto-confirm honesto del install OTA.
 
+### Collision Feedback (`Assets/Custom/CollisionFeedback.cs`, `LogitechFFB.cs`)
+
+Sistema de feedback visceral de colisión, agregado en 2026-04 sobre el `ViolationDetector` existente. Da al examinado un golpe inmediato y obvio cuando choca, en vez del texto pequeño del `NotificationManager`.
+
+**Flujo:**
+1. `ViolationDetector.OnCollisionEnter()` (línea 202) detecta colisión → cooldown 3s + dedupe por root + clasifica tipo (Pedestrian/Bicycle/Vehicle/Sign/Obstacle).
+2. Antes de `lastCollisionTime = Time.time`, dispara `ViolationDetector.OnCollisionImpact` con `CollisionImpactInfo` (contactPoint, impulseWorld, lateralLocal, magnitude, violationType, speedKmh).
+3. `CollisionFeedback` (singleton bootstrapped con `RuntimeInitializeOnLoadMethod`) consume el evento y dispara en paralelo:
+   - **Overlay de cristal roto**: RawImage full-screen con `Resources/Custom/CrackedGlass.png` (procedural, 2048×1024 RGBA). Fade in 50ms → hold 1.2-1.8s → fade out 500ms.
+   - **Camera shake**: jitter de `Camera.main.transform.localPosition` durante 6-14 frames con decay lineal.
+   - **Flash rojo**: RawImage rojo full-screen, alpha 0.25-0.45 → fade out 400ms.
+   - **Audio**: PlayOneShot de uno de los 4 `Impact*.wav` del RCCP (referenciados via `CollisionImpactClips.asset` en Resources).
+   - **FFB G923**: `LogitechPlayConstantForce` direccional (signo según `lateralLocal`) por 80ms + `LogitechPlayBumpyRoadEffect` por 250ms.
+
+**Magnitudes** (escaladas por `t = Clamp01(impulse.magnitude / 50)`):
+- Overlay alpha: 0.85-1.0
+- Shake amplitude: 0.03-0.08m
+- Flash alpha: 0.25-0.45
+- Audio volume: 0.3-1.0
+- FFB constant: 40-100% (con signo)
+- FFB bumpy: 30-80%
+
+Coroutines usan `Time.unscaledDeltaTime` para que feedback siga animándose si los paneles F7-F10 abren `Time.timeScale = 0`.
+
+**Gate**: ninguno. El feedback de colisión es feedback de juego esencial para el examen (el examinado DEBE saber que chocó), no es decoración como las notificaciones del `NotificationManager`. Si en el futuro se necesita un toggle, agregar un campo dedicado a `SimulatorConfig.ConfigData` (ej. `disableCollisionFeedback`) — NO reusar `showNotifications`.
+
+**Logitech SDK** (`LogitechFFB.cs`): wrapper P/Invoke a `LogitechSteeringWheelEnginesWrapper.dll`. Toda la API en `#if UNITY_STANDALONE_WIN`. En Mac/Linux y Windows sin DLL, no-op silencioso (catch `DllNotFoundException`). DLL Windows-only marcada en su `.meta`. Bajar de https://www.logitechg.com/en-us/innovation/developer-lab.html y depositar en `Assets/Plugins/x86_64/` (ver `README_LogitechSDK.txt`).
+
+**HORI Truck**: el HPC-044U **no tiene motor de FFB** (solo springs mecánicos). El feedback no-FFB sigue funcionando normal en escenas de camión/bus.
+
+**Archivos:**
+- `Assets/Custom/ViolationDetector.cs` — evento `OnCollisionImpact` + struct `CollisionImpactInfo`
+- `Assets/Custom/CollisionFeedback.cs` — singleton orchestrator
+- `Assets/Custom/LogitechFFB.cs` — wrapper P/Invoke
+- `Assets/Custom/CollisionImpactClips.cs` — ScriptableObject container
+- `Assets/Resources/Custom/CrackedGlass.png` — overlay procedural
+- `Assets/Resources/Custom/CollisionImpactClips.asset` — refs a Impact2-5.wav
+- `Assets/Plugins/x86_64/LogitechSteeringWheelEnginesWrapper.dll` (no commiteado, ver README)
+
+**Para extender**: si se necesita variar el feedback por tipo de violación (no solo magnitud), `info.violationType` está disponible en el handler. Ej: peatón siempre máximo, sin importar velocidad.
+
 ### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
 
 Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Hardened en 1.2.2 (abr 2026) tras analisis exhaustivo + revision Codex.
