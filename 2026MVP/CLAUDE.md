@@ -97,7 +97,7 @@ Sistema de feedback visceral de colisión, agregado en 2026-04 sobre el `Violati
 
 Coroutines usan `Time.unscaledDeltaTime` para que feedback siga animándose si los paneles F7-F10 abren `Time.timeScale = 0`.
 
-**Gate**: si `SimulatorConfig.Instance.data.showNotifications == false`, todo el feedback se salta (mismo gate que `NotificationManager`).
+**Gate**: ninguno. El feedback de colisión es feedback de juego esencial para el examen (el examinado DEBE saber que chocó), no es decoración como las notificaciones del `NotificationManager`. Si en el futuro se necesita un toggle, agregar un campo dedicado a `SimulatorConfig.ConfigData` (ej. `disableCollisionFeedback`) — NO reusar `showNotifications`.
 
 **Logitech SDK** (`LogitechFFB.cs`): wrapper P/Invoke a `LogitechSteeringWheelEnginesWrapper.dll`. Toda la API en `#if UNITY_STANDALONE_WIN`. En Mac/Linux y Windows sin DLL, no-op silencioso (catch `DllNotFoundException`). DLL Windows-only marcada en su `.meta`. Bajar de https://www.logitechg.com/en-us/innovation/developer-lab.html y depositar en `Assets/Plugins/x86_64/` (ver `README_LogitechSDK.txt`).
 

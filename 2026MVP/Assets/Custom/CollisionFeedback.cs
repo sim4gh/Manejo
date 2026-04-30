@@ -53,6 +53,7 @@ public class CollisionFeedback : MonoBehaviour
         LoadImpactClips();
         SetupAudioSource();
         LogitechFFB.TryInitialize();
+        Debug.Log("[CollisionFeedback] Inicializado.");
     }
 
     private void OnEnable()
@@ -151,10 +152,10 @@ public class CollisionFeedback : MonoBehaviour
 
     private void HandleImpact(ViolationDetector.CollisionImpactInfo info)
     {
-        // Mismo gate que NotificationManager: si el examinador desactivó notificaciones,
-        // tampoco queremos tapar la pantalla con cristal roto.
-        if (SimulatorConfig.Instance != null && !SimulatorConfig.Instance.data.showNotifications)
-            return;
+        // El feedback de colisión es esencial para el examen — el examinado debe saber
+        // que chocó. NO se gatea con SimulatorConfig.showNotifications (eso solo afecta
+        // textos pequeños del NotificationManager).
+        Debug.Log($"[CollisionFeedback] {info.violationType} impulse={info.magnitude:F1} lateral={info.lateralLocal:F2} speed={info.speedKmh:F1}km/h");
 
         float t = Mathf.Clamp01(info.magnitude / 50f);
 
