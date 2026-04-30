@@ -127,36 +127,34 @@ public class WeatherManager : MonoBehaviour
             if (ps != null) ps.gameObject.SetActive(active);
     }
 
-    // Lluvia ligera de fondo (modo granizo): activa el PS y baja el rate de emisión
-    // al `HAIL_RAIN_RATE_MULTIPLIER`. `Clear()` antes de modificar evita arrastrar
-    // partículas residuales si el PS ya estaba vivo de un estado anterior.
+    // Lluvia ligera de fondo (modo granizo): baja el rate de emisión al
+    // `HAIL_RAIN_RATE_MULTIPLIER` y activa el GO. Importante: aplicar el multiplier
+    // ANTES del SetActive — si activamos primero, el PS arranca por playOnAwake con
+    // rate normal y se ve un "flash" denso en el primer frame.
     private static void ActivateRainLight(List<ParticleSystem> systems)
     {
         foreach (var ps in systems)
         {
             if (ps == null) continue;
-            ps.gameObject.SetActive(true);
-            ps.Clear();
             var emission = ps.emission;
             emission.rateOverTimeMultiplier = HAIL_RAIN_RATE_MULTIPLIER;
+            ps.gameObject.SetActive(true);
         }
     }
 
-    // Granizo más grande: activa el PS y multiplica el startSize por
-    // `HAIL_SIZE_MULTIPLIER` en X/Y/Z. Tocamos los tres ejes porque los PS tienen
-    // `size3D=1` en YAML — el escalar `startSizeMultiplier` no es confiable en ese
-    // modo (puede aplicar solo a X). `Clear()` defensivo igual que en lluvia.
+    // Granizo más grande: multiplica el startSize por `HAIL_SIZE_MULTIPLIER` en
+    // X/Y/Z (size3D=1 en YAML, el escalar `startSizeMultiplier` no es confiable
+    // en ese modo). Aplicar antes del SetActive por la misma razón que en lluvia.
     private static void ActivateHailLarge(List<ParticleSystem> systems)
     {
         foreach (var ps in systems)
         {
             if (ps == null) continue;
-            ps.gameObject.SetActive(true);
-            ps.Clear();
             var main = ps.main;
             main.startSizeXMultiplier = HAIL_SIZE_MULTIPLIER;
             main.startSizeYMultiplier = HAIL_SIZE_MULTIPLIER;
             main.startSizeZMultiplier = HAIL_SIZE_MULTIPLIER;
+            ps.gameObject.SetActive(true);
         }
     }
 
