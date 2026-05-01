@@ -52,6 +52,20 @@ namespace Gley.UrbanSystem
         private float _brakeRest = 1f;
         private float _brakePress = -1f;
 
+        // Clutch — solo presente en G923 PS variant (3er pedal físico, eje stick/y
+        // con rest=-1, press=+1). En Xbox stick/y ya está usado por gas → no hay
+        // clutch físico; _clutchCtrl queda null y clutchInput se mantiene en 0.
+        private float _clutchRest = -1f;
+        private float _clutchPress = 1f;
+        private float clutchInput;
+        // Edge-trigger del cambio de marcha sin clutch presionado. Comparamos
+        // contra el último gear NO-neutral, no contra el del frame anterior:
+        // si el shifter pasa por neutral entre frames (1→0→2), no perdemos la
+        // detección. ViolationDetector consume el contador via
+        // ConsumeGearShiftsWithoutClutch() (latched, no bool).
+        private int _pendingGearShiftWithoutClutchCount;
+        private int _lastNonNeutralGear = 0;
+
         // Curva de respuesta del volante: f(x) = x / (a + (1-a)*x)  para x ∈ [0,1]
         //   f(0) = 0, f(1) = 1 siempre
         //   a = 1.0 → lineal puro (output = raw normalizado)
@@ -142,6 +156,7 @@ namespace Gley.UrbanSystem
         private InputControl<float> _steerCtrl; // stick/x
         private InputControl<float> _gasCtrl;   // z
         private InputControl<float> _brakeCtrl; // rz
+        private InputControl<float> _clutchCtrl; // stick/y en PS, null en Xbox
 
         // Controles cacheados (evita TryGetChildControl cada frame)
         private InputControl<float>[] _gearControls; // [7] buttons 13-19
@@ -211,6 +226,13 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_GEAR4 = "Bind_gear4";
         public const string PREF_BIND_GEAR5 = "Bind_gear5";
         public const string PREF_BIND_GEAR6 = "Bind_gear6";
+
+        // Clutch (3er pedal G923 PS). Defaults se escriben/borran en
+        // EnsureG923PSDefaults según variante. ClearWheelCalibration también
+        // los limpia para evitar basura persistente entre devices distintos.
+        public const string PREF_G923_CLUTCH_AXIS  = "G923_ClutchAxis";
+        public const string PREF_G923_CLUTCH_REST  = "G923_ClutchRest";
+        public const string PREF_G923_CLUTCH_PRESS = "G923_ClutchPress";
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
         // En el G923 PS del kiosk de la demo, la posición R del H-shifter
@@ -467,6 +489,7 @@ namespace Gley.UrbanSystem
             _wheelDevice = null;
             _shifterDevice = null;
             _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
+            _clutchCtrl = null;
             _crossCtrls = System.Array.Empty<InputControl<float>>();
             _triangleCtrl = null; _restartCtrl = null;
             _l1Ctrl = null; _r1Ctrl = null;
@@ -697,10 +720,15 @@ namespace Gley.UrbanSystem
                 PlayerPrefs.SetFloat("G923_GasPress",   1.0f);
                 PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
                 PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
+                // Sin clutch físico en Xbox (stick/y ya es gas). Limpiar prefs
+                // viejas si quedaron de una sesión anterior con PS variant.
+                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_AXIS);
+                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_REST);
+                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_PRESS);
             }
             else
             {
-                // PS mode: gas=z, brake=rz, reverse=button19.
+                // PS mode: gas=z, brake=rz, reverse=button19, clutch=stick/y.
                 // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
                 PlayerPrefs.SetString("G923_GasAxis", "z");
                 PlayerPrefs.SetString("G923_BrakeAxis", "rz");
@@ -709,6 +737,11 @@ namespace Gley.UrbanSystem
                 PlayerPrefs.SetFloat("G923_GasPress",  -1.0f);
                 PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
                 PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
+                // Clutch: 3er pedal físico, stick/y idle=-1, press=+1.
+                // Sobreescribimos siempre (consistente con gas/brake/reverse).
+                PlayerPrefs.SetString(PREF_G923_CLUTCH_AXIS, "stick/y");
+                PlayerPrefs.SetFloat(PREF_G923_CLUTCH_REST,  -1.0f);
+                PlayerPrefs.SetFloat(PREF_G923_CLUTCH_PRESS,  1.0f);
             }
             // Limpiar el flag que hace que Pantalla 2 fuerce Discovery.
             PlayerPrefs.SetInt("Cal_ReverseDone", 1);
@@ -767,6 +800,10 @@ namespace Gley.UrbanSystem
             string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
             _gasCtrl   = CacheControl(gasPath);
             _brakeCtrl = CacheControl(brakePath);
+            // Clutch (opcional — solo G923 PS). Si no hay path en PlayerPrefs,
+            // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
+            string clutchPath = PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS, "");
+            _clutchCtrl = string.IsNullOrEmpty(clutchPath) ? null : CacheControl(clutchPath);
 
             // Bindings configurables (reversa, paddles, combos, restart, gears).
             // ReloadBindings() llama a ReCacheBindings() que también construye
@@ -782,6 +819,8 @@ namespace Gley.UrbanSystem
             _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
             _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
             _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+            _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
+            _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
 
             // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
             _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
@@ -888,6 +927,24 @@ namespace Gley.UrbanSystem
         public float GetBrakeInput() => brakeInput;
         public int GetCurrentGear() => _currentGear;
         public int GetIndicatorInput() => _indicatorInput;
+        public float GetClutchInput() => clutchInput;
+        // True si hay un pedal de clutch físico mapeado (G923 PS variant).
+        // ViolationDetector lo consulta antes de evaluar la penalización por
+        // "rechino": en Xbox no hay forma de presionar clutch → no penalizar.
+#if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
+        public bool HasPhysicalClutch() => _clutchCtrl != null;
+#else
+        public bool HasPhysicalClutch() => false;
+#endif
+        // Devuelve y resetea el contador de cambios de marcha sin clutch.
+        // Patrón latched (no bool con reset-on-read) para que el orden de
+        // Update entre UIInputNew y ViolationDetector no pueda perder eventos.
+        public int ConsumeGearShiftsWithoutClutch()
+        {
+            int n = _pendingGearShiftWithoutClutchCount;
+            _pendingGearShiftWithoutClutchCount = 0;
+            return n;
+        }
 
         private void Update()
         {
@@ -962,6 +1019,20 @@ namespace Gley.UrbanSystem
             else
             {
                 horizontalInput = kbInput.x;
+            }
+
+            // ---- Clutch (solo G923 PS, _clutchCtrl != null) ----
+            // En Xbox y sin volante el pedal queda en 0 (motor siempre acoplado).
+            // Se calcula antes del bloque gas/brake/gear para que el edge-trigger
+            // del H-shifter manual pueda evaluar el estado del clutch del frame.
+            if (_hasWheel && _clutchCtrl != null)
+            {
+                float rawClutch = SafeReadFloatRaw(_clutchCtrl, out var rc) ? rc : _clutchRest;
+                clutchInput = NormalizePedal(rawClutch, _clutchRest, _clutchPress);
+            }
+            else
+            {
+                clutchInput = 0f;
             }
 
             // ---- Gas / Brake + Gear ----
@@ -1069,6 +1140,18 @@ namespace Gley.UrbanSystem
                         }
                     }
                 }
+
+                // Edge-trigger: detectar cambio de gear NO-neutral sin clutch
+                // presionado (rechino). Comparamos contra el último gear NO-neutral
+                // en lugar del gear del frame anterior — si el shifter pasa por
+                // neutral entre frames (1→0→2), no perdemos la transición.
+                // El contador se acumula hasta que ViolationDetector lo consume,
+                // así no importa el orden de Update entre los dos componentes.
+                if (_currentGear != 0 && _currentGear != _lastNonNeutralGear && _lastNonNeutralGear != 0)
+                {
+                    if (clutchInput < 0.5f) _pendingGearShiftWithoutClutchCount++;
+                }
+                if (_currentGear != 0) _lastNonNeutralGear = _currentGear;
             }
 
             // ---- Paddles G923 (solo con volante) ----
@@ -1152,7 +1235,8 @@ namespace Gley.UrbanSystem
                     bool crossDbg = IsAnyPressed(_crossCtrls);
                     int crossLen = _crossCtrls != null ? _crossCtrls.Length : 0;
                     float reverseAge = Time.realtimeSinceStartup - _reverseLastSeenTime;
-                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} | V={verticalInput:F3} B={brakeInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} | auto={_isAutomaticMode} gear={_currentGear} | crossCtrls={crossLen} crossNow={crossDbg} revAge={reverseAge:F2}s");
+                    float clRaw = SafeReadFloatRaw(_clutchCtrl, out var rdc) ? rdc : _clutchRest;
+                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} clutch={clRaw:F3} | V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} clutchR/P={_clutchRest:F2}/{_clutchPress:F2} | auto={_isAutomaticMode} gear={_currentGear} lastNonN={_lastNonNeutralGear} pendingShifts={_pendingGearShiftWithoutClutchCount} | crossCtrls={crossLen} crossNow={crossDbg} revAge={reverseAge:F2}s");
                 }
             }
 #endif
@@ -1177,10 +1261,13 @@ namespace Gley.UrbanSystem
                 float st = SafeReadFloatRaw(_steerCtrl, out var ovs) ? ovs : 0f;
                 float gr = SafeReadFloatRaw(_gasCtrl, out var ovg) ? ovg : 1f;
                 float br = SafeReadFloatRaw(_brakeCtrl, out var ovb) ? ovb : 1f;
-                info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3}\n";
-                info += $"CALC V={verticalInput:F3} B={brakeInput:F3} gear={_currentGear}\n";
+                float cl = SafeReadFloatRaw(_clutchCtrl, out var ovc) ? ovc : _clutchRest;
+                info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3} clutch={cl:F3}\n";
+                info += $"CALC V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} gear={_currentGear}\n";
                 info += $"CAL  gas rest={_gasRest:F2} press={_gasPress:F2}\n";
-                info += $"     brake rest={_brakeRest:F2} press={_brakePress:F2}";
+                info += $"     brake rest={_brakeRest:F2} press={_brakePress:F2}\n";
+                info += $"     clutch ctrl={_clutchCtrl != null} rest={_clutchRest:F2} press={_clutchPress:F2}\n";
+                info += $"     pendingShifts={_pendingGearShiftWithoutClutchCount} lastNonN={_lastNonNeutralGear}";
             }
             else
             {

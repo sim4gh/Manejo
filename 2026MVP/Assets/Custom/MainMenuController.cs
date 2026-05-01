@@ -15,6 +15,10 @@ public class MainMenuController : MonoBehaviour
     public Button abrirFolderButton;
     public TextMeshProUGUI errorText;
 
+    // LEGACY: este flujo del menú fue reemplazado por MenuScreenManager (Pantalla 1
+    // tiene su propio toggle Auto/Manual). MainMenuController ya no se inyecta en
+    // el bootstrap actual. NO reactivar — generaría doble fuente de verdad sobre
+    // PlayerPrefs["TransmisionManual"].
     [Header("Transmission")]
     [Tooltip("Toggle for manual transmission (off = automatic)")]
     public Toggle transmisionManualToggle;

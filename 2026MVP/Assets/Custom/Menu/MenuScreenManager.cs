@@ -27,6 +27,8 @@ public class MenuScreenManager : MonoBehaviour
     private string licenseType;
     private string selectedSceneName;
     private int selectedVariantIndex = -1;
+    // Pantalla 1 — selector de transmisión Auto/Manual (solo licenseType=particular)
+    private int selectedTransmisionIndex = 0; // 0=Auto, 1=Manual
     private Coroutine pollingCoroutine;
 
     // ── Escenas por licenseType ────────────────────────────────────────
@@ -92,6 +94,8 @@ public class MenuScreenManager : MonoBehaviour
     // Pantalla 1
     private GameObject[] variantCards;
     private Image[] variantBorders;
+    private GameObject[] transmisionCards;
+    private Image[] transmisionBorders;
     private Button continueBtn1;
 
     // Pantalla 2
@@ -478,7 +482,7 @@ public class MenuScreenManager : MonoBehaviour
             new Vector2(0, 0.84f), new Vector2(1, 0.90f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // ── Fila 2: Modelo label + 3 cards (45%-80%) ──
+        // ── Fila 2: Modelo label + 2 cards (52%-80%) ──
         MenuCardBuilder.CreateText(area.transform, "ModelLabel", "Selecciona tu modelo",
             24f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
             .GetComponent<RectTransform>().Set(
@@ -494,16 +498,16 @@ public class MenuScreenManager : MonoBehaviour
         for (int i = 0; i < titles.Length; i++)
         {
             int idx = i;
-            float cardW = 0.32f;
+            float cardW = 0.30f;
             float gap = 0.04f;
             float totalW = cardW * titles.Length + gap * (titles.Length - 1);
             float startX = (1f - totalW) / 2f;
             float left = startX + i * (cardW + gap);
 
             GameObject card = MenuCardBuilder.CreateIconCard(area.transform, null,
-                titles[i], descs[i], new Vector2(100, 100), letters[i]);
+                titles[i], descs[i], new Vector2(80, 80), letters[i]);
             card.GetComponent<RectTransform>().Set(
-                new Vector2(left, 0.45f), new Vector2(left + cardW, 0.78f),
+                new Vector2(left, 0.52f), new Vector2(left + cardW, 0.78f),
                 new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
             card.AddComponent<CanvasGroup>();
 
@@ -521,19 +525,86 @@ public class MenuScreenManager : MonoBehaviour
             variantBorders[i] = card.transform.Find("Border").GetComponent<Image>();
         }
 
-        // Transmisión automática por defecto (modo manual no disponible)
-        PlayerPrefs.SetInt("TransmisionManual", 0);
-        PlayerPrefs.Save();
+        // ── Fila 3: Transmisión label + 2 cards (22%-48%) ──
+        MenuCardBuilder.CreateText(area.transform, "TransmisionLabel", "Tipo de transmisión",
+            24f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.46f), new Vector2(1, 0.51f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
 
-        // ── Fila 3: Continuar ──
+        string[] tTitles = { "Automática", "Manual" };
+        string[] tDescs = { "Sin clutch", "Con clutch + H-shifter" };
+        string[] tLetters = { "A", "M" };
+        transmisionCards = new GameObject[tTitles.Length];
+        transmisionBorders = new Image[tTitles.Length];
+
+        for (int i = 0; i < tTitles.Length; i++)
+        {
+            int idx = i;
+            float cardW = 0.30f;
+            float gap = 0.04f;
+            float totalW = cardW * tTitles.Length + gap * (tTitles.Length - 1);
+            float startX = (1f - totalW) / 2f;
+            float left = startX + i * (cardW + gap);
+
+            GameObject card = MenuCardBuilder.CreateIconCard(area.transform, null,
+                tTitles[i], tDescs[i], new Vector2(60, 60), tLetters[i]);
+            card.GetComponent<RectTransform>().Set(
+                new Vector2(left, 0.22f), new Vector2(left + cardW, 0.45f),
+                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            card.AddComponent<CanvasGroup>();
+
+            Button btn = card.AddComponent<Button>();
+            btn.targetGraphic = card.transform.Find("Background").GetComponent<Image>();
+            btn.onClick.AddListener(() => OnTransmisionSelected(idx));
+            ColorBlock cb = btn.colors;
+            cb.normalColor = Color.white;
+            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+            cb.pressedColor = new Color(0.9f, 0.9f, 0.9f, 1f);
+            cb.fadeDuration = 0.12f;
+            btn.colors = cb;
+
+            transmisionCards[i] = card;
+            transmisionBorders[i] = card.transform.Find("Border").GetComponent<Image>();
+        }
+
+        // ── Fila 4: Continuar (parte baja) ──
+        // OnContinueScreen1 persiste TransmisionManual antes de navegar a Pantalla 2.
         continueBtn1 = MenuCardBuilder.CreateButton(area.transform, "Continuar", "primary",
-            new Vector2(100, 100), () => GoToScreen(2)).GetComponent<Button>();
+            new Vector2(100, 100), OnContinueScreen1).GetComponent<Button>();
         continueBtn1.GetComponent<RectTransform>().Set(
-            new Vector2(0.3f, 0.22f), new Vector2(0.7f, 0.35f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.3f, 0.04f), new Vector2(0.7f, 0.18f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Defaults DESPUÉS de crear el botón
+        // Defaults DESPUÉS de crear los botones.
         OnVariantSelected(0);
+        // Transmisión inicial: leer la última elección o default Automática.
+        selectedTransmisionIndex = PlayerPrefs.GetInt("TransmisionManual", 0);
+        OnTransmisionSelected(selectedTransmisionIndex);
+    }
+
+    void OnTransmisionSelected(int idx)
+    {
+        selectedTransmisionIndex = idx;
+        for (int i = 0; i < transmisionCards.Length; i++)
+        {
+            bool sel = (i == idx);
+            transmisionBorders[i].color = sel ? MenuTheme.CardBorderGold : MenuTheme.CardBorder;
+            transmisionCards[i].transform.Find("Background").GetComponent<Image>().color =
+                sel ? MenuTheme.CardSelected : MenuTheme.CardBackground;
+
+            if (sel) StartCoroutine(MenuAnimator.ScalePunch(
+                transmisionCards[i].GetComponent<RectTransform>(),
+                MenuTheme.CardPunchScale, MenuTheme.CardPunchDuration));
+        }
+    }
+
+    void OnContinueScreen1()
+    {
+        PlayerPrefs.SetInt("TransmisionManual", selectedTransmisionIndex);
+        PlayerPrefs.Save();
+        Debug.Log($"[MenuScreenManager] Transmisión: {(selectedTransmisionIndex == 1 ? "Manual" : "Automática")}");
+        GoToScreen(2);
     }
 
     void OnVariantSelected(int idx)
@@ -2115,6 +2186,9 @@ public class MenuScreenManager : MonoBehaviour
         PlayerPrefs.DeleteKey("G923_BrakeAxis");
         PlayerPrefs.DeleteKey("G923_BrakeRest");
         PlayerPrefs.DeleteKey("G923_BrakePress");
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_REST);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
         PlayerPrefs.DeleteKey(PREF_CAL_FINGERPRINT);
         PlayerPrefs.DeleteKey(PREF_CAL_REVERSE_DONE);
         // El path del eje del volante y de reversa también se redescubren — si
@@ -2160,8 +2234,28 @@ public class MenuScreenManager : MonoBehaviour
             yield break;
         }
 
+        // Clutch: solo valido en modo manual y si hay path guardado (G923 PS).
+        // En Xbox y modo Auto el clutch no se evalúa — el axis no debería ser
+        // requisito para arrancar.
+        bool needClutch = PlayerPrefs.GetInt("TransmisionManual", 0) == 1
+                       && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+        string clutchPath = PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, "");
+        InputControl<float> clutchC = (needClutch && dev != null && !string.IsNullOrEmpty(clutchPath))
+            ? dev.TryGetChildControl(clutchPath) as InputControl<float> : null;
+        if (needClutch && dev != null && clutchC == null)
+        {
+            Debug.Log("[MenuScreenManager] Sanity check: axis de clutch calibrado no existe en el device → limpiar prefs de clutch (modo manual seguirá sin desacople)");
+            PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+            PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_REST);
+            PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+            PlayerPrefs.Save();
+            // No degradamos a discovery por esto — el manual sin clutch funciona
+            // (modo didáctico). El operador puede recalibrar via Pantalla 2.
+        }
+
         float gasRest = PlayerPrefs.GetFloat("G923_GasRest", 0f);
         float brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
+        float clutchRest = PlayerPrefs.GetFloat(UIInputNew.PREF_G923_CLUTCH_REST, -1f);
 
         bool degraded = false;
         float t = 0f;
@@ -2172,6 +2266,7 @@ public class MenuScreenManager : MonoBehaviour
             // desconectado o axis distinto al que se calibró.
             if (SafeReadFloatRaw(gasC, out var gv) && Mathf.Abs(gv - gasRest) > 0.5f) { degraded = true; break; }
             if (SafeReadFloatRaw(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; break; }
+            if (clutchC != null && SafeReadFloatRaw(clutchC, out var cv) && Mathf.Abs(cv - clutchRest) > 0.5f) { degraded = true; break; }
             t += Time.unscaledDeltaTime;
             yield return null;
         }
@@ -2203,7 +2298,11 @@ public class MenuScreenManager : MonoBehaviour
         bool left  = DpadRepeat(hatLeft,  ref dpadLeftT,  ref dpadLeftR,  dt);
         bool right = DpadRepeat(hatRight, ref dpadRightT, ref dpadRightR, dt);
 
-        // Circle o Enter → confirmar selección o activar Continuar
+        // Circle o Enter → confirmar selección o activar Continuar.
+        // Filas:
+        //   0 = modelo (Sedan/SUV)
+        //   1 = transmisión (Auto/Manual)
+        //   2 = botón Continuar
         bool confirmPressed = (SafeReadFloat(circleBtn, out var ccv) && ccv > 0.5f) ||
                               (SafeReadFloat(enterBtn,  out var cev) && cev > 0.5f);
         if (confirmPressed)
@@ -2212,7 +2311,8 @@ public class MenuScreenManager : MonoBehaviour
             {
                 confirmBtnHeld = true;
                 if (screen1Row == 0) OnVariantSelected(screen1Col);
-                else if (screen1Row == 1) GoToScreen(2);
+                else if (screen1Row == 1) OnTransmisionSelected(screen1Col);
+                else if (screen1Row == 2) OnContinueScreen1();
                 RefreshScreen1Visuals();
             }
         }
@@ -2220,18 +2320,20 @@ public class MenuScreenManager : MonoBehaviour
 
         if (!up && !down && !left && !right) return;
 
-        int maxCol = screen1Row == 0 ? 2 : 0;
+        // Bug pre-existente arreglado: con 2 cards reales (índices 0 y 1) maxCol
+        // debe ser 1, no 2 (permitía navegar a una col fantasma).
+        int maxCol = (screen1Row == 0 || screen1Row == 1) ? 1 : 0;
 
         if (up && screen1Row > 0)
         {
             screen1Row--;
-            maxCol = screen1Row == 0 ? 2 : 0;
+            maxCol = (screen1Row == 0 || screen1Row == 1) ? 1 : 0;
             screen1Col = Mathf.Min(screen1Col, maxCol);
         }
-        else if (down && screen1Row < 1)
+        else if (down && screen1Row < 2)
         {
             screen1Row++;
-            maxCol = screen1Row == 0 ? 2 : 0;
+            maxCol = (screen1Row == 0 || screen1Row == 1) ? 1 : 0;
             screen1Col = Mathf.Min(screen1Col, maxCol);
         }
         else if (left && screen1Col > 0) screen1Col--;
@@ -2242,7 +2344,7 @@ public class MenuScreenManager : MonoBehaviour
 
     void RefreshScreen1Visuals()
     {
-        // Modelo cards: foco=Gold, selección=Purple, ambos=Gold+fondo morado
+        // Modelo cards (fila 0): foco=Gold, selección=Purple, ambos=Gold+fondo morado
         for (int i = 0; i < variantCards.Length; i++)
         {
             bool focused = (screen1Row == 0 && screen1Col == i);
@@ -2253,12 +2355,26 @@ public class MenuScreenManager : MonoBehaviour
                 selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
         }
 
-        // Continuar button
+        // Transmisión cards (fila 1): mismo patrón visual
+        if (transmisionCards != null)
+        {
+            for (int i = 0; i < transmisionCards.Length; i++)
+            {
+                bool focused = (screen1Row == 1 && screen1Col == i);
+                bool selected = (i == selectedTransmisionIndex);
+                transmisionBorders[i].color = focused ? MenuTheme.Gold :
+                    (selected ? MenuTheme.CardBorderGold : MenuTheme.CardBorder);
+                transmisionCards[i].transform.Find("Background").GetComponent<Image>().color =
+                    selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
+            }
+        }
+
+        // Continuar button (fila 2)
         if (continueBtn1 != null)
         {
             Image img = continueBtn1.GetComponent<Image>();
             TextMeshProUGUI txt = continueBtn1.GetComponentInChildren<TextMeshProUGUI>();
-            if (screen1Row == 1)
+            if (screen1Row == 2)
             {
                 img.color = MenuTheme.Gold;
                 if (txt != null) txt.color = MenuTheme.TextPrimary;

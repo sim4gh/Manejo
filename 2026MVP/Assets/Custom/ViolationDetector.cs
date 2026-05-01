@@ -22,6 +22,12 @@ public class ViolationDetector : MonoBehaviour
     public int signCollisionPenalty = 5;
     public int obstacleCollisionPenalty = 5;
     public int dangerousGearChangePenalty = 20;
+    // Cambio de marcha sin clutch presionado (rechino de caja). Solo aplica
+    // en modo manual con G923 PS (clutch físico). Configurable desde portal
+    // admin /admin/scoring → ScoringConfig.gearChangeWithoutClutch.
+    public int gearChangeWithoutClutchPenalty = 5;
+    [Tooltip("Cooldown (s) solo para la penalización de rechino. El audio NO tiene cooldown — siempre suena. Evita -25 en cascada cuando el examinado practica.")]
+    public float gearGrindCooldown = 3f;
 
     [Header("Current State (Read Only)")]
     public float currentSpeedLimit = 40f;
@@ -33,7 +39,9 @@ public class ViolationDetector : MonoBehaviour
     private Rigidbody rb;
     private float lastSpeedLimitCheck = 0f;
     private Gley.UrbanSystem.PlayerCar playerCar;
+    private Gley.UrbanSystem.UIInputNew cachedInputNew;
     private int lastGear;
+    private float lastGearGrindPenaltyTime = -999f;
 
     // Speeding cooldown — 5s para recuperarse antes de otra penalización
     private float lastSpeedingTime = -999f;
@@ -75,6 +83,9 @@ public class ViolationDetector : MonoBehaviour
         TryFindRCCP();
         playerCar = GetComponent<Gley.UrbanSystem.PlayerCar>();
         if (playerCar != null) lastGear = playerCar.currentGear;
+        // UIInputNew NO es singleton — PlayerCar lo agrega al mismo GameObject
+        // en su Start(). Cachearlo aquí evita GetComponent por frame.
+        if (playerCar != null) cachedInputNew = playerCar.GetComponent<Gley.UrbanSystem.UIInputNew>();
     }
 
     void TryFindRCCP()
@@ -145,6 +156,33 @@ public class ViolationDetector : MonoBehaviour
                     speed);
             }
             lastGear = gear;
+        }
+
+        // Cambio de marcha sin clutch presionado (rechino). Solo evaluamos si hay
+        // clutch f\u00edsico \u2014 en G923 Xbox sin clutch, todos los shifts son "sin clutch"
+        // y penalizar al examinado por algo que no puede evitar ser\u00eda injusto.
+        // El audio se dispara SIEMPRE que detectemos un shift (feedback inmediato);
+        // la penalizaci\u00f3n tiene cooldown para no consumir el examen en cascada.
+        if (cachedInputNew != null && cachedInputNew.HasPhysicalClutch())
+        {
+            int n = cachedInputNew.ConsumeGearShiftsWithoutClutch();
+            if (n > 0)
+            {
+                GearGrindingFeedback.Instance?.PlayGrind();
+                if (Time.time - lastGearGrindPenaltyTime > gearGrindCooldown)
+                {
+                    lastGearGrindPenaltyTime = Time.time;
+                    DeductScore(gearChangeWithoutClutchPenalty);
+                    NotificationManager.Instance?.ShowNotification(
+                        $"-{gearChangeWithoutClutchPenalty} \u00a1CAMBIO SIN CLUTCH!",
+                        Color.yellow);
+                    TelemetryLogger.Instance?.LogEvent(
+                        "CAMBIO_SIN_CLUTCH",
+                        $"Cambio de marcha sin clutch a {speed:F0} km/h",
+                        -gearChangeWithoutClutchPenalty,
+                        speed);
+                }
+            }
         }
     }
 
