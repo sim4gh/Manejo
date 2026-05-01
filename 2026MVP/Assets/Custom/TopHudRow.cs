@@ -142,58 +142,88 @@ public class TopHudRow : MonoBehaviour
         rt.offsetMin = Vector2.zero;
         rt.offsetMax = Vector2.zero;
 
-        // Background sprite circular del letrero. Resources/Custom/limite es la copia
-        // runtime de Assets/Images/limite@3x.png (importada como Sprite/UI).
-        Sprite signSprite = Resources.Load<Sprite>("Custom/limite");
+        // Letrero procedural: círculo rojo borde + interior blanco. El sprite anterior
+        // (limite@3x.png) era una captura del letrero 3D del mundo y se veía pixeleado.
+        Sprite circle = GetCircleSprite();
         var bg = go.AddComponent<Image>();
-        if (signSprite != null)
-        {
-            bg.sprite = signSprite;
-            bg.preserveAspect = true;
-        }
-        else
-        {
-            // Fallback: panel translúcido con esquinas redondeadas.
-            bg.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
-            bg.type = Image.Type.Sliced;
-            bg.color = new Color(0f, 0f, 0f, 0.55f);
-        }
+        bg.sprite = circle;
+        bg.preserveAspect = true;
         bg.raycastTarget = false;
 
-        // Texto del número (ubicado en la parte superior central del letrero,
-        // matching SpeedometerSetup.CreateSpeedLimitSign anchors).
+        // Número grande negro centrado en el círculo (anchors en el centro vertical).
         var textObj = new GameObject("LimitText");
         textObj.transform.SetParent(go.transform, false);
         var textRt = textObj.AddComponent<RectTransform>();
-        textRt.anchorMin = new Vector2(0f, 0.52f);
-        textRt.anchorMax = new Vector2(1f, 0.80f);
+        textRt.anchorMin = new Vector2(0.15f, 0.15f);
+        textRt.anchorMax = new Vector2(0.85f, 0.85f);
         textRt.offsetMin = Vector2.zero;
         textRt.offsetMax = Vector2.zero;
 
         var tmp = textObj.AddComponent<TextMeshProUGUI>();
         tmp.text = "40";
-        tmp.fontSize = 42f;
+        tmp.fontSize = 56f;
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.verticalAlignment = VerticalAlignmentOptions.Middle;
-        tmp.color = signSprite != null ? Color.black : Color.white;
+        tmp.color = Color.black;
         tmp.raycastTarget = false;
+        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
+        if (font != null) tmp.font = font;
 
         speedLimit = go.AddComponent<SpeedLimitDisplay>();
         speedLimit.limitText = tmp;
         speedLimit.signBackground = bg;
+        // El TMP queda sobre fondo blanco → normalColor debe ser negro, no el default white.
+        speedLimit.normalColor = Color.black;
+        // Warning (overSpeed > 0): naranja oscuro para que se vea contra el blanco.
+        speedLimit.warningColor = new Color(0.85f, 0.5f, 0f, 1f);
+        // Danger (overSpeed > 10): rojo intenso, parpadea contra blanco.
+        speedLimit.dangerColor = new Color(0.85f, 0.1f, 0.1f, 1f);
 
-        // Si el sprite no cargó, los colores de "fondo blanco" no aplican —
-        // ajustar paleta del texto para que el danger sea visible.
-        if (signSprite == null)
-        {
-            speedLimit.normalColor = Color.white;
-        }
-
-        // Inyectar refs (Rigidbody + ViolationDetector) para evitar GameObject.Find("Player")
         Rigidbody rb = FindPlayerRigidbody();
         ViolationDetector vd = Object.FindFirstObjectByType<ViolationDetector>();
         speedLimit.Initialize(rb, vd);
+    }
+
+    // Cache del sprite circular procedural (rojo borde + interior blanco) para no
+    // regenerar la textura por cada escena cargada.
+    private static Sprite cachedCircleSprite;
+
+    static Sprite GetCircleSprite()
+    {
+        if (cachedCircleSprite != null) return cachedCircleSprite;
+
+        const int Size = 256;
+        const float BorderFraction = 0.16f; // 16% del radio para el grosor del anillo
+        var tex = new Texture2D(Size, Size, TextureFormat.RGBA32, false);
+        tex.filterMode = FilterMode.Bilinear;
+        tex.wrapMode = TextureWrapMode.Clamp;
+        var pixels = new Color[Size * Size];
+        var center = new Vector2(Size * 0.5f, Size * 0.5f);
+        float outerR = Size * 0.5f - 1f;
+        float innerR = outerR * (1f - BorderFraction);
+        Color red = new Color(0.82f, 0.10f, 0.10f, 1f);
+        Color white = Color.white;
+        Color clear = new Color(1f, 1f, 1f, 0f);
+
+        for (int y = 0; y < Size; y++)
+        {
+            for (int x = 0; x < Size; x++)
+            {
+                float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), center);
+                Color c;
+                if (d <= innerR - 1f) c = white;
+                else if (d <= innerR) c = Color.Lerp(white, red, d - (innerR - 1f));
+                else if (d <= outerR - 1f) c = red;
+                else if (d <= outerR) c = Color.Lerp(red, clear, d - (outerR - 1f));
+                else c = clear;
+                pixels[y * Size + x] = c;
+            }
+        }
+        tex.SetPixels(pixels);
+        tex.Apply(false, false);
+        cachedCircleSprite = Sprite.Create(tex, new Rect(0f, 0f, Size, Size), new Vector2(0.5f, 0.5f));
+        return cachedCircleSprite;
     }
 
     static Rigidbody FindPlayerRigidbody()
