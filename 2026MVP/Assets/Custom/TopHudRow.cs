@@ -20,7 +20,8 @@ public class TopHudRow : MonoBehaviour
     private const float TimerSlotH = 55f;
 
     // Velocímetro en top-center (independiente del stack izquierdo).
-    private const float SpeedSlotW = 340f;
+    // 16+64+12+260+12+64+16 = 444 (padding HLG + flechas + SpeedBlock + spacing).
+    private const float SpeedSlotW = 450f;
     private const float SpeedSlotH = 140f;
     private const float TopOffsetPx = 20f;
 

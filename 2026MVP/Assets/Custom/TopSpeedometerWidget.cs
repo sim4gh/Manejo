@@ -91,7 +91,7 @@ public class TopSpeedometerWidget : MonoBehaviour
         block.transform.SetParent(transform, false);
         block.AddComponent<RectTransform>();
         var le = block.AddComponent<LayoutElement>();
-        le.preferredWidth = 220f;
+        le.preferredWidth = 260f;
         le.preferredHeight = 130f;
         le.flexibleWidth = 0f;
 
@@ -110,6 +110,7 @@ public class TopSpeedometerWidget : MonoBehaviour
         speedText.color = SpeedColor;
         speedText.alignment = TextAlignmentOptions.Center;
         speedText.verticalAlignment = VerticalAlignmentOptions.Middle;
+        speedText.textWrappingMode = TextWrappingModes.NoWrap;
         speedText.raycastTarget = false;
         TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
         if (font != null) speedText.font = font;
