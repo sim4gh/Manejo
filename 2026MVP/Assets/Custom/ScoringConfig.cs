@@ -23,6 +23,10 @@ public class ScoringConfig : MonoBehaviour
         public int redLight = 20;
         public int wrongWay = 15;
         public int dangerousGearChange = 20;
+        // Rechino: cambio de marcha sin clutch presionado (manual + G923 PS).
+        // Default 5 — coherente con velocidad/colisión menor (codex: si no hay
+        // cooldown sería alto; con cooldown 3s en VD es defendible).
+        public int gearChangeWithoutClutch = 5;
     }
 
     [System.Serializable]
@@ -158,6 +162,7 @@ public class ScoringConfig : MonoBehaviour
             vd.signCollisionPenalty = data.penalties.signCollision;
             vd.obstacleCollisionPenalty = data.penalties.obstacleCollision;
             vd.dangerousGearChangePenalty = data.penalties.dangerousGearChange;
+            vd.gearChangeWithoutClutchPenalty = data.penalties.gearChangeWithoutClutch;
             Debug.Log("[ScoringConfig] Aplicado a ViolationDetector");
         }
 

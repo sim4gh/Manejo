@@ -218,6 +218,7 @@ public static class SimulatorApiClient
             case "SEMAFORO_ROJO": return "red-light";
             case "SENTIDO_CONTRARIO": return "wrong-way";
             case "CAMBIO_PELIGROSO": return "dangerous-gear-change";
+            case "CAMBIO_SIN_CLUTCH": return "gear-change-without-clutch";
             case "FIN_EXAMEN": return "exam-end";
             default: return eventType.ToLower();
         }
@@ -236,7 +237,8 @@ public static class SimulatorApiClient
             case "COLISION_SENALAMIENTO":
             case "COLISION_OBSTACULO":
             case "VELOCIDAD":
-            case "CAMBIO_PELIGROSO": return "minor";
+            case "CAMBIO_PELIGROSO":
+            case "CAMBIO_SIN_CLUTCH": return "minor";
             default: return "minor";
         }
     }
