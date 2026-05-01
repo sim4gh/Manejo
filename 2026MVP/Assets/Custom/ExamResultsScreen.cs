@@ -5,17 +5,18 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using TMPro;
 using System.Collections;
+using System.Collections.Generic;
 
 /// <summary>
 /// Overlay fullscreen con resultados del examen.
-/// Congela la simulación, muestra score APTO/NO APTO,
-/// y regresa automáticamente al menú en 15 segundos.
+/// Congela la simulación, muestra score APTO/NO APTO + tabla de infracciones,
+/// y regresa automáticamente al menú al expirar el countdown.
 /// </summary>
 public class ExamResultsScreen : MonoBehaviour
 {
     private int score;
     private TextMeshProUGUI countdownText;
-    private const float AUTO_RETURN_SECONDS = 15f;
+    private const float AUTO_RETURN_SECONDS = 45f;
 
     /// <summary>
     /// Entry point estático — crea el overlay de resultados.
@@ -108,8 +109,8 @@ public class ExamResultsScreen : MonoBehaviour
         bdImg.color = new Color(0f, 0f, 0f, 0.85f);
         bdImg.raycastTarget = true;
 
-        // Card central con MenuCardBuilder
-        GameObject card = MenuCardBuilder.CreateCard(backdrop.transform, new Vector2(700f, 500f));
+        // Card central — modal grande para tabla scrollable cómoda en kiosko.
+        GameObject card = MenuCardBuilder.CreateCard(backdrop.transform, new Vector2(1500f, 950f));
         RectTransform cardRt = card.GetComponent<RectTransform>();
         cardRt.anchorMin = new Vector2(0.5f, 0.5f);
         cardRt.anchorMax = new Vector2(0.5f, 0.5f);
@@ -118,49 +119,309 @@ public class ExamResultsScreen : MonoBehaviour
 
         Transform content = card.transform.Find("Content");
 
-        // Título: "Resultado del Examen"
+        // Filtra eventos con penalización (excluye FIN_EXAMEN y similares con points=0).
+        var faults = CollectFaults();
+        int totalDeducted = 0;
+        for (int i = 0; i < faults.Count; i++) totalDeducted += Mathf.Abs(faults[i].points);
+
+        Color scoreColor = GetScoreColor(score);
+        string scoreLabel = GetScoreLabel(score);
+
+        // ── Header: 70-100% del alto de Content ──────────────────────────
+        // Título "Resultado del Examen" centrado arriba.
         var titleObj = MenuCardBuilder.CreateText(content, "Title", "Resultado del Examen",
             40f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center);
         titleObj.GetComponent<RectTransform>().Set(
-            new Vector2(0f, 0.78f), new Vector2(1f, 0.95f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 0.91f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Score grande
-        string scoreLabel = GetScoreLabel(score);
-        Color scoreColor = GetScoreColor(score);
-
+        // Score grande (izquierda) + Label APTO/NO APTO debajo.
         var scoreObj = MenuCardBuilder.CreateText(content, "Score", score.ToString(),
             72f, FontStyles.Bold, scoreColor, TextAlignmentOptions.Center);
         scoreObj.GetComponent<RectTransform>().Set(
-            new Vector2(0f, 0.52f), new Vector2(1f, 0.78f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.02f, 0.78f), new Vector2(0.32f, 0.92f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Label APTO/NO APTO
         var labelObj = MenuCardBuilder.CreateText(content, "ScoreLabel", scoreLabel,
             MenuTheme.CardTitleSize, FontStyles.Bold, scoreColor, TextAlignmentOptions.Center);
         var labelTmp = labelObj.GetComponent<TextMeshProUGUI>();
         labelTmp.textWrappingMode = TextWrappingModes.Normal;
         labelObj.GetComponent<RectTransform>().Set(
-            new Vector2(0.05f, 0.35f), new Vector2(0.95f, 0.52f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.02f, 0.70f), new Vector2(0.32f, 0.78f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Cantidad de infracciones
-        int eventCount = TelemetryLogger.Instance != null ? TelemetryLogger.Instance.data.events.Count : 0;
-        var infraObj = MenuCardBuilder.CreateText(content, "Infracciones",
-            $"Infracciones registradas: {eventCount}",
-            MenuTheme.SubtitleSize, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Center);
-        infraObj.GetComponent<RectTransform>().Set(
-            new Vector2(0f, 0.22f), new Vector2(1f, 0.35f), new Vector2(0.5f, 0.5f),
+        // Resumen (derecha): N infracciones · -X puntos.
+        string summary = faults.Count == 0
+            ? "Sin infracciones"
+            : $"{faults.Count} infracci{(faults.Count == 1 ? "ón" : "ones")} · -{totalDeducted} puntos";
+        var summaryObj = MenuCardBuilder.CreateText(content, "Summary", summary,
+            MenuTheme.SubtitleSize, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left);
+        summaryObj.GetComponent<RectTransform>().Set(
+            new Vector2(0.36f, 0.80f), new Vector2(0.98f, 0.90f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Texto de auto-return
+        var summarySubObj = MenuCardBuilder.CreateText(content, "SummarySub",
+            "Detalle de infracciones cometidas durante el examen",
+            MenuTheme.CardDescSize, FontStyles.Normal, MenuTheme.TextMuted, TextAlignmentOptions.Left);
+        summarySubObj.GetComponent<RectTransform>().Set(
+            new Vector2(0.36f, 0.71f), new Vector2(0.98f, 0.79f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        // ── Tabla: 9-67% del alto de Content ─────────────────────────────
+        BuildFaultsTable(content, faults);
+
+        // ── Footer: 0-7% del alto de Content (countdown) ─────────────────
         var returnObj = MenuCardBuilder.CreateText(content, "ReturnText",
-            $"Regresando al menu en {(int)AUTO_RETURN_SECONDS}s...",
+            $"Regresando al menu en {(int)AUTO_RETURN_SECONDS}s... (presiona cualquier tecla)",
             MenuTheme.CardDescSize, FontStyles.Normal, MenuTheme.TextMuted, TextAlignmentOptions.Center);
         returnObj.GetComponent<RectTransform>().Set(
-            new Vector2(0f, 0.05f), new Vector2(1f, 0.18f), new Vector2(0.5f, 0.5f),
+            new Vector2(0f, 0f), new Vector2(1f, 0.07f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
         countdownText = returnObj.GetComponent<TextMeshProUGUI>();
+    }
+
+    // ── Tabla de infracciones (header fijo + ScrollRect con filas) ──────
+
+    void BuildFaultsTable(Transform parent, List<TelemetryLogger.TelemetryEvent> faults)
+    {
+        // Header de tabla — fijo, no scrollea.
+        GameObject header = new GameObject("TableHeader");
+        header.transform.SetParent(parent, false);
+        RectTransform headerRt = header.AddComponent<RectTransform>();
+        headerRt.Set(new Vector2(0f, 0.62f), new Vector2(1f, 0.68f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        Image headerBg = header.AddComponent<Image>();
+        headerBg.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        headerBg.type = Image.Type.Sliced;
+        headerBg.color = MenuTheme.InputBackground;
+        headerBg.raycastTarget = false;
+
+        BuildTableRow(header.transform, "Minuto", "Infracción", "Puntos",
+            isHeader: true, severity: SeverityKind.Minor, points: 0);
+
+        // ScrollRect con la lista — 9-62% del alto de Content.
+        GameObject scrollGo = new GameObject("FaultsScroll");
+        scrollGo.transform.SetParent(parent, false);
+        RectTransform scrollRt = scrollGo.AddComponent<RectTransform>();
+        scrollRt.Set(new Vector2(0f, 0.09f), new Vector2(1f, 0.61f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        Image scrollBg = scrollGo.AddComponent<Image>();
+        scrollBg.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        scrollBg.type = Image.Type.Sliced;
+        scrollBg.color = MenuTheme.CardBackground;
+        scrollBg.raycastTarget = true;
+
+        ScrollRect scroll = scrollGo.AddComponent<ScrollRect>();
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Elastic;
+        scroll.scrollSensitivity = 30f;
+
+        // Viewport con mask.
+        GameObject viewport = new GameObject("Viewport");
+        viewport.transform.SetParent(scrollGo.transform, false);
+        RectTransform vpRt = viewport.AddComponent<RectTransform>();
+        vpRt.anchorMin = Vector2.zero;
+        vpRt.anchorMax = Vector2.one;
+        vpRt.offsetMin = new Vector2(2, 2);
+        vpRt.offsetMax = new Vector2(-2, -2);
+        Image vpImg = viewport.AddComponent<Image>();
+        vpImg.color = new Color(1f, 1f, 1f, 0.001f); // RectMask2D requiere graphic
+        viewport.AddComponent<RectMask2D>();
+
+        // Content: anclado al top del viewport, crece hacia abajo.
+        const float rowHeight = 56f;
+        const float rowPadding = 4f;
+        GameObject scrollContent = new GameObject("Content");
+        scrollContent.transform.SetParent(viewport.transform, false);
+        RectTransform contentRt = scrollContent.AddComponent<RectTransform>();
+        contentRt.anchorMin = new Vector2(0f, 1f);
+        contentRt.anchorMax = new Vector2(1f, 1f);
+        contentRt.pivot = new Vector2(0.5f, 1f);
+        contentRt.anchoredPosition = Vector2.zero;
+
+        scroll.viewport = vpRt;
+        scroll.content = contentRt;
+
+        if (faults.Count == 0)
+        {
+            // Mensaje de examen perfecto centrado.
+            contentRt.sizeDelta = new Vector2(0f, 120f);
+            var emptyObj = MenuCardBuilder.CreateText(scrollContent.transform, "Empty",
+                "Sin infracciones registradas — examen perfecto",
+                MenuTheme.SubtitleSize, FontStyles.Bold, MenuTheme.SuccessGreen,
+                TextAlignmentOptions.Center);
+            emptyObj.GetComponent<RectTransform>().Set(
+                new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+            return;
+        }
+
+        // Una fila por infracción.
+        float totalHeight = faults.Count * (rowHeight + rowPadding);
+        contentRt.sizeDelta = new Vector2(0f, totalHeight);
+
+        for (int i = 0; i < faults.Count; i++)
+        {
+            var fault = faults[i];
+            GameObject row = new GameObject($"Row_{i}");
+            row.transform.SetParent(scrollContent.transform, false);
+            RectTransform rowRt = row.AddComponent<RectTransform>();
+            rowRt.anchorMin = new Vector2(0f, 1f);
+            rowRt.anchorMax = new Vector2(1f, 1f);
+            rowRt.pivot = new Vector2(0.5f, 1f);
+            rowRt.anchoredPosition = new Vector2(0f, -(i * (rowHeight + rowPadding)));
+            rowRt.sizeDelta = new Vector2(0f, rowHeight);
+
+            // Banda alterna para legibilidad.
+            if (i % 2 == 1)
+            {
+                Image rowBg = row.AddComponent<Image>();
+                rowBg.color = new Color(1f, 1f, 1f, 0.5f);
+                rowBg.raycastTarget = false;
+            }
+
+            BuildTableRow(row.transform,
+                FormatTimestamp(fault.timestamp),
+                fault.description,
+                "-" + Mathf.Abs(fault.points).ToString(),
+                isHeader: false,
+                severity: GetSeverity(fault.eventType),
+                points: fault.points);
+        }
+    }
+
+    void BuildTableRow(Transform parent, string min, string desc, string pts,
+        bool isHeader, SeverityKind severity, int points)
+    {
+        // Columnas: Minuto 0-12% · Infracción 13-65% · Severidad 66-83% · Puntos 84-98%
+        Color textCol = isHeader ? MenuTheme.TextSecondary : MenuTheme.TextOnCard;
+        float fontSize = isHeader ? 18f : 20f;
+        FontStyles fs = isHeader ? FontStyles.Bold : FontStyles.Normal;
+
+        var minObj = MenuCardBuilder.CreateText(parent, "ColMin", min,
+            fontSize, fs, textCol, TextAlignmentOptions.Center);
+        minObj.GetComponent<RectTransform>().Set(
+            new Vector2(0f, 0f), new Vector2(0.12f, 1f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        var descObj = MenuCardBuilder.CreateText(parent, "ColDesc", desc,
+            fontSize, fs, textCol, TextAlignmentOptions.Left);
+        var descTmp = descObj.GetComponent<TextMeshProUGUI>();
+        descTmp.textWrappingMode = TextWrappingModes.NoWrap;
+        descTmp.overflowMode = TextOverflowModes.Ellipsis;
+        descObj.GetComponent<RectTransform>().Set(
+            new Vector2(0.13f, 0f), new Vector2(0.65f, 1f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        if (isHeader)
+        {
+            var sevObj = MenuCardBuilder.CreateText(parent, "ColSev", "Severidad",
+                fontSize, fs, textCol, TextAlignmentOptions.Center);
+            sevObj.GetComponent<RectTransform>().Set(
+                new Vector2(0.66f, 0f), new Vector2(0.83f, 1f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+        }
+        else
+        {
+            BuildSeverityBadge(parent, severity);
+        }
+
+        Color ptsCol = isHeader
+            ? MenuTheme.TextSecondary
+            : (points < 0 ? MenuTheme.TextError : MenuTheme.TextOnCard);
+        var ptsObj = MenuCardBuilder.CreateText(parent, "ColPts", pts,
+            fontSize, isHeader ? fs : FontStyles.Bold, ptsCol, TextAlignmentOptions.Right);
+        ptsObj.GetComponent<RectTransform>().Set(
+            new Vector2(0.84f, 0f), new Vector2(0.98f, 1f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+    }
+
+    void BuildSeverityBadge(Transform parent, SeverityKind severity)
+    {
+        Color bg, fg;
+        string label;
+        switch (severity)
+        {
+            case SeverityKind.Critical:
+                bg = HexColor("#FEE2E2"); fg = HexColor("#991B1B"); label = "Crítica"; break;
+            case SeverityKind.Major:
+                bg = HexColor("#EDE9FE"); fg = HexColor("#5B21B6"); label = "Grave"; break;
+            default:
+                bg = HexColor("#FEF3C7"); fg = HexColor("#92400E"); label = "Leve"; break;
+        }
+
+        GameObject badge = new GameObject("Badge");
+        badge.transform.SetParent(parent, false);
+        RectTransform badgeRt = badge.AddComponent<RectTransform>();
+        badgeRt.Set(new Vector2(0.67f, 0.18f), new Vector2(0.82f, 0.82f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+        Image badgeImg = badge.AddComponent<Image>();
+        badgeImg.sprite = MenuCardBuilder.GetRoundedSprite(MenuTheme.CornerRadiusSmall);
+        badgeImg.type = Image.Type.Sliced;
+        badgeImg.color = bg;
+        badgeImg.raycastTarget = false;
+
+        var txt = MenuCardBuilder.CreateText(badge.transform, "Text", label,
+            16f, FontStyles.Bold, fg, TextAlignmentOptions.Center);
+        txt.GetComponent<RectTransform>().Set(
+            Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+    }
+
+    // ── Helpers de datos ────────────────────────────────────────────────
+
+    enum SeverityKind { Minor, Major, Critical }
+
+    static List<TelemetryLogger.TelemetryEvent> CollectFaults()
+    {
+        var result = new List<TelemetryLogger.TelemetryEvent>();
+        if (TelemetryLogger.Instance == null) return result;
+        var all = TelemetryLogger.Instance.data.events;
+        for (int i = 0; i < all.Count; i++)
+        {
+            if (all[i] != null && all[i].points < 0) result.Add(all[i]);
+        }
+        return result;
+    }
+
+    // Mapeo idéntico a SimulatorApiClient.MapSeverity para coherencia con backend/portal.
+    static SeverityKind GetSeverity(string eventType)
+    {
+        switch (eventType)
+        {
+            case "ATROPELLO": return SeverityKind.Critical;
+            case "COLISION_BICICLETA":
+            case "COLISION_VEHICULO":
+            case "SEMAFORO_ROJO":
+            case "SENTIDO_CONTRARIO":
+            case "CAMBIO_PELIGROSO":
+                return SeverityKind.Major;
+            default:
+                return SeverityKind.Minor;
+        }
+    }
+
+    // "45.23s" → "0:45". Mismo formato que el portal admin (m:ss).
+    static string FormatTimestamp(string raw)
+    {
+        if (string.IsNullOrEmpty(raw)) return "0:00";
+        string trimmed = raw.EndsWith("s") ? raw.Substring(0, raw.Length - 1) : raw;
+        if (!float.TryParse(trimmed, System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture, out float totalSeconds))
+            return "0:00";
+        int total = Mathf.FloorToInt(totalSeconds);
+        int min = total / 60;
+        int sec = total % 60;
+        return $"{min}:{sec:D2}";
+    }
+
+    static Color HexColor(string hex)
+    {
+        ColorUtility.TryParseHtmlString(hex, out Color c);
+        return c;
     }
 
     string GetScoreLabel(int s)
