@@ -34,6 +34,7 @@ namespace Gley.UrbanSystem
         bool reverse;
         [HideInInspector] public bool blinkLeft;
         [HideInInspector] public bool blinkRight;
+        [HideInInspector] public bool hazardActive;
         float realtimeSinceStartup;
         Rigidbody rb;
 
@@ -233,24 +234,16 @@ namespace Gley.UrbanSystem
             {
                 if (indicatorInput == -1)
                 {
-                    blinkLeft = !blinkLeft;
-                    blinkRight = false;
-                    lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
-                    Debug.Log("[DIRECCIONAL] Izquierda " + (blinkLeft ? "ON" : "OFF"));
+                    // Toggle Left (si ya estaba Left → Off; cancela Right o Hazard)
+                    SetIndicatorState((blinkLeft && !hazardActive) ? IndicatorState.Off : IndicatorState.Left);
                 }
                 else if (indicatorInput == 1)
                 {
-                    blinkRight = !blinkRight;
-                    blinkLeft = false;
-                    lightsComponent.SetBlinker(blinkRight ? BlinkType.Right : BlinkType.Stop);
-                    Debug.Log("[DIRECCIONAL] Derecha " + (blinkRight ? "ON" : "OFF"));
+                    SetIndicatorState((blinkRight && !hazardActive) ? IndicatorState.Off : IndicatorState.Right);
                 }
                 else if (indicatorInput == 2)
                 {
-                    blinkLeft = false;
-                    blinkRight = false;
-                    lightsComponent.SetBlinker(BlinkType.StartHazard);
-                    Debug.Log("[DIRECCIONAL] Hazard ON");
+                    SetIndicatorState(hazardActive ? IndicatorState.Off : IndicatorState.Hazard);
                 }
             }
             lastIndicatorInput = indicatorInput;
@@ -258,15 +251,11 @@ namespace Gley.UrbanSystem
             // Teclado fallback: Q=izq, E=der
             if (GetKeyDownQ())
             {
-                blinkLeft = !blinkLeft;
-                blinkRight = false;
-                lightsComponent.SetBlinker(blinkLeft ? BlinkType.Left : BlinkType.Stop);
+                SetIndicatorState((blinkLeft && !hazardActive) ? IndicatorState.Off : IndicatorState.Left);
             }
             if (GetKeyDownE())
             {
-                blinkRight = !blinkRight;
-                blinkLeft = false;
-                lightsComponent.SetBlinker(blinkRight ? BlinkType.Right : BlinkType.Stop);
+                SetIndicatorState((blinkRight && !hazardActive) ? IndicatorState.Off : IndicatorState.Right);
             }
 
             lightsComponent.SetBrakeLights(brake);
@@ -402,6 +391,53 @@ namespace Gley.UrbanSystem
 #else
     return Input.GetKeyDown(KeyCode.E);
 #endif
+        }
+
+        public enum IndicatorState { Off, Left, Right, Hazard }
+
+        // VehicleLightsComponentV2.SetBlinker ignora cambios mientras siga en
+        // StartHazard salvo que se llame StopHazard. Por eso al salir de hazard
+        // hay que pasar primero por StopHazard, sino las luces quedan atascadas
+        // y el HUD/luces físicas divergen.
+        void SetIndicatorState(IndicatorState newState)
+        {
+            if (hazardActive && newState != IndicatorState.Hazard)
+            {
+                lightsComponent.SetBlinker(BlinkType.StopHazard);
+                hazardActive = false;
+            }
+
+            switch (newState)
+            {
+                case IndicatorState.Off:
+                    blinkLeft = false;
+                    blinkRight = false;
+                    lightsComponent.SetBlinker(BlinkType.Stop);
+                    Debug.Log("[DIRECCIONAL] Off");
+                    break;
+                case IndicatorState.Left:
+                    blinkLeft = true;
+                    blinkRight = false;
+                    lightsComponent.SetBlinker(BlinkType.Left);
+                    Debug.Log("[DIRECCIONAL] Izquierda ON");
+                    break;
+                case IndicatorState.Right:
+                    blinkLeft = false;
+                    blinkRight = true;
+                    lightsComponent.SetBlinker(BlinkType.Right);
+                    Debug.Log("[DIRECCIONAL] Derecha ON");
+                    break;
+                case IndicatorState.Hazard:
+                    if (!hazardActive)
+                    {
+                        blinkLeft = false;
+                        blinkRight = false;
+                        hazardActive = true;
+                        lightsComponent.SetBlinker(BlinkType.StartHazard);
+                        Debug.Log("[DIRECCIONAL] Hazard ON");
+                    }
+                    break;
+            }
         }
     }
 }

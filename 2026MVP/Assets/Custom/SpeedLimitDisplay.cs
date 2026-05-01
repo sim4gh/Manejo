@@ -32,28 +32,66 @@ public class SpeedLimitDisplay : MonoBehaviour
     private System.Reflection.PropertyInfo rccpSpeedProperty;
     private bool useRCCP = false;
     private Rigidbody vehicleRb;
+    private bool initializedExternally;
+
+    /// <summary>
+    /// Inyección desde TopHudRow para evitar GameObject.Find("Player") (que falla en
+    /// Motocicleta donde el GO se llama "Player_Moto_Completo") y para que el orden
+    /// con Awake de Gley no importe.
+    /// </summary>
+    public void Initialize(Rigidbody rb, ViolationDetector vd)
+    {
+        initializedExternally = true;
+        vehicleRb = rb;
+        SubscribeTo(vd);
+    }
+
+    void SubscribeTo(ViolationDetector vd)
+    {
+        if (violationDetector != null)
+        {
+            violationDetector.OnSpeedLimitChanged -= OnSpeedLimitChanged;
+        }
+        violationDetector = vd;
+        if (violationDetector != null)
+        {
+            violationDetector.OnSpeedLimitChanged += OnSpeedLimitChanged;
+            currentLimit = violationDetector.currentSpeedLimit;
+            UpdateDisplay();
+        }
+    }
 
     void Start()
     {
-        // Find ViolationDetector
-        violationDetector = FindFirstObjectByType<ViolationDetector>();
-
-        if (violationDetector != null)
+        if (!initializedExternally)
         {
-            // Subscribe to speed limit changes
-            violationDetector.OnSpeedLimitChanged += OnSpeedLimitChanged;
-            currentLimit = violationDetector.currentSpeedLimit;
+            // Path autosuficiente: solo se ejerce cuando se monta vía MenuItem editor
+            // (legacy). En runtime, TopHudRow llama Initialize() y este path no corre.
+            playerVehicle = GameObject.Find("Player");
+            if (playerVehicle != null)
+            {
+                vehicleRb = playerVehicle.GetComponent<Rigidbody>();
+                TryFindRCCP();
+            }
+            SubscribeTo(FindFirstObjectByType<ViolationDetector>());
         }
 
-        // Find player vehicle for speed
-        playerVehicle = GameObject.Find("Player");
-        if (playerVehicle != null)
+        if (violationDetector == null)
         {
-            vehicleRb = playerVehicle.GetComponent<Rigidbody>();
-            TryFindRCCP();
+            // Race con Awake de Gley: ViolationDetector aún no instanciado. Reintentar.
+            StartCoroutine(RetryLocateDetector());
         }
 
         UpdateDisplay();
+    }
+
+    System.Collections.IEnumerator RetryLocateDetector()
+    {
+        for (int i = 0; i < 3 && violationDetector == null; i++)
+        {
+            yield return new WaitForSeconds(0.5f);
+            SubscribeTo(FindFirstObjectByType<ViolationDetector>());
+        }
     }
 
     void OnDestroy()
@@ -83,10 +121,7 @@ public class SpeedLimitDisplay : MonoBehaviour
 
     void Update()
     {
-        // Get current speed
         currentSpeed = GetSpeed();
-
-        // Update colors based on speed vs limit
         UpdateColors();
     }
 
