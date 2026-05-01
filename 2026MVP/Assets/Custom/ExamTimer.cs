@@ -29,6 +29,7 @@ public class ExamTimer : MonoBehaviour
 
     private int lastDisplayedSecond = -1;
     private int lastKnownScore = 100;
+    private ViolationDetector cachedDetector;
 
     /// <summary>Disparado al final de CreateTimerUI; permite que TopHudRow adopte el container sin race con InitAfterFrame.</summary>
     public System.Action OnContainerReady;
@@ -244,9 +245,20 @@ public class ExamTimer : MonoBehaviour
             timerText.alpha = 1f;
         }
 
-        // Cachear score para interrupción (OnDestroy/OnApplicationQuit)
-        ViolationDetector det = Object.FindFirstObjectByType<ViolationDetector>();
+        // Cachear score para interrupción (OnDestroy/OnApplicationQuit).
+        // FindFirstObjectByType escanea todo el grafo de la escena → caro a 60-120 fps.
+        // Cacheamos la referencia y solo re-buscamos si Unity la destruyó (cambio de escena).
+        ViolationDetector det = GetDetector();
         if (det != null) lastKnownScore = det.totalScore;
+    }
+
+    ViolationDetector GetDetector()
+    {
+        if (cachedDetector == null)
+        {
+            cachedDetector = Object.FindFirstObjectByType<ViolationDetector>();
+        }
+        return cachedDetector;
     }
 
     void EndExam()
@@ -260,7 +272,7 @@ public class ExamTimer : MonoBehaviour
         TelemetryLogger.Instance?.LogEvent("FIN_EXAMEN", "Tiempo agotado", 0, 0f);
 
         // Exportar telemetría
-        ViolationDetector detector = Object.FindFirstObjectByType<ViolationDetector>();
+        ViolationDetector detector = GetDetector();
         int finalScore = 100;
         if (detector != null)
         {
@@ -321,10 +333,15 @@ public class ExamTimer : MonoBehaviour
         string sessionId = GameManager.Instance?.SessionId;
         if (string.IsNullOrEmpty(sessionId)) return;
 
+        // Preferir el score actual del detector si sigue vivo — cierra la ventana
+        // de 1 frame entre el último Update() y la interrupción. Fallback al cache.
+        ViolationDetector det = GetDetector();
+        int score = det != null ? det.totalScore : lastKnownScore;
+
         // Interrumpido: siempre passed=false, interrupted=true
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
-        SimulatorApiClient.SavePendingResult(sessionId, false, lastKnownScore, faults, true);
-        Debug.Log($"[ExamTimer] Examen interrumpido (score={lastKnownScore}, interrupted=true)");
+        SimulatorApiClient.SavePendingResult(sessionId, false, score, faults, true);
+        Debug.Log($"[ExamTimer] Examen interrumpido (score={score}, interrupted=true)");
     }
 
     static string FormatTime(float seconds)
