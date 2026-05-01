@@ -138,6 +138,11 @@ public class SpeedometerSetup : MonoBehaviour
         limitTmp.verticalAlignment = VerticalAlignmentOptions.Middle;
         limitTmp.color = Color.black;
         limitTmp.raycastTarget = false;
+        limitTmp.enableWordWrapping = false;
+        limitTmp.overflowMode = TextOverflowModes.Overflow;
+        limitTmp.enableAutoSizing = true;
+        limitTmp.fontSizeMin = 18f;
+        limitTmp.fontSizeMax = 32f;
 
         // Add the display script
         SpeedLimitDisplay displayScript = signObj.AddComponent<SpeedLimitDisplay>();

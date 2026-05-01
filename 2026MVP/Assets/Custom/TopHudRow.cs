@@ -200,6 +200,13 @@ public class TopHudRow : MonoBehaviour
         tmp.verticalAlignment = VerticalAlignmentOptions.Middle;
         tmp.color = Color.black;
         tmp.raycastTarget = false;
+        // Sin wrap + auto-size: límites de 3 dígitos (110, 120) se escalan en una sola
+        // línea en vez de partirse en "11" / "0".
+        tmp.enableWordWrapping = false;
+        tmp.overflowMode = TextOverflowModes.Overflow;
+        tmp.enableAutoSizing = true;
+        tmp.fontSizeMin = 32f;
+        tmp.fontSizeMax = 58f;
         if (font != null) tmp.font = font;
 
         speedLimit = go.AddComponent<SpeedLimitDisplay>();
