@@ -23,9 +23,19 @@ public class ExamTimer : MonoBehaviour
     private bool examFinished;
     private TextMeshProUGUI timerText;
     private Image bgPanel;
+    private GameObject canvasGo;
+    private RectTransform containerRt;
+    private LayoutElement layoutElement;
 
     private int lastDisplayedSecond = -1;
     private int lastKnownScore = 100;
+
+    /// <summary>Disparado al final de CreateTimerUI; permite que TopHudRow adopte el container sin race con InitAfterFrame.</summary>
+    public System.Action OnContainerReady;
+
+    // Tamaño base del slot del timer cuando vive dentro de un HorizontalLayoutGroup.
+    private const float SlotWidth = 180f;
+    private const float SlotHeight = 70f;
 
     // Colores por fase
     private static readonly Color colorNormal  = Color.white;
@@ -79,7 +89,7 @@ public class ExamTimer : MonoBehaviour
         // child de un Canvas encontrado con FindObjectsOfType, y si ese Canvas
         // pertenecía a un GameObject persistente entre escenas, el HUD quedaba
         // colgado → al volver a iniciar el examen aparecían 2 timers acumulados.
-        var canvasGo = new GameObject("ExamTimerCanvas");
+        canvasGo = new GameObject("ExamTimerCanvas");
         canvasGo.transform.SetParent(transform, false);
         var canvas = canvasGo.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
@@ -91,18 +101,21 @@ public class ExamTimer : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
-        canvasGo.AddComponent<GraphicRaycaster>();
+        // Sin GraphicRaycaster — el HUD del timer no es interactivo.
 
         // Contenedor del timer
         GameObject container = new GameObject("ExamTimerHUD");
         container.transform.SetParent(canvasGo.transform, false);
-        RectTransform containerRt = container.AddComponent<RectTransform>();
-        // Top-center
-        containerRt.anchorMin = new Vector2(0.5f, 1f);
-        containerRt.anchorMax = new Vector2(0.5f, 1f);
-        containerRt.pivot = new Vector2(0.5f, 1f);
-        containerRt.anchoredPosition = new Vector2(0f, -15f);
-        containerRt.sizeDelta = new Vector2(180f, 55f);
+        containerRt = container.AddComponent<RectTransform>();
+        ApplyStandaloneLayout(containerRt);
+
+        // LayoutElement para que TopHudRow lo coloque dentro del HorizontalLayoutGroup
+        // sin tener que cambiar anchors. Solo aplica cuando el container está bajo un row.
+        layoutElement = container.AddComponent<LayoutElement>();
+        layoutElement.preferredWidth = SlotWidth;
+        layoutElement.preferredHeight = SlotHeight;
+        layoutElement.flexibleWidth = 0f;
+        layoutElement.flexibleHeight = 0f;
 
         // Fondo semi-transparente oscuro con esquinas redondeadas
         bgPanel = container.AddComponent<Image>();
@@ -132,6 +145,56 @@ public class ExamTimer : MonoBehaviour
         // Intentar usar Roboto Bold (misma fuente del menú)
         TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
         if (font != null) timerText.font = font;
+
+        OnContainerReady?.Invoke();
+    }
+
+    // Anchors para modo standalone (top-center), independiente del row.
+    static void ApplyStandaloneLayout(RectTransform rt)
+    {
+        rt.anchorMin = new Vector2(0.5f, 1f);
+        rt.anchorMax = new Vector2(0.5f, 1f);
+        rt.pivot = new Vector2(0.5f, 1f);
+        rt.anchoredPosition = new Vector2(0f, -15f);
+        rt.sizeDelta = new Vector2(SlotWidth, 55f);
+    }
+
+    /// <summary>
+    /// Reparenta el container del timer al slot del TopHudRow. Si parent es null,
+    /// reattach al ExamTimerCanvas propio (path simétrico para limpieza). Los
+    /// overrides ajustan el LayoutElement cuando el slot del row tiene tamaño
+    /// distinto al default standalone.
+    /// </summary>
+    public void AttachContainerTo(RectTransform parent, float? overrideWidth = null, float? overrideHeight = null)
+    {
+        if (containerRt == null) return;
+
+        if (parent != null)
+        {
+            containerRt.SetParent(parent, false);
+            // En modo layout-group: anchors stretch para que LayoutElement controle el tamaño.
+            containerRt.anchorMin = Vector2.zero;
+            containerRt.anchorMax = Vector2.one;
+            containerRt.pivot = new Vector2(0.5f, 0.5f);
+            containerRt.anchoredPosition = Vector2.zero;
+            containerRt.sizeDelta = Vector2.zero;
+
+            if (layoutElement != null)
+            {
+                if (overrideWidth.HasValue) layoutElement.preferredWidth = overrideWidth.Value;
+                if (overrideHeight.HasValue) layoutElement.preferredHeight = overrideHeight.Value;
+            }
+        }
+        else if (canvasGo != null)
+        {
+            containerRt.SetParent(canvasGo.transform, false);
+            ApplyStandaloneLayout(containerRt);
+            if (layoutElement != null)
+            {
+                layoutElement.preferredWidth = SlotWidth;
+                layoutElement.preferredHeight = SlotHeight;
+            }
+        }
     }
 
     void Update()
@@ -305,10 +368,10 @@ public class ExamTimer : MonoBehaviour
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
-        canvasObj.AddComponent<GraphicRaycaster>();
+        // Sin GraphicRaycaster — los HUDs procedurales que cuelgan de este Canvas
+        // no son interactivos. Si en el futuro hace falta input, agregarlo bajo demanda.
 
-        // Asegurar EventSystem para que el Canvas pueda recibir input (defensivo —
-        // los HUD que añadimos hoy no son interactivos, pero futuros sí).
+        // EventSystem defensivo: otros canvases (paneles F7-F10, menús) sí lo necesitan.
 #pragma warning disable CS0618
         if (Object.FindObjectOfType<EventSystem>() == null)
 #pragma warning restore CS0618

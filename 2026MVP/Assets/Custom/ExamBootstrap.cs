@@ -49,10 +49,18 @@ public static class ExamBootstrap
             obj.AddComponent<ExamTimer>();
         }
 
-        // Si la escena no tiene un velocímetro activo (caso Motocicleta — el
-        // SpeedGauge serializado vive bajo un GameObject "Player" desactivado),
-        // spawneamos un HUD procedural mínimo para que igual se muestre la velocidad.
-        EnsureSpeedHud();
+        // HUD superior unificado: timer + velocímetro + velocidad máxima.
+        // Reemplaza al SimpleSpeedGauge bottom-center y al FallbackSpeedHud bottom-left.
+        if (TopHudRow.Instance == null)
+        {
+            Debug.Log("[ExamBootstrap] Inyectando TopHudRow en escena de manejo");
+            GameObject row = new GameObject("TopHudRowManager");
+            row.AddComponent<TopHudRow>();
+        }
+
+        // Desactivar SpeedGauges legacy si la escena los trae serializados —
+        // evita doble velocímetro (bottom-center + top-row).
+        DisableLegacySpeedHuds();
 
         // Aplicar scoring config del backend a todos los detectores
         if (ScoringConfig.Instance != null)
@@ -61,15 +69,24 @@ public static class ExamBootstrap
         }
     }
 
-    static void EnsureSpeedHud()
+    static void DisableLegacySpeedHuds()
     {
-        // Solo cuenta una instancia activa: FindFirstObjectByType ya filtra inactivos.
-        var active = Object.FindFirstObjectByType<SimpleSpeedGauge>();
-        if (active != null) return;
-        if (Object.FindFirstObjectByType<FallbackSpeedHud>() != null) return;
-
-        Debug.Log("[ExamBootstrap] Sin SpeedGauge activo — spawning FallbackSpeedHud.");
-        GameObject hud = new GameObject("FallbackSpeedHudManager");
-        hud.AddComponent<FallbackSpeedHud>();
+        // SimpleSpeedGauge serializado en escena (Sedan, Camioneta, etc.) — desactivar
+        // el GameObject contenedor para que no aparezca duplicado debajo del row.
+        foreach (var gauge in Object.FindObjectsByType<SimpleSpeedGauge>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (gauge != null && gauge.gameObject.activeSelf)
+            {
+                gauge.gameObject.SetActive(false);
+            }
+        }
+        // FallbackSpeedHud (si quedó instanciado de un Setup anterior).
+        foreach (var fb in Object.FindObjectsByType<FallbackSpeedHud>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+        {
+            if (fb != null && fb.gameObject.activeSelf)
+            {
+                Object.Destroy(fb.gameObject);
+            }
+        }
     }
 }

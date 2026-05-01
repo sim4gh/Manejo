@@ -5,8 +5,10 @@ using TMPro;
 using UnityEditor;
 
 /// <summary>
-/// Editor utility to create Speed and RPM Gauges
-/// Use: GameObject menu > UI > Create Dashboard (Speed + RPM)
+/// LEGACY editor-only utility para construir Speed/RPM Gauges y SpeedLimitSign
+/// proceduralmente vía menú GameObject > UI. La auto-instanciación en runtime
+/// pasó a TopHudRow + ExamBootstrap (Apr 2026); estos MenuItem permanecen como
+/// herramienta de Editor para escenas demo fuera del flujo de examen.
 /// </summary>
 public class SpeedometerSetup : MonoBehaviour
 {
