@@ -248,14 +248,18 @@ namespace Gley.UrbanSystem
             }
             lastIndicatorInput = indicatorInput;
 
-            // Teclado fallback: Q=izq, E=der
-            if (GetKeyDownQ())
+            // Teclado fallback: Q/U=izq, E/I=der, O=hazards
+            if (GetKeyDownQ() || GetKeyDownU())
             {
                 SetIndicatorState((blinkLeft && !hazardActive) ? IndicatorState.Off : IndicatorState.Left);
             }
-            if (GetKeyDownE())
+            if (GetKeyDownE() || GetKeyDownI())
             {
                 SetIndicatorState((blinkRight && !hazardActive) ? IndicatorState.Off : IndicatorState.Right);
+            }
+            if (GetKeyDownO())
+            {
+                SetIndicatorState(hazardActive ? IndicatorState.Off : IndicatorState.Hazard);
             }
 
             lightsComponent.SetBrakeLights(brake);
@@ -390,6 +394,33 @@ namespace Gley.UrbanSystem
             return Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame;
 #else
     return Input.GetKeyDown(KeyCode.E);
+#endif
+        }
+
+        private bool GetKeyDownU()
+        {
+#if !ENABLE_LEGACY_INPUT_MANAGER
+            return Keyboard.current != null && Keyboard.current.uKey.wasPressedThisFrame;
+#else
+    return Input.GetKeyDown(KeyCode.U);
+#endif
+        }
+
+        private bool GetKeyDownI()
+        {
+#if !ENABLE_LEGACY_INPUT_MANAGER
+            return Keyboard.current != null && Keyboard.current.iKey.wasPressedThisFrame;
+#else
+    return Input.GetKeyDown(KeyCode.I);
+#endif
+        }
+
+        private bool GetKeyDownO()
+        {
+#if !ENABLE_LEGACY_INPUT_MANAGER
+            return Keyboard.current != null && Keyboard.current.oKey.wasPressedThisFrame;
+#else
+    return Input.GetKeyDown(KeyCode.O);
 #endif
         }
 
