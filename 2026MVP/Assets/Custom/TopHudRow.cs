@@ -12,15 +12,19 @@ public class TopHudRow : MonoBehaviour
 {
     public static TopHudRow Instance;
 
-    private const float SpacingPx = 80f;
-    private const float TimerSlotW = 180f;
-    private const float TimerSlotH = 70f;
-    private const float SpeedSlotW = 340f;
-    private const float SpeedSlotH = 100f;
-    private const float LimitSlotW = 140f;
+    // Stack izquierdo: SpeedLimit arriba, Timer abajo (anchos uniformes).
+    private const float LeftStackW = 140f;
+    private const float LeftStackPadding = 20f;
+    private const float LeftVerticalSpacing = 10f;
     private const float LimitSlotH = 140f;
+    private const float TimerSlotH = 55f;
 
-    private RectTransform row;
+    // Velocímetro en top-center (independiente del stack izquierdo).
+    private const float SpeedSlotW = 340f;
+    private const float SpeedSlotH = 140f;
+    private const float TopOffsetPx = 20f;
+
+    private RectTransform leftStack;
     private RectTransform timerSlot;
     private RectTransform speedSlot;
     private RectTransform limitSlot;
@@ -55,29 +59,37 @@ public class TopHudRow : MonoBehaviour
         scaler.matchWidthOrHeight = 0.5f;
         // Sin GraphicRaycaster — HUD no interactivo.
 
-        // Container del row, top-center, layout horizontal
-        var rowGo = new GameObject("TopHudRow");
-        rowGo.transform.SetParent(canvasGo.transform, false);
-        row = rowGo.AddComponent<RectTransform>();
-        row.anchorMin = new Vector2(0.5f, 1f);
-        row.anchorMax = new Vector2(0.5f, 1f);
-        row.pivot = new Vector2(0.5f, 1f);
-        row.anchoredPosition = new Vector2(0f, -20f);
-        // sizeDelta lo controla HorizontalLayoutGroup vía LayoutElement de hijos.
-        row.sizeDelta = new Vector2(TimerSlotW + SpeedSlotW + LimitSlotW + SpacingPx * 2f,
-                                    Mathf.Max(TimerSlotH, SpeedSlotH, LimitSlotH));
+        // ── Stack izquierdo (top-left): SpeedLimit arriba, Timer abajo ──
+        var leftGo = new GameObject("LeftStack");
+        leftGo.transform.SetParent(canvasGo.transform, false);
+        leftStack = leftGo.AddComponent<RectTransform>();
+        leftStack.anchorMin = new Vector2(0f, 1f);
+        leftStack.anchorMax = new Vector2(0f, 1f);
+        leftStack.pivot = new Vector2(0f, 1f);
+        leftStack.anchoredPosition = new Vector2(LeftStackPadding, -LeftStackPadding);
+        leftStack.sizeDelta = new Vector2(LeftStackW,
+                                          LimitSlotH + TimerSlotH + LeftVerticalSpacing);
 
-        var hlg = rowGo.AddComponent<HorizontalLayoutGroup>();
-        hlg.spacing = SpacingPx;
-        hlg.childAlignment = TextAnchor.MiddleCenter;
-        hlg.childForceExpandWidth = false;
-        hlg.childForceExpandHeight = false;
-        hlg.childControlWidth = true;
-        hlg.childControlHeight = true;
+        var vlg = leftGo.AddComponent<VerticalLayoutGroup>();
+        vlg.spacing = LeftVerticalSpacing;
+        vlg.childAlignment = TextAnchor.UpperCenter;
+        vlg.childForceExpandWidth = false;
+        vlg.childForceExpandHeight = false;
+        vlg.childControlWidth = true;
+        vlg.childControlHeight = true;
 
-        timerSlot = CreateSlot(row, "TimerSlot", TimerSlotW, TimerSlotH);
-        speedSlot = CreateSlot(row, "SpeedometerSlot", SpeedSlotW, SpeedSlotH);
-        limitSlot = CreateSlot(row, "SpeedLimitSlot", LimitSlotW, LimitSlotH);
+        limitSlot = CreateSlot(leftStack, "SpeedLimitSlot", LeftStackW, LimitSlotH);
+        timerSlot = CreateSlot(leftStack, "TimerSlot", LeftStackW, TimerSlotH);
+
+        // ── Velocímetro (top-center, independiente del stack) ──
+        var speedGo = new GameObject("SpeedometerSlot");
+        speedGo.transform.SetParent(canvasGo.transform, false);
+        speedSlot = speedGo.AddComponent<RectTransform>();
+        speedSlot.anchorMin = new Vector2(0.5f, 1f);
+        speedSlot.anchorMax = new Vector2(0.5f, 1f);
+        speedSlot.pivot = new Vector2(0.5f, 1f);
+        speedSlot.anchoredPosition = new Vector2(0f, -TopOffsetPx);
+        speedSlot.sizeDelta = new Vector2(SpeedSlotW, SpeedSlotH);
     }
 
     static RectTransform CreateSlot(Transform parent, string name, float w, float h)
@@ -104,17 +116,15 @@ public class TopHudRow : MonoBehaviour
         BuildSpeedometer();
         BuildSpeedLimit();
 
-        // Force layout 1× para evitar primer frame con anchors viejos del ExamTimer.
-        if (row != null)
-            LayoutRebuilder.ForceRebuildLayoutImmediate(row);
+        if (leftStack != null)
+            LayoutRebuilder.ForceRebuildLayoutImmediate(leftStack);
     }
 
     void AttachTimer()
     {
-        if (ExamTimer.Instance != null && timerSlot != null)
-        {
-            ExamTimer.Instance.AttachContainerTo(timerSlot);
-        }
+        if (ExamTimer.Instance == null || timerSlot == null) return;
+        // Override del LayoutElement para que coincida con el ancho del stack izquierdo.
+        ExamTimer.Instance.AttachContainerTo(timerSlot, LeftStackW, TimerSlotH);
     }
 
     void BuildSpeedometer()
@@ -150,24 +160,45 @@ public class TopHudRow : MonoBehaviour
         bg.preserveAspect = true;
         bg.raycastTarget = false;
 
-        // Número grande negro centrado en el círculo (anchors en el centro vertical).
+        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
+
+        // Label "MAX" arriba pequeño (~18pt), letterspacing apretado para que se lea
+        // como tag y no compita visualmente con el número.
+        var maxObj = new GameObject("MaxLabel");
+        maxObj.transform.SetParent(go.transform, false);
+        var maxRt = maxObj.AddComponent<RectTransform>();
+        maxRt.anchorMin = new Vector2(0.15f, 0.66f);
+        maxRt.anchorMax = new Vector2(0.85f, 0.86f);
+        maxRt.offsetMin = Vector2.zero;
+        maxRt.offsetMax = Vector2.zero;
+        var maxTmp = maxObj.AddComponent<TextMeshProUGUI>();
+        maxTmp.text = "MAX";
+        maxTmp.fontSize = 18f;
+        maxTmp.fontStyle = FontStyles.Bold;
+        maxTmp.characterSpacing = 4f;
+        maxTmp.alignment = TextAlignmentOptions.Center;
+        maxTmp.verticalAlignment = VerticalAlignmentOptions.Middle;
+        maxTmp.color = Color.black;
+        maxTmp.raycastTarget = false;
+        if (font != null) maxTmp.font = font;
+
+        // Número grande dominante abajo.
         var textObj = new GameObject("LimitText");
         textObj.transform.SetParent(go.transform, false);
         var textRt = textObj.AddComponent<RectTransform>();
-        textRt.anchorMin = new Vector2(0.15f, 0.15f);
-        textRt.anchorMax = new Vector2(0.85f, 0.85f);
+        textRt.anchorMin = new Vector2(0.15f, 0.18f);
+        textRt.anchorMax = new Vector2(0.85f, 0.66f);
         textRt.offsetMin = Vector2.zero;
         textRt.offsetMax = Vector2.zero;
 
         var tmp = textObj.AddComponent<TextMeshProUGUI>();
         tmp.text = "40";
-        tmp.fontSize = 56f;
+        tmp.fontSize = 58f;
         tmp.fontStyle = FontStyles.Bold;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.verticalAlignment = VerticalAlignmentOptions.Middle;
         tmp.color = Color.black;
         tmp.raycastTarget = false;
-        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
         if (font != null) tmp.font = font;
 
         speedLimit = go.AddComponent<SpeedLimitDisplay>();

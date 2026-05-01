@@ -161,9 +161,11 @@ public class ExamTimer : MonoBehaviour
 
     /// <summary>
     /// Reparenta el container del timer al slot del TopHudRow. Si parent es null,
-    /// reattach al ExamTimerCanvas propio (path simétrico para limpieza).
+    /// reattach al ExamTimerCanvas propio (path simétrico para limpieza). Los
+    /// overrides ajustan el LayoutElement cuando el slot del row tiene tamaño
+    /// distinto al default standalone.
     /// </summary>
-    public void AttachContainerTo(RectTransform parent)
+    public void AttachContainerTo(RectTransform parent, float? overrideWidth = null, float? overrideHeight = null)
     {
         if (containerRt == null) return;
 
@@ -176,11 +178,22 @@ public class ExamTimer : MonoBehaviour
             containerRt.pivot = new Vector2(0.5f, 0.5f);
             containerRt.anchoredPosition = Vector2.zero;
             containerRt.sizeDelta = Vector2.zero;
+
+            if (layoutElement != null)
+            {
+                if (overrideWidth.HasValue) layoutElement.preferredWidth = overrideWidth.Value;
+                if (overrideHeight.HasValue) layoutElement.preferredHeight = overrideHeight.Value;
+            }
         }
         else if (canvasGo != null)
         {
             containerRt.SetParent(canvasGo.transform, false);
             ApplyStandaloneLayout(containerRt);
+            if (layoutElement != null)
+            {
+                layoutElement.preferredWidth = SlotWidth;
+                layoutElement.preferredHeight = SlotHeight;
+            }
         }
     }
 

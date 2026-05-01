@@ -68,12 +68,12 @@ public class TopSpeedometerWidget : MonoBehaviour
         var go = new GameObject(name);
         go.transform.SetParent(transform, false);
         var le = go.AddComponent<LayoutElement>();
-        le.preferredWidth = 40f;
-        le.preferredHeight = 80f;
+        le.preferredWidth = 64f;
+        le.preferredHeight = 130f;
         le.flexibleWidth = 0f;
         var tmp = go.AddComponent<TextMeshProUGUI>();
         tmp.text = symbol;
-        tmp.fontSize = 56f;
+        tmp.fontSize = 92f;
         tmp.fontStyle = FontStyles.Bold;
         tmp.color = ArrowColor;
         tmp.alignment = TextAlignmentOptions.Center;
@@ -92,20 +92,20 @@ public class TopSpeedometerWidget : MonoBehaviour
         block.AddComponent<RectTransform>();
         var le = block.AddComponent<LayoutElement>();
         le.preferredWidth = 220f;
-        le.preferredHeight = 90f;
+        le.preferredHeight = 130f;
         le.flexibleWidth = 0f;
 
         // Speed (top)
         var speedGo = new GameObject("Speed");
         speedGo.transform.SetParent(block.transform, false);
         var speedRt = speedGo.AddComponent<RectTransform>();
-        speedRt.anchorMin = new Vector2(0f, 0.32f);
+        speedRt.anchorMin = new Vector2(0f, 0.26f);
         speedRt.anchorMax = new Vector2(1f, 1f);
         speedRt.offsetMin = Vector2.zero;
         speedRt.offsetMax = Vector2.zero;
         speedText = speedGo.AddComponent<TextMeshProUGUI>();
         speedText.text = "0";
-        speedText.fontSize = 60f;
+        speedText.fontSize = 104f;
         speedText.fontStyle = FontStyles.Bold;
         speedText.color = SpeedColor;
         speedText.alignment = TextAlignmentOptions.Center;
@@ -119,12 +119,12 @@ public class TopSpeedometerWidget : MonoBehaviour
         unitGo.transform.SetParent(block.transform, false);
         var unitRt = unitGo.AddComponent<RectTransform>();
         unitRt.anchorMin = new Vector2(0f, 0f);
-        unitRt.anchorMax = new Vector2(1f, 0.32f);
+        unitRt.anchorMax = new Vector2(1f, 0.26f);
         unitRt.offsetMin = Vector2.zero;
         unitRt.offsetMax = Vector2.zero;
         unitText = unitGo.AddComponent<TextMeshProUGUI>();
         unitText.text = "km/h";
-        unitText.fontSize = 20f;
+        unitText.fontSize = 28f;
         unitText.color = new Color(1f, 1f, 1f, 0.75f);
         unitText.alignment = TextAlignmentOptions.Center;
         unitText.verticalAlignment = VerticalAlignmentOptions.Middle;
