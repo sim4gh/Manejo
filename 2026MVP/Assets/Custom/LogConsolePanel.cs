@@ -396,10 +396,11 @@ public class LogConsolePanel : MonoBehaviour
         fRt.anchoredPosition = new Vector2(0, 0);
         footer.AddComponent<Image>().color = COL_BG_HEADER;
 
-        CreateButton(footer.transform, "Limpiar log",            -270, 0, () => logBuffer.Clear());
-        CreateButton(footer.transform, "Reset baseline ejes",     -90, 0, SnapshotBaselines);
-        CreateButton(footer.transform, "Copiar al portapapeles",  120, 0, CopyToClipboard);
-        CreateButton(footer.transform, "Cerrar (Esc · F7)",       330, 0, Close);
+        CreateButton(footer.transform, "Limpiar log",            -440, 0, () => logBuffer.Clear());
+        CreateButton(footer.transform, "Reset baseline ejes",    -220, 0, SnapshotBaselines);
+        CreateButton(footer.transform, "Dump controls",             0, 0, DumpAllControls);
+        CreateButton(footer.transform, "Copiar al portapapeles",  220, 0, CopyToClipboard);
+        CreateButton(footer.transform, "Cerrar (Esc · F7)",       440, 0, Close);
 
         // Content area entre header y footer
         GameObject content = NewChild(card.transform, "Content");
@@ -496,5 +497,53 @@ public class LogConsolePanel : MonoBehaviour
         string clean = Regex.Replace(sb.ToString(), "<.*?>", "");
         GUIUtility.systemCopyBuffer = clean;
         Debug.Log("[LogConsolePanel] Snapshot copiado al portapapeles");
+    }
+
+    // Enumera TODOS los controls de cada device (no solo AxisControl). Útil
+    // cuando un volante expone un pedal como IntegerControl/Vector2Control/
+    // DpadControl y el filtro normal de BuildActiveInputs lo oculta. Output
+    // va a Debug.Log (capturado por LogUploader → S3) y al portapapeles.
+    void DumpAllControls()
+    {
+        var sb = new StringBuilder(16384);
+        sb.Append("=== DUMP ALL CONTROLS ===\n");
+        int totalDevices = 0;
+        int totalControls = 0;
+        foreach (var dev in InputSystem.devices)
+        {
+            totalDevices++;
+            var desc = dev.description;
+            var devSb = new StringBuilder(2048);
+            devSb.Append($"\n[{dev.displayName}]  layout={dev.layout}  id={dev.deviceId}\n");
+            devSb.Append($"  product='{desc.product}'  manufacturer='{desc.manufacturer}'\n");
+            devSb.Append($"  serial='{desc.serial}'  version='{desc.version}'  interface='{desc.interfaceName}'\n");
+            devSb.Append($"  path={dev.path}\n");
+            if (!string.IsNullOrEmpty(desc.capabilities))
+                devSb.Append($"  capabilities={desc.capabilities}\n");
+
+            foreach (var ctrl in dev.allControls)
+            {
+                totalControls++;
+                string rel = GetDeviceRelativePath(ctrl, dev);
+                string typeName = ctrl.GetType().Name;
+                string valueTypeName = ctrl.valueType?.Name ?? "?";
+                string valStr;
+                try { valStr = ctrl.ReadValueAsObject()?.ToString() ?? "null"; }
+                catch (System.Exception e) { valStr = $"<err:{e.GetType().Name}>"; }
+                devSb.Append($"    {rel,-32} type={typeName,-22} valueType={valueTypeName,-12} value={valStr}");
+                if (ctrl.noisy) devSb.Append("  [noisy]");
+                if (ctrl.synthetic) devSb.Append("  [synthetic]");
+                devSb.Append('\n');
+            }
+            string devChunk = devSb.ToString();
+            // Debug.Log un chunk por device — chunks completos sobreviven a
+            // truncados de Editor console y quedan íntegros en LogUploader → S3.
+            Debug.Log("[LogConsolePanel] " + devChunk);
+            sb.Append(devChunk);
+        }
+        sb.Append($"\n=== TOTAL: {totalDevices} devices · {totalControls} controls ===\n");
+        Debug.Log($"[LogConsolePanel] Dump completo: {totalDevices} devices · {totalControls} controls · {sb.Length} chars (también en portapapeles)");
+        try { GUIUtility.systemCopyBuffer = sb.ToString(); }
+        catch (System.Exception e) { Debug.LogWarning($"[LogConsolePanel] No se pudo copiar al portapapeles: {e.Message}"); }
     }
 }
