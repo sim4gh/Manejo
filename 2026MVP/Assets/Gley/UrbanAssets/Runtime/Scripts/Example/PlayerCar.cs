@@ -163,6 +163,17 @@ namespace Gley.UrbanSystem
         [Header("Freno")]
         public float maxBrakeTorque = 3000f;
 
+        [Header("Transmisión Manual")]
+        // Histéresis del clutch: por debajo del engage threshold se considera
+        // acoplado, por encima del disengage está desacoplado. La banda 0.40..0.65
+        // evita chatter por ruido del sensor cerca del umbral. Los valores son
+        // tuneables por escena en el inspector.
+        [Range(0.05f, 0.9f)] public float clutchEngageThreshold = 0.40f;
+        [Range(0.10f, 0.95f)] public float clutchDisengageThreshold = 0.65f;
+        // Estado interno del clutch (sticky). Se evalúa solo en modo manual;
+        // en automático queda forzado en false (no hay clutch).
+        private bool _clutchDisengaged = false;
+
         // Gear actual: 0=N, 1-6, -1=R — leido por SimpleSpeedGauge
         [HideInInspector] public int currentGear = 0;
         [HideInInspector] public bool isAutomaticMode;
@@ -174,6 +185,20 @@ namespace Gley.UrbanSystem
             currentSteeringInput = inputScript.GetHorizontalInput();
             float steering = maxSteeringAngle * currentSteeringInput;
             currentGear = inputScript.GetCurrentGear();
+
+            // Clutch con histéresis: solo afecta motorTorque en modo manual.
+            // En automático, _clutchDisengaged queda fijo en false (no hay
+            // pedal/concept de clutch que aplique).
+            float clutchValue = inputScript.GetClutchInput();
+            if (!isAutomaticMode)
+            {
+                if (_clutchDisengaged && clutchValue < clutchEngageThreshold) _clutchDisengaged = false;
+                else if (!_clutchDisengaged && clutchValue > clutchDisengageThreshold) _clutchDisengaged = true;
+            }
+            else
+            {
+                _clutchDisengaged = false;
+            }
 
 #if UNITY_6000_0_OR_NEWER
             var velocity = rb.linearVelocity;
@@ -190,6 +215,11 @@ namespace Gley.UrbanSystem
                 motorTorque = 0f;
             else // 1-6
                 motorTorque = maxMotorTorque * gasInput;
+
+            // Manual con clutch desacoplado: cortar transmisión de torque al eje
+            // motriz. El motor sigue revolucionando (ver UpdateEngineSound) pero
+            // el coche no avanza.
+            if (_clutchDisengaged) motorTorque = 0f;
 
             // Freno: usa brakeTorque real del WheelCollider
             float brakeTorque = maxBrakeTorque * brakeInputValue;
@@ -353,6 +383,15 @@ namespace Gley.UrbanSystem
             // Modificadores por input
             targetPitch += accelBoost * gasInput;
             targetPitch -= brakeReduction * brakeInput;
+
+            // Manual con clutch desacoplado y gas pisado: el motor "ruge" libre
+            // sin que el coche avance. Usamos Mathf.Max para preservar el modelo
+            // basado en velocidad — solo eleva el pitch cuando aplica, no lo reemplaza.
+            if (_clutchDisengaged && gasInput > 0.05f)
+            {
+                float revPitch = Mathf.Lerp(idlePitch, pitchCeiling, gasInput);
+                targetPitch = Mathf.Max(targetPitch, revPitch);
+            }
 
             // Clamp final para que nunca baje del idle ni se pase del techo + un margen
             targetPitch = Mathf.Clamp(targetPitch, idlePitch, pitchCeiling + accelBoost);
