@@ -50,7 +50,7 @@ namespace Gley.PedestrianSystem.Editor
             _data = new PedestrianWaypointEditorData();
             if (_data.GetAllWaypoints().Length == 0)
             {
-                Debug.LogWarning("Pedestrian Editor Bridge not created. No pedestrian waypoints found in the scene.");
+                //Debug.LogWarning("Pedestrian Editor Bridge not created. No pedestrian waypoints found in the scene.");
                 return;
             }
             else

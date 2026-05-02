@@ -206,7 +206,7 @@ public class ViolationDetector : MonoBehaviour
 
                 if (showDebug)
                 {
-                    Debug.Log($"[SpeedLimit] Changed: {oldLimit} → {currentSpeedLimit} km/h");
+                    //Debug.Log($"[SpeedLimit] Changed: {oldLimit} → {currentSpeedLimit} km/h");
                 }
             }
         }
