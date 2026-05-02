@@ -283,10 +283,14 @@ public class ExamResultsScreen : MonoBehaviour
                 rowBg.raycastTarget = false;
             }
 
+            // Pasivas o eventos con 0 puntos: mostrar "—" en vez de "-0".
+            string ptsLabel = fault.points == 0
+                ? "—"
+                : "-" + Mathf.Abs(fault.points).ToString();
             BuildTableRow(row.transform,
                 FormatTimestamp(fault.timestamp),
                 fault.description,
-                "-" + Mathf.Abs(fault.points).ToString(),
+                ptsLabel,
                 isHeader: false,
                 severity: GetSeverity(fault.eventType),
                 points: fault.points);
@@ -382,7 +386,12 @@ public class ExamResultsScreen : MonoBehaviour
         var all = TelemetryLogger.Instance.data.events;
         for (int i = 0; i < all.Count; i++)
         {
-            if (all[i] != null && all[i].points < 0) result.Add(all[i]);
+            var e = all[i];
+            if (e == null) continue;
+            // Las pasivas se incluyen aunque tengan points==0 — el alumno
+            // sintió el cristal roto/shake/FFB, debe ver la entrada listada
+            // para entender que el sistema lo registró pero no lo penalizó.
+            if (e.points < 0 || e.eventType == "COLISION_PASIVA") result.Add(e);
         }
         return result;
     }
@@ -399,6 +408,11 @@ public class ExamResultsScreen : MonoBehaviour
             case "SENTIDO_CONTRARIO":
             case "CAMBIO_PELIGROSO":
                 return SeverityKind.Major;
+            // Pasiva: badge Minor (amarillo) — visualmente distinto del rojo
+            // de la activa pero sin gritar al alumno por algo que no fue su
+            // falta. El símbolo en la columna Puntos será "—" en vez de "-0".
+            case "COLISION_PASIVA":
+                return SeverityKind.Minor;
             default:
                 return SeverityKind.Minor;
         }
