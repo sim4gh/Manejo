@@ -19,6 +19,8 @@ public class ViolationDetector : MonoBehaviour
     public int pedestrianPenalty = 25;
     public int bicycleCollisionPenalty = 15;
     public int vehicleCollisionPenalty = 10;
+    [Tooltip("Colisión vehicular pasiva (NPC embistió al alumno por atrás). Default 0: no penaliza, solo se registra para que el examinador la vea.")]
+    public int passiveVehicleCollisionPenalty = 0;
     public int signCollisionPenalty = 5;
     public int obstacleCollisionPenalty = 5;
     public int dangerousGearChangePenalty = 20;
@@ -28,6 +30,10 @@ public class ViolationDetector : MonoBehaviour
     public int gearChangeWithoutClutchPenalty = 5;
     [Tooltip("Cooldown (s) solo para la penalización de rechino. El audio NO tiene cooldown — siempre suena. Evita -25 en cascada cuando el examinado practica.")]
     public float gearGrindCooldown = 3f;
+
+    [Header("Vehicle geometry")]
+    [Tooltip("Medio largo del vehículo en metros (espacio local). Sedán ~2.0, SUV ~2.3, ambulancia ~2.7, camión ~4.5, bus ~5.0, moto ~1.0. Configurable por prefab — Collider.bounds está en world space y no sirve para clasificar impacto trasero cuando el carro gira.")]
+    public float vehicleHalfLength = 2.0f;
 
     [Header("Current State (Read Only)")]
     public float currentSpeedLimit = 40f;
@@ -47,11 +53,52 @@ public class ViolationDetector : MonoBehaviour
     private float lastSpeedingTime = -999f;
     private const float SPEEDING_COOLDOWN = 5f;
 
-    // Collision cooldown — previene spam de ragdoll y objetos repetidos
-    private float lastCollisionTime = -999f;
+    // Collision cooldown — previene spam de ragdoll y objetos repetidos.
+    // Separamos activa/pasiva para que una activa real no se trague justo
+    // después de una pasiva (cadena: te embisten y rebotas contra el de
+    // adelante, ambos eventos deben registrarse).
+    private float lastActiveCollisionTime = -999f;
+    private float lastPassiveCollisionTime = -999f;
     private int lastCollisionRootId = -1;
-    private const float COLLISION_COOLDOWN = 3f;
+    private const float COLLISION_COOLDOWN_SAME = 3f;
+    private const float COLLISION_COOLDOWN_CROSS = 1f;
     private const float MIN_COLLISION_SPEED = 3f;
+
+    /// <summary>Resultado de clasificar una colisión vehicular.</summary>
+    public enum VehicleCollisionKind { Active, Passive }
+
+    /// <summary>
+    /// Heurística pura: ¿el alumno chocó (Active) o lo embistieron (Passive)?
+    /// Aislada como método estático para testear sin escena Unity.
+    ///
+    /// Pasiva = todas estas condiciones a la vez:
+    ///   1) El golpe entró por la defensa trasera (z local &lt; -halfLen·0.6).
+    ///   2) El otro se acercaba al alumno por atrás (relativeVelocity en
+    ///      forward local positiva &gt; closingThreshold).
+    ///   3) El otro venía con velocidad real (descarta empujones a 0 km/h).
+    ///   4) El otro iba más rápido que el alumno (cierre dominado por el NPC).
+    ///
+    /// `relLocal.z` se calcula con `transform.InverseTransformDirection(
+    /// collision.relativeVelocity)`. El signo se valida empíricamente en el
+    /// primer test manual — si Unity invierte el convenio, basta cambiar
+    /// `closingThreshold` por su negativo en el caller.
+    /// </summary>
+    public static VehicleCollisionKind ClassifyVehicleCollision(
+        Vector3 localPoint,
+        Vector3 relLocal,
+        float halfLen,
+        float playerSpeedKmh,
+        float npcSpeedKmh,
+        float closingThreshold = 3f)
+    {
+        bool rearImpact = localPoint.z < -halfLen * 0.6f;
+        bool closingFromBehind = relLocal.z > closingThreshold;
+        bool isPassive = rearImpact
+                      && closingFromBehind
+                      && npcSpeedKmh > 5f
+                      && npcSpeedKmh > playerSpeedKmh + 3f;
+        return isPassive ? VehicleCollisionKind.Passive : VehicleCollisionKind.Active;
+    }
 
     // RCCP integration
     private Component rccpController;
@@ -253,17 +300,17 @@ public class ViolationDetector : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        // No penalizar si estamos parados (tráfico AI nos chocó)
+        // Velocidades de ambos lados antes del guard. Si solo el alumno está
+        // parado pero un NPC viene corriendo, sí queremos clasificar (es la
+        // queja: "me chocan por atrás cuando estoy en alto").
         float speed = GetSpeed();
-        if (speed < MIN_COLLISION_SPEED) return;
-
-        // Cooldown global: ignorar colisiones por 3s después de la última penalización
-        if (Time.time - lastCollisionTime < COLLISION_COOLDOWN) return;
+        Rigidbody otherRb = collision.rigidbody;  // ya retorna attachedRigidbody (compound colliders OK)
+        float npcSpeedKmh = otherRb != null ? otherRb.linearVelocity.magnitude * 3.6f : 0f;
+        if (speed < MIN_COLLISION_SPEED && npcSpeedKmh < MIN_COLLISION_SPEED) return;
 
         // Deduplicar por objeto raíz (ragdoll: Shin.R, Arm.L, Hips → mismo peatón)
         Transform root = collision.transform.root;
         int rootId = root.GetInstanceID();
-        if (rootId == lastCollisionRootId && Time.time - lastCollisionTime < COLLISION_COOLDOWN) return;
 
         string displayName = GetCollisionDisplayName(collision);
         GameObject rootObj = root.gameObject;
@@ -281,6 +328,38 @@ public class ViolationDetector : MonoBehaviour
         if (!isBicycle) isBicycle = direct.CompareTag("Bicicleta");
         if (!isVehicle) isVehicle = direct.CompareTag("automovil") || direct.layer == LayerMask.NameToLayer("RCCP_Vehicle");
         if (!isSign) isSign = direct.CompareTag("Senalamiento");
+
+        // Clasificar activa/pasiva SOLO para colisiones vehiculares. Las demás
+        // (peatón, bici, señal, obstáculo) son siempre culpa del alumno.
+        bool isPassive = false;
+        if (isVehicle)
+        {
+            // Punto de contacto MÁS TRASERO en espacio local del player.
+            // GetContact(0) en colisiones multipunto puede agarrar un lateral
+            // aunque la energía dominante venga de atrás — iteramos todos.
+            Vector3 localPoint = Vector3.zero;
+            float minZ = float.PositiveInfinity;
+            int contactCount = collision.contactCount;
+            for (int i = 0; i < contactCount; i++)
+            {
+                Vector3 p = transform.InverseTransformPoint(collision.GetContact(i).point);
+                if (p.z < minZ) { minZ = p.z; localPoint = p; }
+            }
+            Vector3 relLocal = transform.InverseTransformDirection(collision.relativeVelocity);
+            isPassive = ClassifyVehicleCollision(localPoint, relLocal, vehicleHalfLength, speed, npcSpeedKmh)
+                        == VehicleCollisionKind.Passive;
+        }
+
+        // Cooldown adaptativo: 3s mismo tipo, 1s cruzado.
+        // Una pasiva no debe tragarse una activa real que venga inmediatamente
+        // después (cadena de colisiones por inercia).
+        float now = Time.time;
+        float lastSame = isPassive ? lastPassiveCollisionTime : lastActiveCollisionTime;
+        float lastOther = isPassive ? lastActiveCollisionTime : lastPassiveCollisionTime;
+        if (now - lastSame < COLLISION_COOLDOWN_SAME) return;
+        if (now - lastOther < COLLISION_COOLDOWN_CROSS) return;
+        // Dedupe por objeto raíz dentro del mismo tipo
+        if (rootId == lastCollisionRootId && now - lastSame < COLLISION_COOLDOWN_SAME) return;
 
         string violationType;
         if (isPedestrian)
@@ -305,13 +384,28 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (isVehicle)
         {
-            violationType = "Vehicle";
-            DeductScore(vehicleCollisionPenalty);
-            NotificationManager.Instance?.ShowNotification(
-                $"-{vehicleCollisionPenalty} ¡COLISIÓN VEHICULAR!", Color.red);
-            TelemetryLogger.Instance?.LogEvent(
-                "COLISION_VEHICULO", $"Colisión con vehículo ({displayName})",
-                -vehicleCollisionPenalty, speed);
+            if (isPassive)
+            {
+                violationType = "VehiclePassive";
+                if (passiveVehicleCollisionPenalty > 0) DeductScore(passiveVehicleCollisionPenalty);
+                NotificationManager.Instance?.ShowNotification(
+                    $"Te impactó otro vehículo ({displayName})",
+                    new Color(0.4f, 0.7f, 1f));  // azul informativo
+                TelemetryLogger.Instance?.LogEvent(
+                    "COLISION_PASIVA",
+                    $"Otro vehículo impactó al alumno por atrás ({displayName})",
+                    -passiveVehicleCollisionPenalty, speed);
+            }
+            else
+            {
+                violationType = "Vehicle";
+                DeductScore(vehicleCollisionPenalty);
+                NotificationManager.Instance?.ShowNotification(
+                    $"-{vehicleCollisionPenalty} ¡COLISIÓN VEHICULAR!", Color.red);
+                TelemetryLogger.Instance?.LogEvent(
+                    "COLISION_VEHICULO", $"Colisión con vehículo ({displayName})",
+                    -vehicleCollisionPenalty, speed);
+            }
         }
         else if (isSign)
         {
@@ -342,13 +436,16 @@ public class ViolationDetector : MonoBehaviour
             return; // No fue penalizado, no activar cooldown
         }
 
-        // Registrar cooldown
-        lastCollisionTime = Time.time;
+        // Registrar cooldown del tipo apropiado
+        if (isPassive) lastPassiveCollisionTime = now;
+        else lastActiveCollisionTime = now;
         lastCollisionRootId = rootId;
 
         // Disparar evento para CollisionFeedback (overlay/shake/flash/audio/FFB).
         // Magnitud del impulso vía Unity Physics; lateral en espacio local del vehículo
         // determina dirección del golpe direccional al volante (G923).
+        // Las pasivas también disparan feedback — el alumno DEBE sentir el golpe
+        // aunque no haya descuento (es la queja sensorial que motivó la feature).
         try
         {
             float impulseMag = collision.impulse.magnitude;

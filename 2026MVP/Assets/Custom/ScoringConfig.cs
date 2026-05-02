@@ -18,6 +18,11 @@ public class ScoringConfig : MonoBehaviour
         public int pedestrianHit = 25;
         public int bicycleCollision = 15;
         public int vehicleCollision = 10;
+        // Colisión vehicular pasiva: NPC embistió al alumno por atrás.
+        // Default 0 (no penaliza, solo se registra). El examinador puede
+        // subirlo desde /admin/scoring sin redeploy si en producción se
+        // decide cobrar manejo defensivo pobre.
+        public int passiveVehicleCollision = 0;
         public int signCollision = 5;
         public int obstacleCollision = 5;
         public int redLight = 20;
@@ -159,6 +164,7 @@ public class ScoringConfig : MonoBehaviour
             vd.pedestrianPenalty = data.penalties.pedestrianHit;
             vd.bicycleCollisionPenalty = data.penalties.bicycleCollision;
             vd.vehicleCollisionPenalty = data.penalties.vehicleCollision;
+            vd.passiveVehicleCollisionPenalty = data.penalties.passiveVehicleCollision;
             vd.signCollisionPenalty = data.penalties.signCollision;
             vd.obstacleCollisionPenalty = data.penalties.obstacleCollision;
             vd.dangerousGearChangePenalty = data.penalties.dangerousGearChange;

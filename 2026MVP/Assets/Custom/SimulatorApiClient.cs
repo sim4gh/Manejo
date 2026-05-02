@@ -212,6 +212,9 @@ public static class SimulatorApiClient
             case "ATROPELLO": return "pedestrian-hit";
             case "COLISION_BICICLETA": return "bicycle-collision";
             case "COLISION_VEHICULO": return "vehicle-collision";
+            // NO renombrar vehicle-collision → active-vehicle-collision: trámites
+            // históricos en DynamoDB ya tienen "vehicle-collision" como activa.
+            case "COLISION_PASIVA": return "passive-vehicle-collision";
             case "COLISION_SENALAMIENTO": return "sign-collision";
             case "COLISION_OBSTACULO": return "obstacle-collision";
             case "COLISION": return "collision";
@@ -234,6 +237,9 @@ public static class SimulatorApiClient
             case "COLISION":
             case "SEMAFORO_ROJO":
             case "SENTIDO_CONTRARIO": return "major";
+            // Pasiva: el alumno no la causó. La marcamos "info" para que el
+            // portal admin la pinte distinto (badge azul, no rojo).
+            case "COLISION_PASIVA": return "info";
             case "COLISION_SENALAMIENTO":
             case "COLISION_OBSTACULO":
             case "VELOCIDAD":
