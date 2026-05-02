@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.VisualScripting;
 using UnityEngine;
 public class ParadaManager : MonoBehaviour
 {
@@ -7,24 +8,32 @@ public class ParadaManager : MonoBehaviour
     private bool _colaActiva = false;
     private bool _bajadaActiva = false;
     public string NumParada;
-    public SimpleSpeedGauge movimientoCarro;
+    public TopSpeedometerWidget movimientoCarro;
     public bool _Estacionado = false;
     public float tiempo = 0;
     public bool  aumenta = false;
 
     public void Start()
     {
+        
         foreach (Transform pasajeros in transform)
         {
             Pasajero pasaje = pasajeros.GetComponent<Pasajero>();
             pasajero.Add(pasaje);
         }
     }
+
+    
     public void OnTriggerStay(Collider other)
     {
         if (!other.CompareTag("puerta")) return;
 
-        bool carroDetenido = movimientoCarro.velocidadActual == "0";
+        if (movimientoCarro == null)
+        {
+            movimientoCarro = GameObject.Find("Speedometer").GetComponent<TopSpeedometerWidget>();
+        }
+
+        bool carroDetenido = movimientoCarro.speedText.text =="0";
 
         if (!carroDetenido)
         {

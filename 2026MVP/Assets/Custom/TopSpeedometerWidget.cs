@@ -18,7 +18,7 @@ public class TopSpeedometerWidget : MonoBehaviour
     private static readonly Color SpeedColor = new Color(0.2f, 0.9f, 0.9f, 1f);
 
     private TextMeshProUGUI leftArrow;
-    private TextMeshProUGUI speedText;
+    public TextMeshProUGUI speedText;
     private TextMeshProUGUI unitText;
     private TextMeshProUGUI rightArrow;
     private Image bg;
