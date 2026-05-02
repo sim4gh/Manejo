@@ -3,10 +3,22 @@ using UnityEngine.Networking;
 using System.Collections;
 using System.IO;
 using System.Security.Cryptography;
+using System.Threading.Tasks;
 
 public class AutoUpdater : MonoBehaviour
 {
     public static AutoUpdater Instance { get; private set; }
+
+    // Tope local de intentos por versión. Mismo que el límite del backend
+    // (simulator-update-status.ts ABANDON_THRESHOLD = 3). Cualquiera de los
+    // dos detiene primero — convergente. Cubre el caso de red caída donde
+    // los reports de FAILED nunca llegan al backend.
+    const int MAX_LOCAL_ATTEMPTS = 3;
+
+    // PlayerPrefs keys
+    const string ATTEMPT_KEY_PREFIX = "Update_LocalAttempts_";   // + version
+    const string LAST_ATTEMPTED_VERSION_KEY = "Update_LastAttemptedVersion";
+    const string ATTEMPT_VERSIONS_INDEX_KEY = "Update_AttemptVersionsIndex"; // CSV de versiones con counter
 
     // ── Estado público ────────────────────────────────────────────────
     public bool UpdateAvailable { get; private set; }
@@ -21,6 +33,7 @@ public class AutoUpdater : MonoBehaviour
     private string downloadedZipPath;
     private bool isDownloading;
     private bool isProcessing;
+    private bool _localAttemptBumpedThisSession;
 
     void Awake()
     {
@@ -38,6 +51,17 @@ public class AutoUpdater : MonoBehaviour
     void Start()
     {
         CleanupOldUpdates();
+
+        // Si la versión que está corriendo coincide con la última que intentamos
+        // instalar, el OTA tuvo éxito — limpiar todos los counters locales y el
+        // índice. Esto cierra el ciclo: counters solo persisten si el install
+        // realmente nunca se completó.
+        string lastAttempted = PlayerPrefs.GetString(LAST_ATTEMPTED_VERSION_KEY, "");
+        if (!string.IsNullOrEmpty(lastAttempted) && lastAttempted == Application.version)
+        {
+            Debug.Log($"[AutoUpdater] Install OK detectado (Application.version={Application.version} = lastAttempted). Limpiando contadores.");
+            ClearAttemptCounters();
+        }
     }
 
     public void ProcessPendingUpdate(SimulatorApiClient.PendingUpdateData data)
@@ -52,13 +76,43 @@ public class AutoUpdater : MonoBehaviour
         ReleaseNotes = data.releaseNotes;
         CurrentStatus = data.status;
 
+        // Crash recovery: si la última versión intentada coincide con la pendiente
+        // y este boot es la primera vez que entramos a ProcessPendingUpdate para esta
+        // versión, asumir que un intento previo crasheó (Unity murió antes de reportar
+        // FAILED) y bumpear el contador local. Cubre el case "kiosko crashea durante
+        // descarga → backend nunca recibe FAILED → contador remoto no sube".
+        string lastAttemptedVer = PlayerPrefs.GetString(LAST_ATTEMPTED_VERSION_KEY, "");
+        string attemptKey = ATTEMPT_KEY_PREFIX + data.version;
+
+        if (!_localAttemptBumpedThisSession
+            && lastAttemptedVer == data.version
+            && data.status != "DOWNLOADED" && data.status != "INSTALLED")
+        {
+            int prev = PlayerPrefs.GetInt(attemptKey, 0);
+            PlayerPrefs.SetInt(attemptKey, prev + 1);
+            RememberAttemptVersion(data.version);
+            _localAttemptBumpedThisSession = true;
+            Debug.Log($"[AutoUpdater] Crash recovery: bumpeando contador local de v{data.version} a {prev + 1}");
+        }
+
+        int localAttempts = PlayerPrefs.GetInt(attemptKey, 0);
+        if (localAttempts >= MAX_LOCAL_ATTEMPTS)
+        {
+            Debug.LogWarning($"[AutoUpdater] v{data.version} abandonada localmente tras {localAttempts} intentos. " +
+                "Sube versión nueva para reintentar.");
+            return;
+        }
+
         if (data.status == "PENDING" || data.status == "FAILED"
             || data.status == "DOWNLOADING" || data.status == "DOWNLOADED"
             || data.status == "INSTALLING")
         {
             if (IsScheduledTimeReached(data.scheduledAfter))
             {
-                Debug.Log($"[AutoUpdater] Update v{data.version} programado, iniciando descarga...");
+                Debug.Log($"[AutoUpdater] Update v{data.version} programado, iniciando descarga (intento {localAttempts + 1}/{MAX_LOCAL_ATTEMPTS})...");
+                PlayerPrefs.SetString(LAST_ATTEMPTED_VERSION_KEY, data.version);
+                RememberAttemptVersion(data.version);
+                PlayerPrefs.Save();
                 isDownloading = true;
                 isProcessing = true;
                 StartCoroutine(RequestAndDownload());
@@ -68,6 +122,39 @@ public class AutoUpdater : MonoBehaviour
                 Debug.Log($"[AutoUpdater] Update v{data.version} pendiente, esperando horario: {data.scheduledAfter}");
             }
         }
+    }
+
+    /// <summary>Registra una versión en el índice CSV para poder limpiar todas las keys de intentos al instalar exitosamente.</summary>
+    void RememberAttemptVersion(string version)
+    {
+        string idx = PlayerPrefs.GetString(ATTEMPT_VERSIONS_INDEX_KEY, "");
+        if (string.IsNullOrEmpty(idx))
+        {
+            PlayerPrefs.SetString(ATTEMPT_VERSIONS_INDEX_KEY, version);
+            return;
+        }
+        foreach (var v in idx.Split(','))
+        {
+            if (v == version) return;
+        }
+        PlayerPrefs.SetString(ATTEMPT_VERSIONS_INDEX_KEY, idx + "," + version);
+    }
+
+    /// <summary>Limpia todas las keys de attempt counters + last attempted version. Llamar tras install exitoso.</summary>
+    void ClearAttemptCounters()
+    {
+        string idx = PlayerPrefs.GetString(ATTEMPT_VERSIONS_INDEX_KEY, "");
+        if (!string.IsNullOrEmpty(idx))
+        {
+            foreach (var v in idx.Split(','))
+            {
+                if (!string.IsNullOrEmpty(v))
+                    PlayerPrefs.DeleteKey(ATTEMPT_KEY_PREFIX + v);
+            }
+        }
+        PlayerPrefs.DeleteKey(ATTEMPT_VERSIONS_INDEX_KEY);
+        PlayerPrefs.DeleteKey(LAST_ATTEMPTED_VERSION_KEY);
+        PlayerPrefs.Save();
     }
 
     bool IsScheduledTimeReached(string scheduledAfter)
@@ -89,6 +176,20 @@ public class AutoUpdater : MonoBehaviour
         CurrentStatus = "FAILED";
         isDownloading = false;
         isProcessing = false;
+
+        // Incrementar contador local. Con crash recovery, ya pudo haberse incrementado
+        // al inicio de la sesión — _localAttemptBumpedThisSession lo evita.
+        if (!_localAttemptBumpedThisSession && !string.IsNullOrEmpty(pendingData?.version))
+        {
+            string attemptKey = ATTEMPT_KEY_PREFIX + pendingData.version;
+            int prev = PlayerPrefs.GetInt(attemptKey, 0);
+            PlayerPrefs.SetInt(attemptKey, prev + 1);
+            RememberAttemptVersion(pendingData.version);
+            PlayerPrefs.Save();
+            _localAttemptBumpedThisSession = true;
+            Debug.Log($"[AutoUpdater] Contador local v{pendingData.version}: {prev + 1}/{MAX_LOCAL_ATTEMPTS}");
+        }
+
         StartCoroutine(SimulatorApiClient.ReportUpdateStatus("FAILED", reason, pendingData?.version, null));
     }
 
@@ -146,27 +247,29 @@ public class AutoUpdater : MonoBehaviour
         downloadedZipPath = Path.Combine(tempDir, $"{Application.productName}-v{pendingData.version}.zip");
 
         // Si ya existe el archivo (descarga previa), verificar hash
+        // SHA256 corre en thread pool (Task.Run) — sin bloquear main thread.
+        // Para un ZIP de ~600MB esto evita un freeze de 5-15s al 99% CPU.
         bool existingZipValid = false;
         if (File.Exists(downloadedZipPath))
         {
-            try
+            var hashTask = Task.Run(() => ComputeFileSHA256(downloadedZipPath));
+            while (!hashTask.IsCompleted) yield return null;
+
+            if (hashTask.IsFaulted)
             {
-                string existingHash = ComputeFileSHA256(downloadedZipPath);
-                if (existingHash == urlResponse.sha256)
-                {
-                    Debug.Log("[AutoUpdater] ZIP ya descargado y verificado previamente");
-                    UpdateDownloaded = true;
-                    DownloadProgress = 1f;
-                    existingZipValid = true;
-                }
-                else
-                {
-                    File.Delete(downloadedZipPath);
-                }
+                var hashErr = hashTask.Exception?.InnerException ?? hashTask.Exception;
+                Debug.LogWarning($"[AutoUpdater] Error verificando ZIP existente: {hashErr?.Message}");
+                try { File.Delete(downloadedZipPath); } catch { }
             }
-            catch (System.Exception e)
+            else if (hashTask.Result == urlResponse.sha256)
             {
-                Debug.LogWarning($"[AutoUpdater] Error verificando ZIP existente: {e.Message}");
+                Debug.Log("[AutoUpdater] ZIP ya descargado y verificado previamente");
+                UpdateDownloaded = true;
+                DownloadProgress = 1f;
+                existingZipValid = true;
+            }
+            else
+            {
                 try { File.Delete(downloadedZipPath); } catch { }
             }
         }
@@ -218,16 +321,18 @@ public class AutoUpdater : MonoBehaviour
     {
         Debug.Log("[AutoUpdater] Verificando SHA256...");
 
-        string actualHash = null;
-        try
+        // SHA256 en thread pool para no bloquear main thread (~5-15s sobre ZIP de 600MB).
+        var hashTask = Task.Run(() => ComputeFileSHA256(downloadedZipPath));
+        while (!hashTask.IsCompleted) yield return null;
+
+        if (hashTask.IsFaulted)
         {
-            actualHash = ComputeFileSHA256(downloadedZipPath);
+            var hashErr = hashTask.Exception?.InnerException ?? hashTask.Exception;
+            FailUpdate($"Error calculando SHA256: {hashErr?.Message}");
+            yield break;
         }
-        catch (System.Exception e)
-        {
-            FailUpdate($"Error calculando SHA256: {e.Message}");
-        }
-        if (actualHash == null) yield break;
+
+        string actualHash = hashTask.Result;
 
         if (actualHash != expectedSha256)
         {
