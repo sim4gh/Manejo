@@ -481,22 +481,29 @@ exit
             yield break;
         }
 
-        // Unblock-File on the bat itself — WDAC may flag it as web-downloaded
-        try
+        // Unblock-File on the bat itself — WDAC may flag it as web-downloaded.
+        // Worker thread para no bloquear main thread (PowerShell cold start ~1s).
+        // Profile de Jason mostraba 1031ms self-time aquí — freeze visible en kiosko.
+        string psBatPath = batPath.Replace("'", "''");
+        var unblockTask = Task.Run(() =>
         {
-            var unblock = new System.Diagnostics.ProcessStartInfo
+            try
             {
-                FileName = "powershell",
-                Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"Unblock-File -Path '{batPath.Replace("'", "''")}'\"",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-            };
-            System.Diagnostics.Process.Start(unblock)?.WaitForExit(5000);
-        }
-        catch (System.Exception e)
-        {
-            Debug.LogWarning($"[AutoUpdater] Unblock-File falló (no fatal): {e.Message}");
-        }
+                var unblock = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "powershell",
+                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command \"Unblock-File -Path '{psBatPath}'\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                };
+                System.Diagnostics.Process.Start(unblock)?.WaitForExit(5000);
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning($"[AutoUpdater] Unblock-File falló (no fatal): {e.Message}");
+            }
+        });
+        while (!unblockTask.IsCompleted) yield return null;
 
         Debug.Log($"[AutoUpdater] Batch escrito en: {batPath}");
 
