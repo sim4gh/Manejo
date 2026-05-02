@@ -118,7 +118,7 @@ Coroutines usan `Time.unscaledDeltaTime` para que feedback siga animándose si l
 
 Sistema de clima aleatorio (Sol / Lluvia / Granizo). Singleton bootstrapped (`AfterSceneLoad`) que activa/desactiva los GO `LLuvia` y `Granizo` preexistentes en cada escena según `PlayerPrefs.GetInt("Clima")`. Sorteo + override demo codes en `MenuScreenManager.PickAndSetWeather`.
 
-Ver [`WEATHER_SYSTEM.md`](WEATHER_SYSTEM.md) para arquitectura completa, gotchas (`size3D`, `AfterSceneLoad`, `rateOverTimeMultiplier`), demo codes `TTTXY` y TODOs.
+Ver [`WEATHER_SYSTEM.md`](WEATHER_SYSTEM.md) para arquitectura completa, gotchas (`size3D`, `AfterSceneLoad`, `rateOverTimeMultiplier`), demo codes `TTTTXY` y TODOs.
 
 ### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
 
@@ -139,6 +139,17 @@ Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Hardened e
 - `ReportUpdateStatus` incluye `version` en body — backend ignora reports de rollouts viejos.
 - Bat sin `enabledelayedexpansion` (rompe paths con `!`). Usa `if errorlevel 1` + `goto fail`.
 - Paths normalizados (`/` → `\`) y escapados (`%` → `%%` para bat, `'` → `''` para PowerShell).
+
+**Cap a 3 intentos + alerta (may-02 2026, commits `3201fc43`/`23a6acbd`):**
+- **Backend autoritativo**: `pendingUpdate.attemptCount` se incrementa solo en transición a FAILED (idempotente). `simulator-request-update` retorna 409 si ≥ 3. `simulator-heartbeat` filtra `pendingUpdate` del response cuando abandonada (no borra de DB). Recovery natural via subir versión nueva (replace completo de `pendingUpdate` map).
+- **Cliente defensivo**: PlayerPrefs `Update_LocalAttempts_{version}` + `Update_LastAttemptedVersion`. Crash recovery en `ProcessPendingUpdate`: si la versión pendiente coincide con la última intentada, asume que el intento previo crasheó y bumpea el counter (flag `_localAttemptBumpedThisSession` previene doble-bump). Si llega a 3 local, return early. Cleanup automático en `Start()` cuando `Application.version == LastAttemptedVersion`.
+- **Alerta**: métrica CloudWatch `UnityBuildAbandoned` (sin dimensions), alarma `licencias-{env}-unity-build-abandoned` threshold ≥1 en 5min → email + SMS via notifier existente (P1 default por estado ALARM). Log estructurado con pcId/version.
+- **UI admin**: badge gris "Abandonada" + indicador `× N` en `/admin/simuladores/pcs`.
+
+**Main thread fixes (may-02 2026, commits `3201fc43`/`23a6acbd`):**
+- `ComputeFileSHA256` en `OnDownloadComplete` y validación de ZIP existente: corre en `Task.Run` (worker thread). Antes bloqueaba 5-15s al 99% CPU sobre ZIP de 600MB.
+- `Process.Start(powershell)+WaitForExit(5000)` para Unblock-File del bat: corre en `Task.Run`. Antes bloqueaba ~1s (PowerShell cold start). Profile de Jason mostraba 1031ms self-time aquí.
+- Patrón canónico: `var task = Task.Run(...); while (!task.IsCompleted) yield return null; if (task.IsFaulted) ...`. `Debug.LogWarning` desde worker thread es safe (Unity rutea por `Application.logMessageReceivedThreaded`).
 
 **Logs locales:** `<appDir>\install.log` con timestamps de cada step — primer lugar a mirar si un install falla.
 
@@ -208,16 +219,15 @@ El menu principal (`Assets/Custom/Menu/MenuScreenManager.cs`) se auto-adjunta al
 
 ### Pantalla 0 — Verificacion (QR o codigo manual)
 - **QR**: POST `/kiosk/sessions` → genera QR → poll cada 10s → al verificarse obtiene `tramiteId`, `citizenName`, `licenseType`
-- **Codigo manual**: Input "TLX-XXXXXX" → GET `/simulator/lookup?code={code}` → misma info
-- **Demo codes** (5 digitos, normalizados con `.Trim().ToUpper()`):
-  - **Primeros 4 digitos = tipo de licencia/vehiculo**, **5° digito = ubicacion de spawn (0..5)**.
-  - `0000X` → `TLX-DEMO00000` "Demo Automovil" `particular` (abre Pantalla 1 de seleccion de modelo)
-  - `1111X` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
-  - `2222X` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
-  - `3333X` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
-  - `4444X` → `TLX-DEMO44444` "Demo Ambulancia" `emergencia` (escena `Ambulancia`)
-  - **Sufijo X**: `1..5` = waypoint Gley fijo (ver `SpawnLocationManager.DEFAULT_WAYPOINTS`), `0` = aleatorio entre los 5. Cualquier otro digito (`6..9`) cae al flujo backend normal.
-  - Compat: `11111` sigue valido (= zona 1), `22222`, etc.
+- **Codigo manual**: Input "TLX-NNNNNN" (6 digitos numericos) → GET `/simulator/lookup?code={code}` → misma info. El backend reconstruye `tramiteId = 'TLX-' + code` y consulta por primary key.
+- **Demo codes** (6 digitos, formato `TTTTXY`, normalizados con `.Trim().ToUpper()`):
+  - **Primeros 4 digitos = tipo de licencia/vehiculo**, **5° digito = override de clima (0=sol, 1=lluvia, 2=granizo; 3-9 = random ponderado)**, **6° digito = ubicacion de spawn (0..5)**.
+  - `0000XY` → `TLX-DEMO00000` "Demo Automovil" `particular` (abre Pantalla 1 de seleccion de modelo)
+  - `1111XY` → `TLX-DEMO11111` "Demo Pasajeros" `publico` (escena `BusPasajeros`)
+  - `2222XY` → `TLX-DEMO22222` "Demo Moto" `motocicleta` (escena `Motocicleta`)
+  - `3333XY` → `TLX-DEMO33333` "Demo Carga" `carga` (escena `CamionDCarga`)
+  - `4444XY` → `TLX-DEMO44444` "Demo Ambulancia" `emergencia` (escena `Ambulancia`)
+  - **Sufijo Y**: `1..5` = waypoint Gley fijo (ver `SpawnLocationManager.DEFAULT_WAYPOINTS`), `0` = aleatorio entre los 5. Cualquier otro digito (`6..9`) cae al flujo backend normal.
 
 ### Spawn por sufijo (ubicaciones en la ciudad)
 

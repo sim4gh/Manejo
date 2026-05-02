@@ -49,15 +49,15 @@ WEATHER_WEIGHT_HAIL   = 0.00f   // pendiente validar visualmente antes de subirl
 
 ### Demo codes con override de clima
 
-Formato `TTTXY` (5 dígitos):
-- `TTT` = 3 dígitos repetidos del tipo: `000` particular, `111` pasajeros, `222` moto, `333` carga, `444` ambulancia.
+Formato `TTTTXY` (6 dígitos):
+- `TTTT` = 4 dígitos repetidos del tipo: `0000` particular, `1111` pasajeros, `2222` moto, `3333` carga, `4444` ambulancia.
 - `X∈{0,1,2}` = override de clima (0=sol, 1=lluvia, 2=granizo). Otro valor → sortea random ponderado.
 - `Y∈{0..5}` = ubicación (0=random, 1..5=waypoint fijo).
 
-**Compat con códigos legacy** `TTTTY` (4 dígitos repetidos del tipo + ubicación):
-- `00000` → particular sol ubicación 0 (mismo resultado que antes, porque 4to dígito `0` = sol).
-- `11111` → ahora **pasajeros lluvia ubicación 1** (antes era pasajeros random ubicación 1). Cambio intencional, parte del feature.
-- Idem para `22222`, `33333`, `44444`.
+Ejemplos:
+- `000000` → particular sol, ubicación random.
+- `111121` → pasajeros granizo, ubicación 1.
+- `222295` → moto random ponderado, ubicación 5.
 
 ## Gotchas (NO repetir)
 
@@ -96,14 +96,14 @@ Llamar `Clear()` justo después de `SetActive(true)` interrumpe la emisión inic
 | Path | Rol |
 |---|---|
 | `Assets/Custom/WeatherManager.cs` | Singleton orchestrator |
-| `Assets/Custom/Menu/MenuScreenManager.cs` | Sorteo `PickAndSetWeather`, parser demo codes `TTTXY` |
+| `Assets/Custom/Menu/MenuScreenManager.cs` | Sorteo `PickAndSetWeather`, parser demo codes `TTTTXY` |
 | `Assets/Resources/Custom/Weather/RainLoop.wav` | Audio clip (lluvia y granizo) |
 | `Assets/Custom/Weather/` | Folder reservado (sin archivos tras refactor; tiene `.meta` con GUID válido — no borrar) |
 | `Assets/pruebas general/CargoLluviaLoader.cs` | Sistema anterior, marcado `[Obsolete]`, no-op transicional. **TODO** borrar tras limpiar componentes huérfanos en las 6 escenas. |
 
 ## Pendiente para próximo iter
 
-- **Subir granizo al sorteo random**: cambiar pesos en `MenuScreenManager.PickAndSetWeather` (60/40/0 → 40/30/30) tras validar visualmente que se ve bien en las 6 escenas con `TTT2Y`.
+- **Subir granizo al sorteo random**: cambiar pesos en `MenuScreenManager.PickAndSetWeather` (60/40/0 → 40/30/30) tras validar visualmente que se ve bien en las 6 escenas con `TTTT2Y`.
 - **Validar/mejorar lluvia ligera del granizo**: actualmente el código activa el GO LLuvia con rate × 0.3 pero en pruebas no era visible. Posible que en escenas con 2 instancias (BusPasajeros, CamionDCarga, Ambulancia) sí aparezca. Investigar.
 - **Limpiar `CargoLluviaLoader`**: abrir las 6 escenas en Unity Editor, eliminar el componente huérfano, después borrar el `.cs`.
 - **Migrar logging a `Clima`**: actualizar `LogConsolePanel.cs:260` y `LogUploader.cs:513` para leer `Clima` directo, después borrar el mirror del PlayerPref `Cargolluvia` en `MenuScreenManager.PickAndSetWeather`.

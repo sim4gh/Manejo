@@ -17,8 +17,8 @@ Al iniciar la aplicacion, aparece la pantalla **"Prueba de Manejo"** con dos opc
 
 ### Opcion 2: Codigo manual
 
-1. En el lado derecho aparece el prefijo **TLX-** y 5 cajas para ingresar digitos
-2. El operador ingresa el codigo de 5 digitos usando el teclado numerico
+1. En el lado derecho aparece el prefijo **TLX-** y 6 cajas para ingresar digitos
+2. El operador ingresa el codigo de 6 digitos usando el teclado numerico
 3. Presionar **"Verificar Codigo"** para continuar
 
 > **Nota:** El input toma foco automaticamente al cargar la pantalla. No se necesita mouse para escribir.
@@ -27,19 +27,28 @@ Al iniciar la aplicacion, aparece la pantalla **"Prueba de Manejo"** con dos opc
 
 ## Codigos Demo (para pruebas sin backend)
 
-Estos codigos funcionan sin conexion al servidor. **Los primeros 4 digitos** definen el tipo de licencia / vehiculo; **el 5° digito** controla en que parte de la ciudad arranca el examinado.
+Estos codigos funcionan sin conexion al servidor (formato `TTTTXY`, 6 digitos): **los primeros 4 digitos** definen el tipo de licencia / vehiculo, **el 5° digito** controla el clima, y **el 6° digito** controla en que parte de la ciudad arranca el examinado.
 
 | Prefijo (4 digitos) | Tipo de licencia | Escena |
 |---|---|---|
-| `0000X` | Particular (Automovil) | Sedan / Jetta / Camioneta |
-| `1111X` | Publico (Pasajeros) | Bus de Pasajeros |
-| `2222X` | Motocicleta | Motocicleta |
-| `3333X` | Carga (Camion) | Camion de Carga |
-| `4444X` | Emergencia | Ambulancia |
+| `0000XY` | Particular (Automovil) | Sedan / Jetta / Camioneta |
+| `1111XY` | Publico (Pasajeros) | Bus de Pasajeros |
+| `2222XY` | Motocicleta | Motocicleta |
+| `3333XY` | Carga (Camion) | Camion de Carga |
+| `4444XY` | Emergencia | Ambulancia |
 
-### Sufijo de ubicacion (5° digito)
+### Override de clima (5° digito, X)
 
-| Sufijo | Comportamiento |
+| X | Clima |
+|---|---|
+| `0` | Sol forzado |
+| `1` | Lluvia forzada |
+| `2` | Granizo forzado (cuando esté validado) |
+| `3..9` | Random ponderado (sortea segun `WEATHER_WEIGHT_*`) |
+
+### Sufijo de ubicacion (6° digito, Y)
+
+| Y | Comportamiento |
 |---|---|
 | `1` | Spawn fijo en zona 1 |
 | `2` | Spawn fijo en zona 2 |
@@ -50,9 +59,9 @@ Estos codigos funcionan sin conexion al servidor. **Los primeros 4 digitos** def
 | `6..9` | No es demo: el sistema lo manda al backend como codigo real |
 
 Ejemplos:
-- `11113` → Bus en la zona 3 (antes de la glorieta).
-- `22220` → Motocicleta en zona aleatoria.
-- `00001` → Auto en zona 1.
+- `111193` → Bus, clima random, en la zona 3 (antes de la glorieta).
+- `222200` → Motocicleta, sol forzado, en zona aleatoria.
+- `000091` → Auto, clima random, en zona 1.
 
 Para descubrir o refinar los waypoints de cada zona: durante un examen, posiciona el vehiculo donde quieras que arranque y presiona la tecla **`K`**. En la consola F7 aparece `[WaypointDebug] ... idx=NNN ...` — ese numero se hardcodea en `Assets/Custom/SpawnLocationManager.cs` (`DEFAULT_WAYPOINTS`).
 

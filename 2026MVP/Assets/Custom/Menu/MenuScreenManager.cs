@@ -397,19 +397,19 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
                 new Vector2(0, -80), new Vector2(0, 40));
 
-        // PIN input: 5 cajas debajo del label
-        var pinContainer = MenuCardBuilder.CreatePinInput(rightPanel.transform, 5, 70f, 12f);
+        // PIN input: 6 cajas debajo del label
+        var pinContainer = MenuCardBuilder.CreatePinInput(rightPanel.transform, 6, 70f, 12f);
         pinContainer.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
-            new Vector2(0, -125), new Vector2(5 * 70f + 4 * 12f, 80f));
+            new Vector2(0, -125), new Vector2(6 * 70f + 5 * 12f, 80f));
         codeInput = pinContainer.GetComponentInChildren<TMP_InputField>();
 
         // Cachear refs para d-pad (hijos creados por CreatePinInput)
         Transform boxRow = pinContainer.transform.Find("BoxRow");
-        pinDigits = new int[] { -1, -1, -1, -1, -1 };
-        pinDigitTexts = new TextMeshProUGUI[5];
-        pinBoxBorders = new Image[5];
-        for (int i = 0; i < 5; i++)
+        pinDigits = new int[] { -1, -1, -1, -1, -1, -1 };
+        pinDigitTexts = new TextMeshProUGUI[6];
+        pinBoxBorders = new Image[6];
+        for (int i = 0; i < 6; i++)
         {
             Transform border = boxRow.Find("Border_" + i);
             pinBoxBorders[i] = border.GetComponent<Image>();
@@ -419,16 +419,16 @@ public class MenuScreenManager : MonoBehaviour
         // Sync teclado → pinDigits (coexistencia con d-pad)
         codeInput.onValueChanged.AddListener((string val) =>
         {
-            for (int j = 0; j < 5; j++)
+            for (int j = 0; j < 6; j++)
                 pinDigits[j] = (j < val.Length && char.IsDigit(val[j])) ? (val[j] - '0') : -1;
-            pinCursor = Mathf.Clamp(val.Length, 0, 4);
+            pinCursor = Mathf.Clamp(val.Length, 0, 5);
             RefreshPinVisuals();
         });
 
         // Enter con código completo → verificar (equivalente a click en "Verificar Código")
         codeInput.onSubmit.AddListener((string val) =>
         {
-            if (val != null && val.Trim().Length == 5)
+            if (val != null && val.Trim().Length == 6)
                 OnVerifyCode();
             else
                 codeInput.ActivateInputField(); // mantener foco si aún faltan dígitos
@@ -810,40 +810,36 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
-    // Demo codes formato `TTTXY` (5 dígitos):
-    //   TTT = primeros 3 dígitos repetidos del tipo (000=particular, 111=pasajeros,
-    //         222=moto, 333=carga, 444=ambulancia)
-    //   X   = override de clima (0=sol, 1=lluvia, 2=granizo); cualquier otro valor
-    //         (3-9) = sin override, sortea random ponderado en PickAndSetWeather.
-    //   Y   = ubicación de spawn (0=random, 1..5=waypoint fijo).
-    // Compat con códigos legacy `TTTTY` (ej. 11111): el 4to dígito coincide con T y
-    // ahora se interpreta como override de clima — para todos los tipos no-particular,
-    // el código repetido (11111, 22222, 33333, 44444) ahora fuerza un clima específico
-    // (lluvia, granizo, ?, ?). Esto es intencional, parte de la extensión del demo override.
+    // Demo codes formato `TTTTXY` (6 dígitos):
+    //   TTTT = primeros 4 dígitos repetidos del tipo (0000=particular, 1111=pasajeros,
+    //          2222=moto, 3333=carga, 4444=ambulancia)
+    //   X    = override de clima (0=sol, 1=lluvia, 2=granizo); cualquier otro valor
+    //          (3-9) = sin override, sortea random ponderado en PickAndSetWeather.
+    //   Y    = ubicación de spawn (0=random, 1..5=waypoint fijo).
     static readonly Dictionary<string, (string id, string name, string type)> DEMO_PREFIXES = new Dictionary<string, (string, string, string)>
     {
-        { "000", ("TLX-DEMO00000", "Demo Automóvil",  "particular")  },
-        { "111", ("TLX-DEMO11111", "Demo Pasajeros",  "publico")     },
-        { "222", ("TLX-DEMO22222", "Demo Moto",       "motocicleta") },
-        { "333", ("TLX-DEMO33333", "Demo Carga",      "carga")       },
-        { "444", ("TLX-DEMO44444", "Demo Ambulancia", "emergencia")  },
+        { "0000", ("TLX-DEMO00000", "Demo Automóvil",  "particular")  },
+        { "1111", ("TLX-DEMO11111", "Demo Pasajeros",  "publico")     },
+        { "2222", ("TLX-DEMO22222", "Demo Moto",       "motocicleta") },
+        { "3333", ("TLX-DEMO33333", "Demo Carga",      "carga")       },
+        { "4444", ("TLX-DEMO44444", "Demo Ambulancia", "emergencia")  },
     };
 
     void OnVerifyCode()
     {
         string code = codeInput != null ? codeInput.text.Trim().ToUpper() : "";
 
-        // Demo codes para testing sin backend (formato TTTXY, ver DEMO_PREFIXES).
-        if (code.Length == 5 && DEMO_PREFIXES.TryGetValue(code.Substring(0, 3), out var demo)
-            && code[4] >= '0' && code[4] <= '5')
+        // Demo codes para testing sin backend (formato TTTTXY, ver DEMO_PREFIXES).
+        if (code.Length == 6 && DEMO_PREFIXES.TryGetValue(code.Substring(0, 4), out var demo)
+            && code[5] >= '0' && code[5] <= '5')
         {
             tramiteId = demo.id;
             citizenName = demo.name;
             licenseType = demo.type;
-            GameManager.Instance.LocationId = code[4] - '0';
+            GameManager.Instance.LocationId = code[5] - '0';
 
-            // Override de clima si el 4to dígito es 0/1/2; otro valor → random ponderado.
-            int weatherOverride = (code[3] >= '0' && code[3] <= '2') ? (code[3] - '0') : -1;
+            // Override de clima si el 5° dígito es 0/1/2; otro valor → random ponderado.
+            int weatherOverride = (code[4] >= '0' && code[4] <= '2') ? (code[4] - '0') : -1;
             PickAndSetWeather(weatherOverride);
 
             OnSessionVerified();
@@ -2488,7 +2484,7 @@ public class MenuScreenManager : MonoBehaviour
 
     void MoveCursor(int direction)
     {
-        pinCursor = Mathf.Clamp(pinCursor + direction, 0, 4);
+        pinCursor = Mathf.Clamp(pinCursor + direction, 0, 5);
         RefreshPinVisuals();
     }
 
@@ -2496,7 +2492,7 @@ public class MenuScreenManager : MonoBehaviour
     {
         if (codeInput == null) return;
         string text = "";
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             if (pinDigits[i] < 0) break;
             text += pinDigits[i].ToString();
@@ -2507,7 +2503,7 @@ public class MenuScreenManager : MonoBehaviour
     void RefreshPinVisuals()
     {
         if (pinDigitTexts == null) return;
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             pinDigitTexts[i].text = pinDigits[i] >= 0 ? pinDigits[i].ToString() : "";
 
