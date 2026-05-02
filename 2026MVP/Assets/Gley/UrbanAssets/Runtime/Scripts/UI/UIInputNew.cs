@@ -234,6 +234,54 @@ namespace Gley.UrbanSystem
         public const string PREF_G923_CLUTCH_REST  = "G923_ClutchRest";
         public const string PREF_G923_CLUTCH_PRESS = "G923_ClutchPress";
 
+        // ====== Moto Simulator (ESP32-S3 USB HID) ======
+        // Controlador físico de la moto: 4 ejes (X=lean chasis, Y=pitch chasis,
+        // Z=handlebar, Rz=throttle) + 2 botones (A=brake, B=clutch). USB HID
+        // nativo desde firmware moto-controller. Detectado por displayName/product
+        // "Moto Simulator" (ver IsMotoSimulator). Bypassa la heurística mínima
+        // axisCount>=3 buttonCount>=8 de AttachToWheelDevice porque solo expone
+        // 2 botones. Usa ruta de lectura propia en UpdateMotoSimulator() con
+        // steering blend velocidad-dependiente (Opción C, codex 2026-05-01):
+        // a baja velocidad domina handlebar, a alta velocidad domina lean.
+        public const string PREF_MOTO_LEAN_PATH   = "MOTO_LeanPath";   // X axis (BNO chasis)
+        public const string PREF_MOTO_HBAR_PATH   = "MOTO_HbarPath";   // Z axis (BNO volante)
+        public const string PREF_MOTO_GAS_PATH    = "MOTO_GasPath";    // Rz axis (Hall throttle)
+        public const string PREF_MOTO_BRAKE_PATH  = "MOTO_BrakePath";  // botón A (switch)
+        public const string PREF_MOTO_CLUTCH_PATH = "MOTO_ClutchPath"; // botón B (switch)
+        public const string PREF_MOTO_LEAN_MIN    = "MOTO_LeanMin";
+        public const string PREF_MOTO_LEAN_MAX    = "MOTO_LeanMax";
+        public const string PREF_MOTO_HBAR_MIN    = "MOTO_HbarMin";
+        public const string PREF_MOTO_HBAR_MAX    = "MOTO_HbarMax";
+        public const string PREF_MOTO_GAS_REST    = "MOTO_GasRest";
+        public const string PREF_MOTO_GAS_PRESS   = "MOTO_GasPress";
+        public const string PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT = "MOTO_HighSpeedLeanWeight";
+        public const string PREF_MOTO_BLEND_START_KMH        = "MOTO_BlendStartKmh";
+        public const string PREF_MOTO_BLEND_END_KMH          = "MOTO_BlendEndKmh";
+        public const string PREF_MOTO_CALIBRATION_DONE       = "MOTO_CalibrationDone";
+        public const string PREF_MOTO_DEVICE_FINGERPRINT     = "MOTO_DeviceFingerprint";
+
+        // Defaults asumidos. Verificar via F7 (LogConsolePanel) en MX y ajustar
+        // PlayerPrefs si los paths reales difieren. HID buttons en Unity Input
+        // System suelen ser 1-indexed (button1 = primer botón del descriptor),
+        // por eso brake=button1 (firmware bit 0 = HID button #1) y clutch=button2.
+        public const string DEFAULT_MOTO_LEAN_PATH   = "x";
+        public const string DEFAULT_MOTO_HBAR_PATH   = "z";
+        public const string DEFAULT_MOTO_GAS_PATH    = "rz";
+        public const string DEFAULT_MOTO_BRAKE_PATH  = "button1";
+        public const string DEFAULT_MOTO_CLUTCH_PATH = "button2";
+        // Steering blend (Opción C codex). Tunable via PlayerPrefs sin recompilar.
+        public const float  DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT = 0.8f;
+        public const float  DEFAULT_MOTO_BLEND_START_KMH = 15f;
+        public const float  DEFAULT_MOTO_BLEND_END_KMH   = 30f;
+
+        private bool _isMotoSimulator = false;
+        private InputControl<float> _leanCtrl;   // X axis BNO chasis
+        private InputControl<float> _hbarCtrl;   // Z axis BNO volante
+        // _gasCtrl/_brakeCtrl/_clutchCtrl reusados con paths/normalización de moto.
+        private Rigidbody _bikeRigidbody;        // null si UIInputNew no está en el Player de la moto
+        private float _motoLeanMin = -1f, _motoLeanMax = +1f;
+        private float _motoHbarMin = -1f, _motoHbarMax = +1f;
+
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
         // En el G923 PS del kiosk de la demo, la posición R del H-shifter
         // dispara button19 (verificado en F7 múltiples veces). NO es phantom
@@ -496,6 +544,19 @@ namespace Gley.UrbanSystem
             _l2Ctrl = null; _r2Ctrl = null;
             _l3Ctrl = null; _r3Ctrl = null;
             _gearControls = System.Array.Empty<InputControl<float>>();
+            // Moto Simulator state cleanup. Inputs caen a 0 en el próximo Update
+            // (sin _hasWheel, kbInput governs y por default es 0).
+            _isMotoSimulator = false;
+            _leanCtrl = null;
+            _hbarCtrl = null;
+            _bikeRigidbody = null;
+            // Forzar a 0 explícitamente para evitar que un valor stuck en
+            // verticalInput/brakeInput/clutchInput se quede entre el momento
+            // del disconnect y el próximo Update (1 frame de gap).
+            horizontalInput = 0f;
+            verticalInput = 0f;
+            brakeInput = 0f;
+            clutchInput = 0f;
             _detectionTimer = 999f; // forzar re-detect en el próximo Update
         }
 
@@ -539,6 +600,24 @@ namespace Gley.UrbanSystem
         {
             if (_hasWheel) return true;
 
+            // Scene-aware preference: en escena Motocicleta priorizamos el
+            // Moto Simulator sobre cualquier wheel. Evita que un G923 conectado
+            // accidentalmente al PC de la moto tome el slot. En escenas auto/
+            // camión, prioritizamos wheels y excluimos Moto Simulator del match
+            // de wheels (cae al fallback Joystick si hace falta).
+            string sceneName = SceneManager.GetActiveScene().name;
+            bool isMotoScene = !string.IsNullOrEmpty(sceneName)
+                && sceneName.IndexOf("Motocicleta", System.StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (isMotoScene)
+            {
+                foreach (var device in InputSystem.devices)
+                {
+                    if (IsMotoSimulator(device) && AttachToWheelDevice(device, "moto-scene priority"))
+                        return true;
+                }
+            }
+
             // 1) Match por nombre conocido (preferido — más específico).
             //    Excluir devices SHIFTER por nombre antes de la validación
             //    heurística: el HORI SHIFTER tiene 0 axes así que falla por
@@ -547,6 +626,8 @@ namespace Gley.UrbanSystem
             foreach (var device in InputSystem.devices)
             {
                 if (IsShifterDevice(device)) continue;
+                // En escenas no-moto, ignoramos el Moto Simulator (queremos un wheel real).
+                if (!isMotoScene && IsMotoSimulator(device)) continue;
                 if (IsKnownWheelCandidate(device) && AttachToWheelDevice(device, "named match"))
                 {
                     TryDetectShifter();
@@ -562,6 +643,7 @@ namespace Gley.UrbanSystem
             {
                 if (!(device is Joystick)) continue;
                 if (IsShifterDevice(device)) continue;
+                if (!isMotoScene && IsMotoSimulator(device)) continue;
                 if (AttachToWheelDevice(device, "Joystick fallback"))
                 {
                     TryDetectShifter();
@@ -642,6 +724,21 @@ namespace Gley.UrbanSystem
             string product = d.description.product ?? string.Empty;
             return name.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0
                 || product.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // Detecta el Moto Simulator (ESP32-S3 USB HID custom de SimuladoresTlax).
+        // No matchea G923/HORI ni gamepads genéricos. Match defensivo por
+        // displayName, product, y manufacturer — Unity Input System en Windows
+        // a veces popula uno y no los otros según driver.
+        public static bool IsMotoSimulator(InputDevice d)
+        {
+            if (d == null) return false;
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            string mfr = d.description.manufacturer ?? string.Empty;
+            return name.IndexOf("Moto Simulator", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || product.IndexOf("Moto Simulator", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || mfr.IndexOf("SimuladoresTlax", System.StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         // Backwards-compat: callers viejos. Equivalente a IsKnownWheelCandidate.
@@ -756,6 +853,14 @@ namespace Gley.UrbanSystem
         // con validación demasiado estricta, un G923 raro queda fuera.
         private bool AttachToWheelDevice(InputDevice device, string reason)
         {
+            // Moto Simulator: bypass de la heurística mínima axisCount/buttonCount.
+            // El device solo expone 2 botones (brake + clutch), así que fallaría
+            // buttonCount>=8. Detección explícita por displayName/manufacturer.
+            if (IsMotoSimulator(device))
+            {
+                return AttachAsMotoSimulator(device, reason);
+            }
+
             int axisCount = 0, buttonCount = 0;
             foreach (var c in device.allControls)
             {
@@ -865,6 +970,120 @@ namespace Gley.UrbanSystem
             float span = press - rest;
             if (Mathf.Abs(span) < 0.05f) return 0f;
             return Mathf.Clamp01((raw - rest) / span);
+        }
+
+        // Adopta un Moto Simulator (ESP32-S3 USB HID) como wheelDevice. Bypassa
+        // la heurística axisCount/buttonCount (solo expone 2 botones). Cachea
+        // ctrls específicos (lean, hbar) y reusa los slots _gasCtrl/_brakeCtrl/
+        // _clutchCtrl para Rz axis y los dos botones. Lectura en UpdateMotoSimulator.
+        private bool AttachAsMotoSimulator(InputDevice device, string reason)
+        {
+            int axisCount = 0, buttonCount = 0;
+            foreach (var c in device.allControls)
+            {
+                if (c is ButtonControl) buttonCount++;
+                else if (c is AxisControl) axisCount++;
+            }
+
+            _hasWheel = true;
+            _wheelDevice = device;
+            _shifterDevice = null;
+            _isMotoSimulator = true;
+            // Moto sin H-shifter: forzar automático sin importar la preferencia
+            // de PlayerPrefs "TransmisionManual" (que aplica a auto/camión).
+            _isAutomaticMode = true;
+            _currentGear = 1;
+            // Rigidbody del Player de la moto para steering blend velocidad-dependiente.
+            // Búsqueda en cascada: GO actual → ancestros → Player tag. Si nada
+            // matchea, queda null y blend=0 (steerInput = handlebar puro). En esce-
+            // narios donde UIInputNew se instancia en MainMenu o en un GO sin física,
+            // el speed-blend queda inactivo y el comportamiento cae al equivalente
+            // de Opción A (handlebar puro), que es funcional aunque no físicamente
+            // correcto a alta velocidad.
+            _bikeRigidbody = GetComponent<Rigidbody>();
+            if (_bikeRigidbody == null) _bikeRigidbody = GetComponentInParent<Rigidbody>();
+            if (_bikeRigidbody == null)
+            {
+                var playerGO = GameObject.FindWithTag("Player");
+                if (playerGO != null) _bikeRigidbody = playerGO.GetComponentInChildren<Rigidbody>();
+            }
+
+            // Cachear ctrls de los 5 inputs físicos. Paths configurables via PlayerPrefs
+            // (override post-F7 si los reales difieren). Defaults asumidos en DEFAULT_MOTO_*.
+            string leanPath  = PlayerPrefs.GetString(PREF_MOTO_LEAN_PATH,  DEFAULT_MOTO_LEAN_PATH);
+            string hbarPath  = PlayerPrefs.GetString(PREF_MOTO_HBAR_PATH,  DEFAULT_MOTO_HBAR_PATH);
+            string gasPath   = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,   DEFAULT_MOTO_GAS_PATH);
+            string brakePath = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH, DEFAULT_MOTO_BRAKE_PATH);
+            string clutchPath= PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH,DEFAULT_MOTO_CLUTCH_PATH);
+            _leanCtrl   = CacheControl(leanPath);
+            _hbarCtrl   = CacheControl(hbarPath);
+            _gasCtrl    = CacheControl(gasPath);
+            _brakeCtrl  = CacheControl(brakePath);
+            _clutchCtrl = CacheControl(clutchPath);
+            // Para que F7/OnGUI/debug reads de _steerCtrl (que asumen wheel-style)
+            // muestren el handlebar — sin este alias, los overlays mostrarían null.
+            _steerCtrl = _hbarCtrl;
+
+            // Normalización de los controles de la moto:
+            //   - Throttle (Rz): firmware envía int8 0..127. Unity típicamente
+            //     normaliza axes 8-bit unsigned a [-1,+1] (idle=-1 en raw=0,
+            //     full=+1 en raw=127). Si F7 revela layout distinto, override
+            //     via PREF_MOTO_GAS_REST/PRESS sin recompilar.
+            //   - Brake/clutch: HID buttons en Unity son [0,1] (0=libre, 1=press).
+            //     NormalizePedal con rest=0/press=1 da idéntico a leer raw directo.
+            _gasRest    = PlayerPrefs.GetFloat(PREF_MOTO_GAS_REST,  -1f);
+            _gasPress   = PlayerPrefs.GetFloat(PREF_MOTO_GAS_PRESS, +1f);
+            _brakeRest   = 0f; _brakePress  = 1f;
+            _clutchRest  = 0f; _clutchPress = 1f;
+
+            // Calibración del rango de lean/handlebar/gas. Defaults [-1,+1] /
+            // press=1 asumen que el firmware ya entrega valores normalizados.
+            // Si el sensor del chasis está mal montado o el rango efectivo es
+            // menor, recalibrar via firmware /calibrate o guardar PREF_MOTO_*
+            // dinámicamente desde una pantalla de cal Unity (Fase futura).
+            _motoLeanMin = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MIN, -1f);
+            _motoLeanMax = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MAX, +1f);
+            _motoHbarMin = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MIN, -1f);
+            _motoHbarMax = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MAX, +1f);
+
+            // Reusar el _steerCenter/Max/Min que existe para wheel-style — algunos
+            // overlays (F8 BindingsPanel, F10 OnGUI) los leen directo.
+            _steerCenter = (_motoHbarMin + _motoHbarMax) * 0.5f;
+            _steerMax = _motoHbarMax;
+            _steerMin = _motoHbarMin;
+
+            ReloadTuning();
+
+            Debug.Log($"[UIInputNew] Moto Simulator adjuntado ({reason}): {device.displayName}"
+                + $" | layout={device.layout} | product='{device.description.product}'"
+                + $" | manufacturer='{device.description.manufacturer}' | deviceId={device.deviceId}"
+                + $" | axes={axisCount} buttons={buttonCount}"
+                + $" | lean[{leanPath}]={_leanCtrl != null} hbar[{hbarPath}]={_hbarCtrl != null}"
+                + $" gas[{gasPath}]={_gasCtrl != null}"
+                + $" brake[{brakePath}]={_brakeCtrl != null} clutch[{clutchPath}]={_clutchCtrl != null}"
+                + $" | bikeRigidbody={_bikeRigidbody != null}");
+            return true;
+        }
+
+        // Mapea raw ∈ [min, max] a [-1, +1] respetando el centro entre min y max.
+        // Útil para lean/handlebar donde el rango efectivo se calibra dinámicamente
+        // y el centro físico no necesariamente está en 0 (sensor montado off-axis).
+        private static float NormalizeRange(float raw, float min, float max)
+        {
+            if (Mathf.Abs(max - min) < 0.05f) return 0f;
+            float center = (min + max) * 0.5f;
+            if (raw >= center)
+            {
+                float span = max - center;
+                if (span < 0.025f) return 0f;
+                return Mathf.Clamp01((raw - center) / span);
+            }
+            else
+            {
+                float span = center - min;
+                if (span < 0.025f) return 0f;
+                return -Mathf.Clamp01((center - raw) / span);
+            }
         }
 
         // Curva del freno: tramo 1 suave (0.._brakeSoftEnd pedal →
@@ -992,6 +1211,16 @@ namespace Gley.UrbanSystem
             // ---- Toggle debug overlay (F10) ----
             if (Keyboard.current != null && Keyboard.current.f10Key.wasPressedThisFrame)
                 _debugOverlay = !_debugOverlay;
+
+            // ---- Moto Simulator: ruta de lectura propia (steering blend con
+            // velocidad, throttle Rz, brake/clutch como botones). Saltamos toda
+            // la lógica wheel-style (gear, paddles, combos H-shifter, etc) que
+            // no aplica a la moto.
+            if (_isMotoSimulator)
+            {
+                UpdateMotoSimulator();
+                return;
+            }
 
             Vector2 kbInput = _moveAction.ReadValue<Vector2>();
 
@@ -1243,6 +1472,88 @@ namespace Gley.UrbanSystem
         }
 
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
+        // Lectura de input para Moto Simulator. Reemplaza el camino wheel-style
+        // del Update() principal — la moto no usa H-shifter, paddles, ni los
+        // combos L2+R2/L3+R3.
+        //
+        // Steering (Opción C, codex 2026-05-01): blend velocidad-dependiente.
+        //   - <15 km/h : 100% handlebar (parking, baja velocidad).
+        //   - 15-30 km/h : transición SmoothStep entre handlebar y mix lean+hbar.
+        //   - >30 km/h : 80% lean + 20% handlebar (asistencia del manubrio).
+        // Tunable via PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT y PREF_MOTO_BLEND_*.
+        //
+        // Throttle: Rz axis [_gasRest..gasPress] → [0,1] via NormalizePedal,
+        // luego curva _gasCurveN (heredada de F9 AdvancedInputPanel). Si clutch
+        // está apretado, gas → 0 al motor (motor libre, audio puede revs).
+        //
+        // Brake/Clutch: HID buttons leídos como float 0/1 directo.
+        private void UpdateMotoSimulator()
+        {
+            // Raw reads
+            float leanRaw = SafeReadFloatRaw(_leanCtrl, out var rl) ? rl : 0f;
+            float hbarRaw = SafeReadFloatRaw(_hbarCtrl, out var rh) ? rh : 0f;
+            float gasRaw  = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+            bool brakePressed  = SafeReadFloat(_brakeCtrl,  out var rb) && rb > 0.5f;
+            bool clutchPressed = SafeReadFloat(_clutchCtrl, out var rc) && rc > 0.5f;
+
+            // Normalize lean/hbar a [-1, +1] usando rangos calibrados (defaults [-1,+1]
+            // si no hay calibración guardada en PlayerPrefs). NormalizeRange respeta
+            // el centro entre min y max, útil si el sensor está montado off-axis.
+            float lean = NormalizeRange(leanRaw, _motoLeanMin, _motoLeanMax);
+            float hbar = NormalizeRange(hbarRaw, _motoHbarMin, _motoHbarMax);
+
+            // Deadzone fino (heredado de F9). Filtra micro-ruido del sensor en reposo.
+            if (Mathf.Abs(lean) < _steerDeadzone) lean = 0f;
+            if (Mathf.Abs(hbar) < _steerDeadzone) hbar = 0f;
+
+            // Speed-blend (Opción C). Si no hay Rigidbody (e.g. moto sin Player asignado)
+            // speedKmh queda 0 → blend=0 → steer = handlebar puro. Funcional pero no
+            // físicamente correcto a alta velocidad.
+            float speedKmh = 0f;
+            if (_bikeRigidbody != null)
+            {
+#if UNITY_6000_0_OR_NEWER || UNITY_2023_3_OR_NEWER
+                speedKmh = _bikeRigidbody.linearVelocity.magnitude * 3.6f;
+#else
+                speedKmh = _bikeRigidbody.velocity.magnitude * 3.6f;
+#endif
+            }
+            float blendStart = PlayerPrefs.GetFloat(PREF_MOTO_BLEND_START_KMH, DEFAULT_MOTO_BLEND_START_KMH);
+            float blendEnd   = PlayerPrefs.GetFloat(PREF_MOTO_BLEND_END_KMH,   DEFAULT_MOTO_BLEND_END_KMH);
+            float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(blendStart, blendEnd, speedKmh));
+            float wHigh = PlayerPrefs.GetFloat(PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT, DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT);
+            // A alta velocidad: wHigh*lean + (1-wHigh)*hbar. wHigh=0.8 → 80% lean, 20% hbar.
+            // Handlebar mantiene un rol residual de estabilidad/corrección fina.
+            float steerHigh = wHigh * lean + (1f - wHigh) * hbar;
+            horizontalInput = Mathf.Clamp(Mathf.Lerp(hbar, steerHigh, blend), -1f, +1f);
+
+            // Throttle. Aplica curva _gasCurveN si != 1.0 (config F9).
+            float gasNorm = NormalizePedal(gasRaw, _gasRest, _gasPress);
+            float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasNorm : Mathf.Pow(gasNorm, _gasCurveN);
+            // Clutch apretado → motor libre (sin drive). Útil para revs sin moverse.
+            verticalInput = clutchPressed ? 0f : gas;
+
+            // Brake / clutch como botones digitales.
+            brakeInput  = brakePressed  ? 1f : 0f;
+            clutchInput = clutchPressed ? 1f : 0f;
+
+            // Moto siempre en automático Drive. Sin H-shifter ni reversa explícita.
+            _currentGear = 1;
+            _indicatorInput = 0;
+
+            // Log periódico (cada 2s) para diagnóstico remoto via LogUploader → S3.
+            _debugLogTimer += Time.deltaTime;
+            if (_debugLogTimer >= 2f)
+            {
+                _debugLogTimer = 0f;
+                Debug.Log($"[UIInputNew/Moto] raw lean={leanRaw:F3} hbar={hbarRaw:F3}"
+                    + $" gas={gasRaw:F3} brakeBtn={(brakePressed ? 1 : 0)} clutchBtn={(clutchPressed ? 1 : 0)}"
+                    + $" | norm lean={lean:F3} hbar={hbar:F3} gas={gas:F3}"
+                    + $" | speedKmh={speedKmh:F1} blend={blend:F2} wHigh={wHigh:F2}"
+                    + $" | H={horizontalInput:F3} V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3}");
+            }
+        }
+
         private void OnGUI()
         {
             if (!_debugOverlay) return;
