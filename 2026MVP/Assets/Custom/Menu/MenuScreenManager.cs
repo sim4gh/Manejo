@@ -773,7 +773,18 @@ public class MenuScreenManager : MonoBehaviour
 
             if (req.result != UnityWebRequest.Result.Success)
             {
+                long code = req.responseCode;
                 req.Dispose();
+                // 404 = row purgada por TTL, 410 = expiresAt < now. Ambos = QR muerto:
+                // regenerar silenciosamente (igual que el cliente Next.js del kiosk).
+                // Sin este branch el coroutine se queda polleando un sid muerto cada
+                // 10s para siempre — fuente histórica de >60k 404s/día en CloudWatch.
+                if (code == 404 || code == 410)
+                {
+                    StartCoroutine(CreateKioskSession());
+                    yield break;
+                }
+                // 5xx, network errors, timeouts → reintentar en el siguiente tick.
                 continue;
             }
 
