@@ -1,0 +1,169 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &4466409454636700149
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 4466409454636700107}
+  - component: {fileID: 4466409454636700106}
+  - component: {fileID: 3143270750334043563}
+  m_Layer: 0
+  m_Name: RainController
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &4466409454636700107
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4466409454636700149}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4466409454636700106
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4466409454636700149}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 25fa742c085e2f14e97be949686ec03f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_CurrentRainAmount: 0
+  m_StormEnabled: 0
+  m_StormRainAmount: 1
+  m_DisableRainScriptsWhenNotRaining: 1
+  maxParticlesAmount: 1000
+  particleAmountCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 0.6235327
+      value: 0.19657262
+      inSlope: 0.59995544
+      outSlope: 0.59995544
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.3098419
+      outWeight: 0.7007692
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 3.5054343
+      outSlope: 3.5054343
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.0823651
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  windshieldRains:
+  - {fileID: 0}
+  - {fileID: 0}
+  wipersScripts:
+  - {fileID: 0}
+  - {fileID: 0}
+  dropsAccelerationScripts:
+  - {fileID: 0}
+  - {fileID: 0}
+  simpleRainManagers:
+  - {fileID: 0}
+  dropletsSpawnAmountCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.13241823
+    - serializedVersion: 3
+      time: 1
+      value: 0.5
+      inSlope: 1.180779
+      outSlope: 1.180779
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.07364339
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  dropletsSpawnRateCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 2
+      outSlope: 2
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1000
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  rainParticles: {fileID: 0}
+  rainMaterials:
+  - {fileID: 2100000, guid: c01e3ca1f91c4ab47b59ba5ea44f9cbd, type: 2}
+  - {fileID: 2100000, guid: 70588820615cf1142a3d644775fb0585, type: 2}
+  - {fileID: 2100000, guid: 1334fa18b0275884e81db8dd6c3f64a0, type: 2}
+  - {fileID: 2100000, guid: 631e0bbbbf9263847a60e14d777d949d, type: 2}
+  - {fileID: 2100000, guid: fdfa5ce2042b6b54bbd60097a4fd9ef4, type: 2}
+  materialRainChangeSpeed: 0.1
+  rainStrengthChangeSpeed: 0.5
+--- !u!114 &3143270750334043563
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4466409454636700149}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ce9203dcacfc07847a23428808199097, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ShadedTechnology.WindshieldRainAsset.Demo.RainUI
+  m_Slider: {fileID: 0}
+  m_TextField: {fileID: 0}
+  m_Toggle: {fileID: 0}
+  m_RainController: {fileID: 4466409454636700106}

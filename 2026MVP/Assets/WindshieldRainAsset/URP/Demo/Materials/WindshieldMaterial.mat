@@ -1,0 +1,237 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: WindshieldMaterial
+  m_Shader: {fileID: -6465566751694194690, guid: 2ae1b1ba871f06a4080710a637bd22fd, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords:
+  - _ALPHAPREMULTIPLY_ON
+  - _SURFACE_TYPE_TRANSPARENT
+  m_InvalidKeywords:
+  - _BLUR_STRENGTH_BLUR_1
+  - _RAINSTREAKBLURSTRENGTH_BLUR_4
+  - _RAIN_STREAK_BLUR_STRENGTH_BLUR_4
+  - _SMUDGES_BLUR_STRENGTH_BLUR_4
+  - _TEXTUREENUM_E
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap:
+    RenderType: Transparent
+  disabledShaderPasses:
+  - MOTIONVECTORS
+  - SHADOWCASTER
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Background_Normal_Map:
+        m_Texture: {fileID: 2800000, guid: b3528c48c53e55946a0c693aa7d2fe88, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BaseMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _BlurNormalMap:
+        m_Texture: {fileID: 2800000, guid: d6fdb27e27f6b6644a60f996c973339c, type: 3}
+        m_Scale: {x: 40, y: 20}
+        m_Offset: {x: 0, y: 0}
+    - _BumpMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ColorTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Color_Texture:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailAlbedoMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailMask:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _DetailNormalMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _EmissionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _GrabBlurTexture_1:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _HeightMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MainTex:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _MetallicGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _OcclusionMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _ParallaxMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SmoothnessMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Smoothness_Map:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _SpecGlossMap:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _WipersTexture:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_Lightmaps:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_LightmapsInd:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - unity_ShadowMasks:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AddPrecomputedVelocity: 0
+    - _AlphaClip: 0
+    - _AlphaThreshold: 5
+    - _AlphaToMask: 0
+    - _BLUR_STRENGTH: 1
+    - _Background_Normal_Strength: 0.103
+    - _Blend: 0
+    - _BlendModePreserveSpecular: 1
+    - _BlurNormalStrean: 0.1
+    - _BlurStrength: 0.1
+    - _Blur_Strength2: 0
+    - _BumpScale: 1
+    - _CastShadows: 0
+    - _ClearCoatMask: 0
+    - _ClearCoatSmoothness: 0
+    - _Cull: 2
+    - _Cutoff: 0.5
+    - _DetailAlbedoMapScale: 1
+    - _DetailNormalMapScale: 1
+    - _Distortion: 0.1
+    - _DstBlend: 10
+    - _DstBlendAlpha: 10
+    - _EnvironmentReflections: 1
+    - _GlossMapScale: 0
+    - _Glossiness: 0
+    - _GlossyReflections: 0
+    - _HeightThreshold: 0.8
+    - _Metallic: 0
+    - _NormalStopper: 4
+    - _NormalStrength: 0.5
+    - _NormalTexelSize: 0.001
+    - _OcclusionStrength: 1
+    - _Parallax: 0.005
+    - _QueueControl: 1
+    - _QueueOffset: 0
+    - _RAINSTREAKBLURSTRENGTH: 4
+    - _RAIN_STREAK_BLUR_STRENGTH: 4
+    - _RainAmount: 1
+    - _RainSmoothness: 0.65
+    - _RainStreakBlurStrength: 1
+    - _RainStreakImpact: 10
+    - _RainStreakThreshold: 0.5
+    - _RainStrength: 1
+    - _Rain_Distortion: 0.1
+    - _Rain_Normal_Strength: 0.5
+    - _Rain_Normal_Texel_Size: 0.001
+    - _Rain_Smoothness: 0.873
+    - _Rain_Streak_Blur_Strength2: 0.697
+    - _Rain_Streak_Impact: 10
+    - _Rain_Streak_Threshold: 0.5
+    - _ReceiveShadows: 1
+    - _ReflectMaskThreshold: 0.95
+    - _ReflectPower: 10
+    - _ReflectStren: 1
+    - _Reflection_Mask_Threshold: 0.95
+    - _Reflection_Power: 10
+    - _Reflection_Strength: 1
+    - _SMUDGES_BLUR_STRENGTH: 4
+    - _Smoothness: 1
+    - _SmoothnessTextureChannel: 0
+    - _SmudgeSmoothness: 0.8
+    - _Smudge_Smoothness: 0.619
+    - _SmudgesBlurStrength: 1
+    - _SmudgesThreshold: 0.5
+    - _Smudges_Blur_Strength2: 1
+    - _Smudges_Threshold: 0.5
+    - _SpecularHighlights: 1
+    - _SrcBlend: 1
+    - _SrcBlendAlpha: 1
+    - _Surface: 1
+    - _TEXTUREENUM: 4
+    - _WorkflowMode: 1
+    - _ZTest: 4
+    - _ZWrite: 1
+    - _ZWriteControl: 1
+    m_Colors:
+    - _Background_Color: {r: 1, g: 1, b: 1, a: 0.039215688}
+    - _BaseColor: {r: 1, g: 1, b: 1, a: 1}
+    - _BlurColor: {r: 1, g: 1, b: 1, a: 0.039215688}
+    - _BlurNormalScaleAndOffset: {r: 40, g: 20, b: 0, a: 0}
+    - _Blur_Normal_Map_Scale_Offset: {r: 20, g: 20, b: 0, a: 0}
+    - _Color: {r: 0, g: 0, b: 0, a: 0}
+    - _ColorTexColorMultiplier: {r: 1, g: 1, b: 1, a: 0}
+    - _ColorTexScaleAndOffset: {r: 1, g: 1, b: 0, a: 0}
+    - _Color_Texture_Scale_Offset: {r: 1, g: 1, b: 0, a: 0}
+    - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
+    - _ReflectColor: {r: 0.7830189, g: 0.7830189, b: 0.7830189, a: 0.4784314}
+    - _Reflection_Color: {r: 0.6886792, g: 0.6886792, b: 0.6886792, a: 0.47843137}
+    - _SmoothnessMapScaleAndOffset: {r: 1, g: 1, b: 0, a: 0}
+    - _Smoothness_Map_Scale_Offset: {r: 1, g: 1, b: 0, a: 0}
+    - _SmudgesColor: {r: 1, g: 1, b: 1, a: 0.039215688}
+    - _Smudges_Color: {r: 1, g: 1, b: 1, a: 0.039215688}
+    - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
+  m_BuildTextureStacks: []
+  m_AllowLocking: 1
+--- !u!114 &2435681042547629035
+MonoBehaviour:
+  m_ObjectHideFlags: 11
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d0353a89b1f911e48b9e16bdc9f2e058, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  version: 10

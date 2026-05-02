@@ -1,0 +1,91 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel CSMain
+
+#define THREAD_SIZE 16
+
+float2 _WindshieldPlaneSize;
+int2 _Resolution;
+
+#include "Wipers.hlsl"
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Prev;
+RWTexture2D<float4> Result;
+
+RWTexture2D<float4> DropsTexture;
+
+float _DeltaTime;
+float _WipingDisappearingRate;
+float _SmudgeDisappearingRate;
+
+float _SmudgesNoiseStrength;
+float _SmudgesNoiseScale;
+
+#define PI 3.14159265359f
+
+float random1D(float x) {
+	return sin(2 * x) + sin(PI * x);
+}
+
+float4 HandleWiper(float2 currentPos, int wiperIndex, float4 mov_hide_smudge) {
+	bool isBetween = isPointBetweenWiper(currentPos, _Wipers[wiperIndex].pos, _Wipers[wiperIndex].prevPos, _Wipers[wiperIndex].origin);
+	if (isBetween) {
+		float2 startVec = normalize(_Wipers[wiperIndex].origin - _Wipers[wiperIndex].pos.xy);
+		float2 wiperVec = normalize(_Wipers[wiperIndex].pos.zw - _Wipers[wiperIndex].pos.xy);
+		float cos_a = dot(startVec, wiperVec);
+		float startDist = length(_Wipers[wiperIndex].origin - _Wipers[wiperIndex].pos.xy);
+		float dropDist = length(_Wipers[wiperIndex].origin - currentPos);
+		float b = -2 * cos_a * startDist;
+		float c = startDist * startDist - dropDist * dropDist;
+		float delta = b * b - (4 * c);
+
+		float2 onWiperPos = currentPos;
+		float2 toWiperVec = float2(0, 0);
+
+		if (delta > 0) {
+			float x1 = (-b + sqrt(delta)) * 0.5f;
+			float x2 = (-b - sqrt(delta)) * 0.5f;
+			float x = max(x1, x2);
+			onWiperPos = _Wipers[wiperIndex].pos.xy + (wiperVec * x);
+			toWiperVec = onWiperPos - currentPos;
+		}
+
+		/*
+		float distToOrigin = length(currentPos - _Wipers[wiperIndex].origin);
+		float startDist = length(_Wipers[wiperIndex].pos.xy - _Wipers[wiperIndex].origin);
+		float endDist = length(_Wipers[wiperIndex].pos.zw - _Wipers[wiperIndex].origin);
+		float percentDist = (distToOrigin - startDist) / (endDist - startDist);
+
+		float2 onWiperPos = lerp(_Wipers[wiperIndex].pos.xy, _Wipers[wiperIndex].pos.zw, percentDist);
+		float2 toWiperVec = onWiperPos - currentPos;
+		*/
+
+		float endDist = length(_Wipers[wiperIndex].pos.zw - _Wipers[wiperIndex].origin);
+		float percentDist = (dropDist - startDist) / (endDist - startDist);
+		mov_hide_smudge.xy = toWiperVec;
+		mov_hide_smudge.z = 1;
+		float smudge = saturate(DropsTexture[PosToUV(onWiperPos)].w);
+		if (_SmudgesNoiseStrength > 0) {
+			float noise = (random1D(percentDist * _SmudgesNoiseScale * 50) + 2) * 0.25f;
+			smudge = lerp(smudge, smudge * noise, _SmudgesNoiseStrength);
+		}
+		mov_hide_smudge.w = max(smudge, mov_hide_smudge.w);// * 0.8f);
+	}
+	return mov_hide_smudge;
+}
+
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
+void CSMain (uint3 id : SV_DispatchThreadID)
+{
+	float4 prev = Prev[id.xy];
+	float4 mov_hide_smudge = float4(prev.xy, prev.z * saturate(1 - _WipingDisappearingRate * _DeltaTime), prev.w * saturate(1 - _SmudgeDisappearingRate * _DeltaTime));
+	if (mov_hide_smudge.z < 0.01f) {
+		mov_hide_smudge = float4(0, 0, 0, 0);
+	}
+	for (int i = 0; i < _WipersCount; ++i) {
+		mov_hide_smudge = HandleWiper(UVToPos(id.xy), i, mov_hide_smudge);
+	}
+
+    Result[id.xy] = float4(mov_hide_smudge);
+}

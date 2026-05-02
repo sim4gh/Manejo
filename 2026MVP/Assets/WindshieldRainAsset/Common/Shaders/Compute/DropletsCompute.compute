@@ -1,0 +1,452 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma multi_compile __ TURBULANCE_ENABLED
+#pragma multi_compile __ WIPERS_ENABLED
+
+#pragma kernel CSInit
+#pragma kernel CSUpdatePhysics
+//#pragma kernel CSRelocateDrops
+
+#pragma kernel CSInitTextures
+#pragma kernel CSToTexture
+
+
+//#define MAX_DROPLETS_IN_CELL 5
+#define THREAD_SIZE 16
+
+//#define EPSILON 0.0000001f
+
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> PrevState;
+RWTexture2D<float4> Result;
+
+#if WIPERS_ENABLED
+RWTexture2D<float4> WipersTexture;
+
+float _WipersThreshold;
+float _WipersSpeed;
+#endif
+
+#if TURBULANCE_ENABLED
+Texture2D<float4> _TurbulanceTexture;
+int2 _TurbulanceResolution;
+float2 _TurbulanceScale;
+float _TurbulanceImpact;
+float _TurbulanceSpeedImpact;
+#endif
+
+uniform float _DropsInfluenceDistance;
+uniform float _DropsInfluenceProportion;
+uniform float _DropsInfluenceAddition;
+//float _DropsMergingDistance;
+
+float _MaxPossibleDropletSize;
+float _MaxDropletSize;
+float _MinDropletSize;
+float _MaxVelocity;
+
+float _Drag;
+float _SpeedMultiplier;
+
+uniform float _DeltaTime;
+uniform float _Time;
+
+struct Drop {
+	float2 position;
+	float2 velocity;
+	float size;
+};
+
+// struct Cell {
+// 	Drop drops[MAX_DROPLETS_IN_CELL];
+// };
+RWStructuredBuffer<int> _CountInBuffer;
+RWStructuredBuffer<int> _CountOutBuffer;
+RWStructuredBuffer< Drop > InBuffer;// CellsGrid;
+RWStructuredBuffer< Drop > OutBuffer;
+int _MaxDropletsInCell;
+int2 _CellsCount2d;
+int2 _Resolution;
+float2 _WindshieldPlaneSize;
+float2 _MovementVector;
+
+float _MaxTurbulanceSpeedImpact;
+
+float _SpawnRate;
+float _SpawnThreshold;
+float _RainStreakDecayRate;
+
+float _StartVelocity;
+
+
+#include "WipersHandler.hlsl"
+#include "Random.hlsl"
+
+uint Cells2dId(uint2 id) {
+	return (id.x + id.y * _CellsCount2d.x);
+}
+
+uint GetDropId(uint2 cell_id, int drop) {
+	return ((cell_id.x + cell_id.y * _CellsCount2d.x) * _MaxDropletsInCell + drop);
+}
+
+float2 CellSize() {
+	//return float2(float(_Resolution.x) / float(_CellsCount2d.x), float(_Resolution.y) / float(_CellsCount2d.y));
+	return float2(float(_WindshieldPlaneSize.x) / float(_CellsCount2d.x), float(_WindshieldPlaneSize.y) / float(_CellsCount2d.y));
+}
+
+float2 PixelCellSize() {
+	return float2(float(_Resolution.x) / float(_CellsCount2d.x), float(_Resolution.y) / float(_CellsCount2d.y));
+}
+
+uint2 GetCellId2dFromDropPos(float2 position)
+{
+	float2 cellSize = CellSize();
+	return uint2((uint)(position.x / cellSize.x), (uint)(position.y / cellSize.y));
+}
+
+float MaxVelocity() {
+	float2 cellSize = CellSize();
+	return min(cellSize.x, cellSize.y);
+}
+
+bool isCellInBounds(int2 id) {
+	return (id.x >= 0 && id.y >= 0 && id.x < _CellsCount2d.x && id.y < _CellsCount2d.y);
+}
+
+void reset(int dropId)
+{
+	InBuffer[dropId].position = float2(0, 0);
+	InBuffer[dropId].velocity = float2(0,0);
+	InBuffer[dropId].size = -1.0f;
+}
+
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
+void CSInit(uint3 id : SV_DispatchThreadID)
+{
+	_CountInBuffer[Cells2dId(id.xy)] = 0;
+	_CountOutBuffer[Cells2dId(id.xy)] = 0;
+	for (int i = 0; i < _MaxDropletsInCell; ++i) {
+		InBuffer[GetDropId(id.xy, i)].position = float2(0, 0);
+		InBuffer[GetDropId(id.xy, i)].velocity = float2(0,0);
+		InBuffer[GetDropId(id.xy, i)].size = -1.0f;
+		OutBuffer[GetDropId(id.xy, i)].position = float2(0, 0);
+		OutBuffer[GetDropId(id.xy, i)].velocity = float2(0,0);
+		OutBuffer[GetDropId(id.xy, i)].size = -1.0f;
+	}
+}
+
+float2 getTurbulance(Drop drop) {
+
+#if TURBULANCE_ENABLED
+	if (_TurbulanceImpact <= 0) {
+		return float2(0, 0);
+	}
+	float2 pos = drop.position;
+	//int2 uv = int2(int(pos.x / float(_Resolution.x) * _TurbulanceResolution.x * _TurbulanceScale.x) % _TurbulanceResolution.x,
+	//	int(pos.y / float(_Resolution.y) * _TurbulanceResolution.y * _TurbulanceScale.y) % _TurbulanceResolution.y);
+	
+	uint2 uv = uint2(uint(pos.x / float(_WindshieldPlaneSize.x) * _TurbulanceResolution.x * _TurbulanceScale.x) % _TurbulanceResolution.x,
+		uint(pos.y / float(_WindshieldPlaneSize.y) * _TurbulanceResolution.y * _TurbulanceScale.y) % _TurbulanceResolution.y);
+	return ((_TurbulanceTexture[uv].xy * 2 - float2(1, 1)) * (_TurbulanceImpact * length(drop.velocity)));
+
+#else
+	return float2(0, 0);
+#endif
+}
+
+float getSpeedTurbulance(Drop drop)
+{
+#if TURBULANCE_ENABLED
+	if (_TurbulanceSpeedImpact <= 0) {
+		return 0;
+	}
+	float2 pos = drop.position;
+	uint2 uv = uint2(uint(pos.x / float(_WindshieldPlaneSize.x) * _TurbulanceResolution.x * _TurbulanceScale.x) % _TurbulanceResolution.x,
+		uint(pos.y / float(_WindshieldPlaneSize.y) * _TurbulanceResolution.y * _TurbulanceScale.y) % _TurbulanceResolution.y);
+
+	return (_TurbulanceTexture[uv].x * 2 - 1) * _TurbulanceSpeedImpact;
+#else
+	return 0;
+#endif
+}
+
+Drop updateVelocity(Drop drop, float count) {
+	float random_val = getSpeedTurbulance(drop) * _DeltaTime;
+	drop.velocity += _MovementVector * _DeltaTime;
+	float2 uv = PosToUV(drop.position);
+
+#if WIPERS_ENABLED
+	bool is_under_wiper = (WipersTexture[uv].z > _WipersThreshold);
+#else
+	bool is_under_wiper = false;
+#endif
+
+	bool is_too_fast = length(drop.velocity) > _MaxVelocity;
+	float min_random_speed = is_under_wiper ? 1 : (1.0f - _MaxTurbulanceSpeedImpact);// 0.8f;
+	float max_random_speed = is_too_fast ? 1 : (1.0f + _MaxTurbulanceSpeedImpact);// 1.2f;
+	float random_speed = clamp(random_val + 1, min_random_speed, max_random_speed);
+	drop.velocity *= random_speed;
+	
+
+#if WIPERS_ENABLED
+	// Wipers
+	for (int wiper_index = 0; wiper_index < _WipersCount; ++wiper_index) {
+		drop = handleWiper(drop, wiper_index);
+	}
+#endif
+
+	drop.velocity *= exp((-_Drag * _DeltaTime * 10) / (1.0 + count * _DropsInfluenceAddition)); //clamp(1.0 - (_Drag * _DeltaTime * 10), 0.0, 1.0);
+
+	if (length(drop.velocity) > EPSILON) {
+		drop.velocity = normalize(drop.velocity) * min(length(drop.velocity), _MaxVelocity);
+	}
+	return drop;
+}
+
+Drop updatePosition(Drop drop) {
+	float2 mov = drop.velocity;
+
+	// Apply turbulance
+	mov += getTurbulance(drop).xy;
+
+	mov *= _SpeedMultiplier;
+	float2 maxVelocity = _MaxVelocity;
+	if (length(mov) > EPSILON) {
+		mov = min(length(mov), maxVelocity) * normalize(mov);
+		drop.position += mov * _DeltaTime;
+	}
+	return drop;
+}
+
+void copyDrop(int destId, int sourceId) {
+	OutBuffer[destId].velocity = InBuffer[sourceId].velocity;
+	OutBuffer[destId].position = InBuffer[sourceId].position;
+	OutBuffer[destId].size = InBuffer[sourceId].size;
+}
+
+void trySpawnNewDrop(int2 cellId2d, int dropId) {
+	float time = _Time;
+	float uv_offset = floor(time * 10000.0) * 0.0001;
+	float2 new_uv = cellId2d.xy + float2(uv_offset, uv_offset);
+	float3 random_pos = rand3dTo3d(float3(new_uv, 1.0));
+	// Spawn new drop
+	if (_SpawnRate > 0) {
+		if (random_pos.z > clamp(1 - (_SpawnThreshold * 0.01f), 0, 1) && ((time % (1.0 / _SpawnRate) < _DeltaTime))) {
+			float2 cellSize = CellSize();
+			float2 pos = float2(cellSize.x * (float(cellId2d.x) + random_pos.x), cellSize.y * (float(cellId2d.y) + random_pos.y));
+			float3 random = rand3dTo3d(float3(new_uv, 10.0));
+			
+			int cellId = Cells2dId(cellId2d);
+			int currentCount;
+			InterlockedAdd(_CountOutBuffer[cellId], 1, currentCount);
+			if (currentCount < _MaxDropletsInCell)
+			{
+				int dropIndex = cellId * _MaxDropletsInCell + currentCount;
+				OutBuffer[dropIndex].position = pos;
+				OutBuffer[dropIndex].velocity = _MovementVector * random.x * _StartVelocity * _DeltaTime * 10;
+				OutBuffer[dropIndex].size = lerp(_MaxDropletSize, _MinDropletSize, random.z);
+			}
+		}
+	}
+}
+
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
+void CSUpdatePhysics(uint3 id : SV_DispatchThreadID)
+{
+	int dropsCount = min(_CountInBuffer[Cells2dId(id.xy)], _MaxDropletsInCell);
+	_CountInBuffer[Cells2dId(id.xy)] = 0;
+	for (int i = 0; i < _MaxDropletsInCell; ++i) {
+		int dropId = GetDropId(id.xy, i);
+		Drop drop = InBuffer[dropId];
+		if (drop.size <= 0) {
+			trySpawnNewDrop(id.xy, i);
+			break;
+		}
+
+		int count = 0;
+		if (_DropsInfluenceDistance > 0) {
+			float2 sum_vel = float2(0,0);
+			for(int j = 0; j < dropsCount; ++j) {
+				if (i == j) {
+					continue;
+				}
+				float distance = length(drop.position - InBuffer[GetDropId(id.xy, j)].position);
+				if (distance < _DropsInfluenceDistance && InBuffer[GetDropId(id.xy, j)].size > 0 && length(InBuffer[GetDropId(id.xy, j)].velocity) > 0.01f) {
+					sum_vel += InBuffer[GetDropId(id.xy, j)].velocity;
+					count += 1;
+				}
+			}
+			if (count > 0) {
+				sum_vel /= count;
+				//drop.velocity = (sum_vel * (1.0f - _DropsInfluenceProportion) + drop.velocity * (_DropsInfluenceProportion + _DropsInfluenceAddition));
+				drop.velocity = (sum_vel * (1.0f - _DropsInfluenceProportion) + drop.velocity * (_DropsInfluenceProportion));
+			}
+		}
+
+		drop = updateVelocity(drop, (float) count);
+		drop = updatePosition(drop);
+
+		uint2 destinationCellIndex2d = GetCellId2dFromDropPos(drop.position);
+		if (isCellInBounds(destinationCellIndex2d)) {
+			int destinationCellIndex = Cells2dId(destinationCellIndex2d);
+			int currentCount;
+			InterlockedAdd(_CountOutBuffer[destinationCellIndex], 1, currentCount);
+			if (currentCount < _MaxDropletsInCell)
+			{
+				int outDropId = destinationCellIndex * _MaxDropletsInCell + currentCount;
+				//copyDrop(outDropId, dropId);
+				OutBuffer[outDropId] = drop;
+			}
+		}
+	}
+
+	for (int iter = 0; iter < dropsCount; ++iter) {
+		reset(GetDropId(id.xy, iter));
+	}
+}
+
+/*
+bool isInCurrentCell(uint2 cellId, float2 dropPos) {
+	float2 cellSize = CellSize();
+	float error = 0;
+	return ((dropPos.x >= ((cellSize.x * cellId.x) - error)) && (dropPos.x < (cellSize.x* (cellId.x + 1) + error)) &&
+		(dropPos.y >= ((cellSize.y * cellId.y) - error)) && (dropPos.y < (cellSize.y* (cellId.y + 1) + error)));
+}
+
+int getDropsFromNeighbourCell(int2 cellId, int2 neighbourCellId, int dropsCount) {
+
+	for (int i = 0; i < MAX_DROPLETS_IN_CELL; ++i) {
+		if (InBuffer[Cells2dId(neighbourCellId)].drops[i].size <= 0) break;
+		if (isInCurrentCell(cellId, InBuffer[Cells2dId(neighbourCellId)].drops[i].position)) {
+			OutBuffer[Cells2dId(cellId)].drops[dropsCount].velocity = InBuffer[Cells2dId(neighbourCellId)].drops[i].velocity;
+			OutBuffer[Cells2dId(cellId)].drops[dropsCount].position = InBuffer[Cells2dId(neighbourCellId)].drops[i].position;
+			OutBuffer[Cells2dId(cellId)].drops[dropsCount].size = InBuffer[Cells2dId(neighbourCellId)].drops[i].size;
+			dropsCount++;
+			if (dropsCount >= MAX_DROPLETS_IN_CELL) return dropsCount;
+		}
+	}
+	return dropsCount;
+}
+
+void getDropsFromAllNeighbourCells(int2 cellId, int dropsCount) {
+	for (int i = 0; i < 9; ++i) {
+		int x = (i % 3) - 1;
+		int y = (i / 3) - 1;
+		if (x == 0 && y == 0) continue;
+		int2 neighbourId = cellId.xy + int2(x, y);
+		if (!isCellInBounds(neighbourId)) continue;
+		dropsCount = getDropsFromNeighbourCell(cellId, neighbourId, dropsCount);
+		if (dropsCount >= MAX_DROPLETS_IN_CELL) return;
+	}
+}
+
+bool isDropNew_MergeIfNot(int cellId, int dropId, int dropsCount) {
+	if (_DropsInfluenceDistance <= 0 && _DropsMergingDistance <= 0) {
+		return true;
+	}
+
+	for (int j = 0; j < dropsCount; ++j) {
+		float distance = length(OutBuffer[cellId].drops[j].position - InBuffer[cellId].drops[dropId].position);
+		if (distance < _DropsInfluenceDistance || distance < _DropsMergingDistance) {
+			OutBuffer[cellId].drops[j].velocity = (OutBuffer[cellId].drops[j].velocity + InBuffer[cellId].drops[dropId].velocity) * 0.5f;
+		}
+		if (distance < _DropsMergingDistance) {
+			// Merge drops
+			OutBuffer[cellId].drops[j].size += InBuffer[cellId].drops[dropId].size * 0.5f;
+			OutBuffer[cellId].drops[j].size = min(OutBuffer[cellId].drops[j].size, _MaxPossibleDropletSize);
+			return false;
+		}
+	}
+	return true;
+}
+
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
+void CSRelocateDrops(uint3 id : SV_DispatchThreadID)
+{
+	int dropsCount = 0;
+	
+	for (int i = 0; i < MAX_DROPLETS_IN_CELL; ++i) {
+		OutBuffer[Cells2dId(id)].drops[i].size = -1.0f;
+		if (InBuffer[Cells2dId(id)].drops[i].size <= 0) continue;
+		if (!isInCurrentCell(id, InBuffer[Cells2dId(id)].drops[i].position)) continue;
+
+		if (!isDropNew_MergeIfNot(Cells2dId(id), i, dropsCount)) continue;
+		copyDrop(Cells2dId(id), dropsCount, i);
+		dropsCount++;
+	}
+
+	if (dropsCount < MAX_DROPLETS_IN_CELL) {
+		getDropsFromAllNeighbourCells(id.xy, dropsCount);
+	}
+	
+}*/
+
+float4 getColorFromCell(int2 cellId, float2 position, float4 color) {
+	for (int i = 0; i < _MaxDropletsInCell; ++i) {
+		float size = OutBuffer[GetDropId(cellId, i)].size;
+		if (size <= 0) break;
+		float2 vec = position.xy - OutBuffer[GetDropId(cellId, i)].position;
+		float dist = length(vec);
+		if (dist <= size && dist <= _MaxDropletSize) {
+			return float4(1, 1, 1, 1);
+		}
+	}
+	return color;
+}
+
+float4 getColorFromNeighbourCells(int2 id) {
+	float2 cellSize = PixelCellSize();
+	int2 cellId = int2(id.x / cellSize.x, id.y / cellSize.y);
+	float2 posInCell = float2(float(id.x) % cellSize.x, float(id.y) % cellSize.y);
+	int sideX = (posInCell.x >= (cellSize.x / 2)) ? 1 : -1;
+	int sideY = (posInCell.y >= (cellSize.y / 2)) ? 1 : -1;
+
+	float2 position = UVToPos(id.xy);
+
+	float4 color = float4(0, 0, 0, 0);
+	color = getColorFromCell(cellId, position, color);
+	int2 neighbour1 = cellId + int2(sideX, 0);
+	if (isCellInBounds(neighbour1)) {
+		color = getColorFromCell(neighbour1, position, color);
+	}
+	int2 neighbour2 = cellId + int2(0, sideY);
+	if (isCellInBounds(neighbour2)) {
+		color = getColorFromCell(neighbour2, position, color);
+	}
+	int2 neighbour3 = cellId + int2(sideX, sideY);
+	if (isCellInBounds(neighbour3)) {
+		color = getColorFromCell(neighbour3, position, color);
+	}
+	return color;
+}
+
+[numthreads(THREAD_SIZE, THREAD_SIZE,1)]
+void CSToTexture(uint3 id : SV_DispatchThreadID)
+{
+	float4 color = getColorFromNeighbourCells(id.xy);
+
+	float4 prevState = PrevState[id.xy].rgba;
+	prevState = prevState * clamp(1 - _RainStreakDecayRate * _DeltaTime, 0, 1);
+	color += prevState;
+
+	color = float4(clamp(color.x, 0, 1), clamp(color.y, 0, 1), clamp(color.z, 0, 1), clamp(color.a, 0, 1));
+
+
+#if WIPERS_ENABLED
+	if (WipersTexture[id.xy].z > _WipersThreshold) {
+		Result[id.xy] = float4(0, 0, 0, color.a);
+		return;
+	}
+#endif
+	Result[id.xy] = float4(color);
+}
+
+
+[numthreads(THREAD_SIZE, THREAD_SIZE, 1)]
+void CSInitTextures(uint3 id : SV_DispatchThreadID)
+{
+	PrevState[id.xy] = float4(0, 0, 0, 0);
+	Result[id.xy] = float4(0, 0, 0, 0);
+}
+

@@ -1,0 +1,24 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9ec886918afa21b48b20ae21e01feeb3, type: 3}
+  m_Name: PostProcessProfile
+  m_EditorClassIdentifier: 
+  postProcesses:
+  - material: {fileID: 2100000, guid: 9a2c28a8277ee9143823f590d575eb67, type: 2}
+    renderTexture: {fileID: 0}
+    texturesToSet: []
+  - material: {fileID: 2100000, guid: cd6574d6f315b14488f1c0c671f1b700, type: 2}
+    renderTexture: {fileID: 0}
+    texturesToSet: []
+  - material: {fileID: 2100000, guid: 7ce21b226c4b62340b96cf57fcef6228, type: 2}
+    renderTexture: {fileID: 0}
+    texturesToSet: []
