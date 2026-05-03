@@ -511,18 +511,24 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
                 new Vector2(0, -55), new Vector2(0, 30));
 
-        MenuCardBuilder.CreateText(practicePanel.transform, "PracticeBlurb",
-            "Familiarízate con el simulador antes de tu examen teórico. Elige el vehículo, el clima y un escenario y conduce libremente por 3 minutos.",
+        // Blurb corto que cabe en 2 líneas — alineado al área entre el subtítulo
+        // y el botón. textWrappingMode=Normal para que rompa líneas en vez de truncar.
+        var blurb = MenuCardBuilder.CreateText(practicePanel.transform, "PracticeBlurb",
+            "Familiarízate con el simulador antes de tu examen. Elige vehículo, clima y escenario.",
             18f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.TopLeft)
-            .GetComponent<RectTransform>().Set(
-                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-                new Vector2(0, -110), new Vector2(0, 220));
+            .GetComponent<TextMeshProUGUI>();
+        blurb.textWrappingMode = TextWrappingModes.Normal;
+        blurb.GetComponent<RectTransform>().Set(
+            new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
+            new Vector2(0, -110), new Vector2(0, 90));
 
+        // Botón "Practicar" alineado al mismo Y que "Verificar Código" (y=-210)
+        // para que las dos CTAs primarias queden en la misma fila visual.
         Button practiceBtn = MenuCardBuilder.CreateButton(practicePanel.transform, "Practicar", "primary",
             new Vector2(0, 64), () => OnPracticeMode()).GetComponent<Button>();
         practiceBtn.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-            new Vector2(0, -360), new Vector2(0, 64));
+            new Vector2(0, -210), new Vector2(0, 64));
     }
 
     // ════════════════════════════════════════════════════════════════════
