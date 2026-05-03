@@ -88,6 +88,9 @@ public class TopSpeedometerWidget : MonoBehaviour
     private bool blinkVisible;
     private int lastDisplayedSpeed = -1;
 
+    // Velocidad actual en km/h accesible desde otros scripts.
+    public float CurrentSpeedKmh { get; private set; }
+
     /// <summary>Llamado por TopHudRow tras instanciar este componente; construye la UI hija.</summary>
     public void Build()
     {
@@ -258,6 +261,7 @@ public class TopSpeedometerWidget : MonoBehaviour
         if (speedText == null) return;
         int kmh = Mathf.RoundToInt(GetSpeed());
         if (kmh < 0) kmh = 0;
+        CurrentSpeedKmh = kmh;
         if (kmh != lastDisplayedSpeed)
         {
             lastDisplayedSpeed = kmh;

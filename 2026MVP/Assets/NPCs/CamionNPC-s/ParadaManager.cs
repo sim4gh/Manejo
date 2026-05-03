@@ -11,11 +11,10 @@ public class ParadaManager : MonoBehaviour
     public TopSpeedometerWidget movimientoCarro;
     public bool _Estacionado = false;
     public float tiempo = 0;
-    public bool  aumenta = false;
-
+    public bool aumenta = false;
     public void Start()
     {
-        
+
         foreach (Transform pasajeros in transform)
         {
             Pasajero pasaje = pasajeros.GetComponent<Pasajero>();
@@ -23,18 +22,14 @@ public class ParadaManager : MonoBehaviour
         }
     }
 
-    
     public void OnTriggerStay(Collider other)
     {
         if (!other.CompareTag("puerta")) return;
-
         if (movimientoCarro == null)
         {
             movimientoCarro = GameObject.Find("Speedometer").GetComponent<TopSpeedometerWidget>();
         }
-
-        bool carroDetenido = movimientoCarro.speedText.text =="0";
-
+        bool carroDetenido = movimientoCarro.CurrentSpeedKmh <= 0.5f;
         if (!carroDetenido)
         {
             aumenta = false;
@@ -42,28 +37,22 @@ public class ParadaManager : MonoBehaviour
             _Estacionado = false;
             return;
         }
-
         aumenta = true;
         tiempo += Time.deltaTime;
-
         if (tiempo >= 2f)
         {
             _Estacionado = true;
         }
-
         if (!_Estacionado) return;
-
         if (!_colaActiva)
         {
             StartCoroutine(ColaPasaje());
         }
-
         if (!_bajadaActiva)
         {
             StartCoroutine(ColaBajada());
         }
     }
-
     public void OnTriggerExit(Collider other)
     {
         if (other.CompareTag("puerta"))
@@ -77,7 +66,7 @@ public class ParadaManager : MonoBehaviour
         _colaActiva = true;
         for (int i = 0; i < pasajero.Count; i++)
         {
-           
+
             yield return new WaitForSeconds(3);
             pasajero[i]._Activo = true;
         }
