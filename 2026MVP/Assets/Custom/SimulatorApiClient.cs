@@ -48,6 +48,10 @@ public static class SimulatorApiClient
     {
         public bool passed;
         public int score;
+        // Distancia recorrida en metros durante el examen. Backend la usa para
+        // detectar exámenes inválidos por inactividad (alumno dejó el coche
+        // parado y al expirar el timer salía con score 100). 0 si build viejo.
+        public int distanceMeters;
         public SessionFault[] faults;
         public bool interrupted;
     }
@@ -74,6 +78,7 @@ public static class SimulatorApiClient
         public string completedAt;      // ISO 8601 UTC
         public int durationSeconds;
         public int score;
+        public int distanceMeters;
         public SessionFault[] faults;
         public bool completed;
     }
@@ -88,6 +93,7 @@ public static class SimulatorApiClient
         public string kind;
         // Comunes a ambos
         public int score;
+        public int distanceMeters;
         public SessionFault[] faults;
         public string savedAt;
         // Sólo kind=="exam"
@@ -173,7 +179,7 @@ public static class SimulatorApiClient
     /// onComplete recibe true si fue exitoso, false si falló.
     /// </summary>
     public static IEnumerator EndSession(string sessionId, bool passed, int score,
-        SessionFault[] faults, bool interrupted, System.Action<bool> onComplete)
+        int distanceMeters, SessionFault[] faults, bool interrupted, System.Action<bool> onComplete)
     {
         string url = $"{BaseUrl}/simulator/sessions/{sessionId}/results";
 
@@ -181,12 +187,13 @@ public static class SimulatorApiClient
         {
             passed = passed,
             score = score,
+            distanceMeters = distanceMeters,
             faults = faults,
             interrupted = interrupted
         };
 
         string json = JsonUtility.ToJson(requestBody);
-        Debug.Log($"[SimulatorAPI] POST {url} score={score} passed={passed} faults={faults?.Length ?? 0}");
+        Debug.Log($"[SimulatorAPI] POST {url} score={score} passed={passed} distance={distanceMeters}m faults={faults?.Length ?? 0}");
 
         using (var request = new UnityWebRequest(url, "POST"))
         {
@@ -219,8 +226,8 @@ public static class SimulatorApiClient
     /// completed=true cuando los 3 min terminaron normales; false si interrumpido.
     /// onComplete recibe true si fue exitoso, false si falló.
     /// </summary>
-    public static IEnumerator EndPracticeSession(int finalScore, SessionFault[] faults,
-        bool completed, System.Action<bool> onComplete)
+    public static IEnumerator EndPracticeSession(int finalScore, int distanceMeters,
+        SessionFault[] faults, bool completed, System.Action<bool> onComplete)
     {
         string url = $"{BaseUrl}/simulator/practice-results";
         var gm = GameManager.Instance;
@@ -245,12 +252,13 @@ public static class SimulatorApiClient
             completedAt = System.DateTime.UtcNow.ToString("o"),
             durationSeconds = completed ? 180 : duration,
             score = finalScore,
+            distanceMeters = distanceMeters,
             faults = faults,
             completed = completed,
         };
 
         string json = JsonUtility.ToJson(requestBody);
-        Debug.Log($"[SimulatorAPI] POST {url} score={finalScore} vehicle={requestBody.vehicleType} completed={completed}");
+        Debug.Log($"[SimulatorAPI] POST {url} score={finalScore} distance={distanceMeters}m vehicle={requestBody.vehicleType} completed={completed}");
 
         using (var request = new UnityWebRequest(url, "POST"))
         {
@@ -322,6 +330,9 @@ public static class SimulatorApiClient
             case "CAMBIO_PELIGROSO": return "dangerous-gear-change";
             case "CAMBIO_SIN_CLUTCH": return "gear-change-without-clutch";
             case "FIN_EXAMEN": return "exam-end";
+            // Razón principal del fail cuando el alumno se queda parado:
+            // aparece en el feedback del trámite y en la pantalla de resultados.
+            case "INVALIDO_INACTIVIDAD": return "inactivity-invalid";
             default: return eventType.ToLower();
         }
     }
@@ -330,7 +341,10 @@ public static class SimulatorApiClient
     {
         switch (eventType)
         {
-            case "ATROPELLO": return "critical";
+            case "ATROPELLO":
+            // Inactividad reprueba directo aunque no descuente puntos —
+            // tratamos como crítica para que destaque arriba del feedback.
+            case "INVALIDO_INACTIVIDAD": return "critical";
             case "COLISION_BICICLETA":
             case "COLISION_VEHICULO":
             case "COLISION":
@@ -366,7 +380,7 @@ public static class SimulatorApiClient
 
     /// <summary>Guarda un resultado fallido para retry posterior.</summary>
     public static void SavePendingResult(string sessionId, bool passed, int score,
-        SessionFault[] faults, bool interrupted = false)
+        int distanceMeters, SessionFault[] faults, bool interrupted = false)
     {
         var list = LoadPendingResults();
         list.results.Add(new PendingResult
@@ -375,6 +389,7 @@ public static class SimulatorApiClient
             sessionId = sessionId,
             passed = passed,
             score = score,
+            distanceMeters = distanceMeters,
             faults = faults,
             savedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             interrupted = interrupted
@@ -387,7 +402,8 @@ public static class SimulatorApiClient
     }
 
     /// <summary>Guarda una práctica fallida para retry posterior.</summary>
-    public static void SavePendingPracticeResult(int score, SessionFault[] faults, bool completed)
+    public static void SavePendingPracticeResult(int score, int distanceMeters,
+        SessionFault[] faults, bool completed)
     {
         var gm = GameManager.Instance;
         var config = SimulatorConfig.Instance?.data;
@@ -403,6 +419,7 @@ public static class SimulatorApiClient
         {
             kind = "practice",
             score = score,
+            distanceMeters = distanceMeters,
             faults = faults,
             savedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
             practiceId = gm?.PracticeId ?? System.Guid.NewGuid().ToString(),
@@ -468,7 +485,7 @@ public static class SimulatorApiClient
             else
             {
                 yield return EndSession(pending.sessionId, pending.passed, pending.score,
-                    pending.faults, pending.interrupted, (ok) => success = ok);
+                    pending.distanceMeters, pending.faults, pending.interrupted, (ok) => success = ok);
                 if (success) Debug.Log($"[SimulatorAPI] Resultado pendiente {pending.sessionId} enviado");
             }
 
@@ -508,6 +525,7 @@ public static class SimulatorApiClient
             completedAt = p.completedAt,
             durationSeconds = p.durationSeconds,
             score = p.score,
+            distanceMeters = p.distanceMeters,
             faults = p.faults,
             completed = p.completed,
         };

@@ -15,13 +15,17 @@ using System.Collections.Generic;
 public class ExamResultsScreen : MonoBehaviour
 {
     private int score;
+    private int distanceMeters;
+    private bool insufficientMovement;
     private TextMeshProUGUI countdownText;
     private const float AUTO_RETURN_SECONDS = 45f;
 
     /// <summary>
     /// Entry point estático — crea el overlay de resultados.
+    /// `insufficientMovement=true` fuerza la etiqueta "NO APTO — Examen inválido
+    /// por inactividad" sin importar el score (alumno se quedó parado).
     /// </summary>
-    public static void Show(int finalScore)
+    public static void Show(int finalScore, int distanceMeters, bool insufficientMovement)
     {
         GameObject obj = new GameObject("ExamResultsOverlay");
         // CRÍTICO: DontDestroyOnLoad para que el overlay sobreviva el LoadScene("MainMenu")
@@ -32,6 +36,8 @@ public class ExamResultsScreen : MonoBehaviour
         DontDestroyOnLoad(obj);
         var screen = obj.AddComponent<ExamResultsScreen>();
         screen.score = finalScore;
+        screen.distanceMeters = distanceMeters;
+        screen.insufficientMovement = insufficientMovement;
     }
 
     private float showTime;
@@ -125,10 +131,28 @@ public class ExamResultsScreen : MonoBehaviour
         for (int i = 0; i < faults.Count; i++) totalDeducted += Mathf.Abs(faults[i].points);
 
         bool isPractice = GameManager.Instance != null && GameManager.Instance.IsPracticeMode;
-        Color scoreColor = isPractice ? MenuTheme.TextPrimary : GetScoreColor(score);
-        string scoreLabel = isPractice
-            ? "Modo Práctica\nNo cuenta como examen"
-            : GetScoreLabel(score);
+        Color scoreColor;
+        string scoreLabel;
+        if (insufficientMovement)
+        {
+            // Override de label/color: el examen es inválido por inactividad,
+            // sin importar el score acumulado. Aplica también en modo práctica
+            // para que el alumno entienda por qué la sesión no cuenta.
+            scoreColor = MenuTheme.TextError;
+            scoreLabel = isPractice
+                ? "Práctica inválida\nDistancia recorrida insuficiente"
+                : "NO APTO\nExamen inválido por inactividad";
+        }
+        else if (isPractice)
+        {
+            scoreColor = MenuTheme.TextPrimary;
+            scoreLabel = "Modo Práctica\nNo cuenta como examen";
+        }
+        else
+        {
+            scoreColor = GetScoreColor(score);
+            scoreLabel = GetScoreLabel(score);
+        }
 
         // ── Header: 70-100% del alto de Content ──────────────────────────
         // Título distinto según modo: examen real vs práctica.
@@ -170,7 +194,19 @@ public class ExamResultsScreen : MonoBehaviour
                 : "Detalle de infracciones cometidas durante el examen",
             MenuTheme.CardDescSize, FontStyles.Normal, MenuTheme.TextMuted, TextAlignmentOptions.Left);
         summarySubObj.GetComponent<RectTransform>().Set(
-            new Vector2(0.36f, 0.71f), new Vector2(0.98f, 0.79f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.36f, 0.74f), new Vector2(0.98f, 0.79f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        // Distancia recorrida — visible siempre. Si fue insuficiente, en rojo.
+        string distanceText = distanceMeters >= 1000
+            ? $"Distancia recorrida: {(distanceMeters / 1000f).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)} km"
+            : $"Distancia recorrida: {distanceMeters} m";
+        Color distanceColor = insufficientMovement ? MenuTheme.TextError : MenuTheme.TextPrimary;
+        FontStyles distanceFs = insufficientMovement ? FontStyles.Bold : FontStyles.Normal;
+        var distanceObj = MenuCardBuilder.CreateText(content, "Distance", distanceText,
+            MenuTheme.CardDescSize, distanceFs, distanceColor, TextAlignmentOptions.Left);
+        distanceObj.GetComponent<RectTransform>().Set(
+            new Vector2(0.36f, 0.71f), new Vector2(0.98f, 0.74f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
         // ── Tabla: 9-67% del alto de Content ─────────────────────────────
@@ -397,7 +433,10 @@ public class ExamResultsScreen : MonoBehaviour
             // Las pasivas se incluyen aunque tengan points==0 — el alumno
             // sintió el cristal roto/shake/FFB, debe ver la entrada listada
             // para entender que el sistema lo registró pero no lo penalizó.
-            if (e.points < 0 || e.eventType == "COLISION_PASIVA") result.Add(e);
+            // INVALIDO_INACTIVIDAD también con points=0: es la razón principal
+            // del fail, debe verse en la lista de feedback.
+            if (e.points < 0 || e.eventType == "COLISION_PASIVA"
+                || e.eventType == "INVALIDO_INACTIVIDAD") result.Add(e);
         }
         return result;
     }
@@ -407,7 +446,9 @@ public class ExamResultsScreen : MonoBehaviour
     {
         switch (eventType)
         {
-            case "ATROPELLO": return SeverityKind.Critical;
+            case "ATROPELLO":
+            case "INVALIDO_INACTIVIDAD":
+                return SeverityKind.Critical;
             case "COLISION_BICICLETA":
             case "COLISION_VEHICULO":
             case "SEMAFORO_ROJO":
