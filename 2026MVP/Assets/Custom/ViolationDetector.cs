@@ -63,6 +63,11 @@ public class ViolationDetector : MonoBehaviour
     private const float COLLISION_COOLDOWN_SAME = 3f;
     private const float COLLISION_COOLDOWN_CROSS = 1f;
     private const float MIN_COLLISION_SPEED = 3f;
+    // Threshold sensorial: gatea OnCollisionImpact (overlay/shake/audio/FFB)
+    // basado en Collision.relativeVelocity (velocidad relativa pre-solver,
+    // robusta contra deflexión post-impulso de linearVelocity). 1 km/h cubre
+    // parking reverse legítimo (1.5–3 km/h) y filtra roces estacionarios.
+    private const float MIN_FEEDBACK_SPEED_KMH = 1f;
 
     /// <summary>Resultado de clasificar una colisión vehicular.</summary>
     public enum VehicleCollisionKind { Active, Passive }
@@ -300,13 +305,21 @@ public class ViolationDetector : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
-        // Velocidades de ambos lados antes del guard. Si solo el alumno está
-        // parado pero un NPC viene corriendo, sí queremos clasificar (es la
-        // queja: "me chocan por atrás cuando estoy en alto").
+        // Velocidades de ambos lados para clasificación passive/active aguas
+        // abajo. NO se usan para el guard sensorial: leer linearVelocity dentro
+        // de OnCollisionEnter devuelve el valor post-impulso del solver, que
+        // puede caer ~0 para mass-mismatch o ángulos rasantes aunque la
+        // pre-colisión fuera 30 km/h.
         float speed = GetSpeed();
         Rigidbody otherRb = collision.rigidbody;  // ya retorna attachedRigidbody (compound colliders OK)
         float npcSpeedKmh = otherRb != null ? otherRb.linearVelocity.magnitude * 3.6f : 0f;
-        if (speed < MIN_COLLISION_SPEED && npcSpeedKmh < MIN_COLLISION_SPEED) return;
+
+        // Guard sensorial basado en velocidad relativa pre-solver. Es la
+        // métrica canónica de Unity para "¿hubo un golpe real?": independiente
+        // del estado deflectado de cada Rigidbody, captura tanto rear-end al
+        // alumno parado como reversa a parking-speed.
+        float relativeSpeedKmh = collision.relativeVelocity.magnitude * 3.6f;
+        if (relativeSpeedKmh < MIN_FEEDBACK_SPEED_KMH) return;
 
         // Deduplicar por objeto raíz (ragdoll: Shin.R, Arm.L, Hips → mismo peatón)
         Transform root = collision.transform.root;
@@ -429,11 +442,13 @@ public class ViolationDetector : MonoBehaviour
         }
         else
         {
-            // Diagnóstico: colisión a velocidad significativa contra layer Default sin tag conocido.
-            // Útil para detectar geometría sin clasificar (paredes, edificios) que el examinado
-            // choca pero no recibe feedback. Si aparece seguido, agregar tag/layer apropiado.
-            Debug.Log($"[ViolationDetector] Colisión sin clasificar (no feedback): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
-            return; // No fue penalizado, no activar cooldown
+            // Geometría no clasificada (pared/edificio/banqueta sin tag). No se
+            // penaliza al alumno por algo que puede ser falso positivo de la
+            // escena, pero SÍ debe sentir el impacto — el feedback sensorial
+            // es esencial para el examen. Log se conserva para ayudar a
+            // detectar geometría que merezca tag/layer apropiado.
+            violationType = "Obstacle";
+            Debug.Log($"[ViolationDetector] Colisión sin clasificar (feedback sin penalty): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
         }
 
         // Registrar cooldown del tipo apropiado
