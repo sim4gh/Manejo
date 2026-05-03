@@ -120,6 +120,22 @@ Sistema de clima aleatorio (Sol / Lluvia / Granizo). Singleton bootstrapped (`Af
 
 Ver [`WEATHER_SYSTEM.md`](WEATHER_SYSTEM.md) para arquitectura completa, gotchas (`size3D`, `AfterSceneLoad`, `rateOverTimeMultiplier`), demo codes `TTTTXY` y TODOs.
 
+### Wiper Control (`Assets/Custom/WiperAutoController.cs`, v1.3.9)
+
+Singleton bootstrapped (`AfterSceneLoad`, `DontDestroyOnLoad`) que maneja los limpiaparabrisas en escenas con `ControllWipers` (Sedan, Camioneta, Ambulancia, CamionDCarga; agregados en commit `486906e4` "Espejos con wipers"). Tres responsabilidades:
+
+1. **Auto-on por clima**: al cargar escena lee `PlayerPrefs.GetInt("Clima")` y llama `ControllWipers.SetMode(2)` si hay lluvia/granizo, o `SetMode(0)` si sol. El examinado nunca tiene que tocar nada para encender wipers cuando llueve.
+
+2. **Override del binding `<Keyboard>/e`**: el demo del asset `WindshieldRainAsset` tenía `Wipe → <Keyboard>/e`, lo cual chocaba con direccional derecha (`PlayerCar.cs:286` lee `eKey` directo del Keyboard). El controller anula ese binding en runtime con `ApplyBindingOverride(i, "")` — no se modifica el `.inputactions` vendor.
+
+3. **HORI buttons**: polling directo del device (no path strings) — **button42 → wipers OFF**, **button43 → ON latcheado en velocidad media (mode 2)**. Detecta el WHEEL filtrando `displayName.Contains("HORI")` y `!Contains("SHIFTER")`. No usa el sistema de bindings de `UIInputNew` por simplicidad; si en el futuro se quiere remapear, agregar `PREF_BIND_WIPER_ON/OFF` en `UIInputNew` y leer esos paths en lugar de los hardcoded `button42/43`.
+
+**Excluye** `MainMenu` y `Motocicleta` (early return en `HandleScene`).
+
+**Cambio vendor mínimo**: `Assets/WindshieldRainAsset/Common/DemoResources/Scripts/ControllWipers.cs` recibe un método público `SetMode(int)` con clamp defensivo. Si el asset se reimporta limpio, este método se pierde y el `WiperAutoController` falla en compile-time. Re-aplicar el patch tras cualquier upgrade del asset.
+
+**Atajos de teclado (debug)**: `0` = off, `1`/`2`/`3`/`4` = modos 1-4. Heredados del demo, sobreviven al override.
+
 ### Auto-update OTA (`Assets/Custom/AutoUpdater.cs`)
 
 Singleton que vive en `[AutoUpdater]` GameObject (DontDestroyOnLoad). Hardened en 1.2.2 (abr 2026) tras analisis exhaustivo + revision Codex.
