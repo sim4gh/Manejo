@@ -124,12 +124,16 @@ public class ExamResultsScreen : MonoBehaviour
         int totalDeducted = 0;
         for (int i = 0; i < faults.Count; i++) totalDeducted += Mathf.Abs(faults[i].points);
 
-        Color scoreColor = GetScoreColor(score);
-        string scoreLabel = GetScoreLabel(score);
+        bool isPractice = GameManager.Instance != null && GameManager.Instance.IsPracticeMode;
+        Color scoreColor = isPractice ? MenuTheme.TextPrimary : GetScoreColor(score);
+        string scoreLabel = isPractice
+            ? "Modo Práctica\nNo cuenta como examen"
+            : GetScoreLabel(score);
 
         // ── Header: 70-100% del alto de Content ──────────────────────────
-        // Título "Resultado del Examen" centrado arriba.
-        var titleObj = MenuCardBuilder.CreateText(content, "Title", "Resultado del Examen",
+        // Título distinto según modo: examen real vs práctica.
+        var titleObj = MenuCardBuilder.CreateText(content, "Title",
+            isPractice ? "Resumen de tu Práctica" : "Resultado del Examen",
             40f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center);
         titleObj.GetComponent<RectTransform>().Set(
             new Vector2(0f, 0.91f), new Vector2(1f, 1f), new Vector2(0.5f, 0.5f),
@@ -161,7 +165,9 @@ public class ExamResultsScreen : MonoBehaviour
             Vector2.zero, Vector2.zero);
 
         var summarySubObj = MenuCardBuilder.CreateText(content, "SummarySub",
-            "Detalle de infracciones cometidas durante el examen",
+            isPractice
+                ? "Detalle de infracciones — sirve para identificar qué practicar"
+                : "Detalle de infracciones cometidas durante el examen",
             MenuTheme.CardDescSize, FontStyles.Normal, MenuTheme.TextMuted, TextAlignmentOptions.Left);
         summarySubObj.GetComponent<RectTransform>().Set(
             new Vector2(0.36f, 0.71f), new Vector2(0.98f, 0.79f), new Vector2(0.5f, 0.5f),

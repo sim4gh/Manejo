@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 using System.Collections;
 
@@ -31,6 +32,15 @@ public class GameManager : MonoBehaviour
 
     /// <summary>0 = aleatorio entre 1..5; 1..5 = waypoint fijo. Default 1 (legacy).</summary>
     public int LocationId { get; set; } = 1;
+
+    // ── Modo Práctica (no cuenta como examen real) ───────────────────
+    public bool IsPracticeMode { get; set; }
+    public string PracticeId { get; set; }
+    public string PracticeVehicleType { get; set; }       // "Sedan", "Camioneta", "BusPasajeros", "CamionDCarga", "Motocicleta", "Ambulancia"
+    public string PracticeTransmission { get; set; }      // "Manual"|"Automatica"|null
+    public string PracticeWeather { get; set; }           // "Sol"|"Lluvia"|"Granizo"
+    public string PracticeSpawnLocation { get; set; }     // "1".."5"|"random"
+    public DateTime PracticeStartedAt { get; set; }       // Seteado por ExamTimer.Start() (no por el menú) para no inflar el tiempo
 
     void Awake()
     {
@@ -119,5 +129,13 @@ public class GameManager : MonoBehaviour
         LicenseType = null;
         SessionId = null;
         LocationId = 1;
+
+        IsPracticeMode = false;
+        PracticeId = null;
+        PracticeVehicleType = null;
+        PracticeTransmission = null;
+        PracticeWeather = null;
+        PracticeSpawnLocation = null;
+        PracticeStartedAt = default;
     }
 }

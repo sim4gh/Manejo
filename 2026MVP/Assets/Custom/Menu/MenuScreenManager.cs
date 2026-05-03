@@ -36,9 +36,20 @@ public class MenuScreenManager : MonoBehaviour
     // se muestra como "SUV" (más reconocible para el público de la prueba).
     private readonly string[] variantScenes = { "Sedan", "Camioneta" };
 
+    // ── Constantes de pantallas ────────────────────────────────────────
+    // Constantes nombradas en lugar de literales 0..N — antes había hardcodes
+    // (ej. `currentScreen == 3` para admin, `GoToScreen(3)`) que rompen al
+    // insertar pantallas nuevas. Cualquier nueva pantalla suma un slot al final.
+    private const int SCREEN_QR = 0;
+    private const int SCREEN_OPTIONS = 1;
+    private const int SCREEN_WHEEL = 2;
+    private const int SCREEN_ADMIN = 3;
+    private const int SCREEN_PRACTICE = 4;
+    private const int SCREEN_COUNT = 5;
+
     // ── UI refs ────────────────────────────────────────────────────────
-    private GameObject[] screens = new GameObject[4];
-    private CanvasGroup[] screenGroups = new CanvasGroup[4];
+    private GameObject[] screens = new GameObject[SCREEN_COUNT];
+    private CanvasGroup[] screenGroups = new CanvasGroup[SCREEN_COUNT];
     private int currentScreen = -1;
     private GameObject mainTitleGo;
 
@@ -97,6 +108,33 @@ public class MenuScreenManager : MonoBehaviour
     private GameObject[] transmisionCards;
     private Image[] transmisionBorders;
     private Button continueBtn1;
+
+    // Pantalla Práctica
+    // Nombres de escena (deben coincidir EXACTO con Build Settings)
+    private static readonly string[] practiceVehicles =
+        { "Sedan", "Camioneta", "BusPasajeros", "CamionDCarga", "Motocicleta", "Ambulancia" };
+    private static readonly string[] practiceVehicleLabels =
+        { "Sedán", "SUV", "Bus", "Camión", "Moto", "Ambulancia" };
+    private static readonly string[] practiceWeatherLabels = { "Sol", "Lluvia", "Granizo" };
+    private static readonly string[] practiceSpawnLabels =
+        { "Centro", "Mercado", "Plaza", "Industrial", "Periférico", "Aleatorio" };
+    private GameObject[] practiceVehicleCards;
+    private Image[] practiceVehicleBorders;
+    private GameObject[] practiceTransmisionCards;
+    private Image[] practiceTransmisionBorders;
+    private GameObject practiceTransmisionRow;
+    private GameObject[] practiceWeatherCards;
+    private Image[] practiceWeatherBorders;
+    private GameObject[] practiceSpawnCards;
+    private Image[] practiceSpawnBorders;
+    private Button practiceContinueBtn;
+    private int selectedPracticeVehicleIdx = 0;
+    private int selectedPracticeTransmisionIdx = 0; // 0=Auto, 1=Manual
+    private int selectedPracticeWeatherIdx = 0;     // 0=Sol
+    private int selectedPracticeSpawnIdx = 5;       // 5=Aleatorio (default)
+    // D-pad pantalla práctica: 0=vehículo, 1=transmisión, 2=clima, 3=escenario, 4=continuar
+    private int practiceRow = 0;
+    private int practiceCol = 0;
 
     // Pantalla 2
     private TextMeshProUGUI wheelPrompt;
@@ -175,7 +213,7 @@ public class MenuScreenManager : MonoBehaviour
         SetupCanvas();
         ClearExistingChildren();
         BuildLayout();
-        ShowScreen(0);
+        ShowScreen(SCREEN_QR);
         StartQRSession();
 
         // Listener para invalidar cache de InputControl<float> cuando el device
@@ -297,11 +335,12 @@ public class MenuScreenManager : MonoBehaviour
         // Header
         BuildHeader();
 
-        // 4 pantallas
+        // 5 pantallas
         BuildScreen0_QR();
         BuildScreen1_Options();
         BuildScreen2_Wheel();
         BuildScreen3_Admin();
+        BuildScreen_Practice();
     }
 
     void BuildHeader()
@@ -323,88 +362,85 @@ public class MenuScreenManager : MonoBehaviour
     void BuildScreen0_QR()
     {
         GameObject screen = MenuCardBuilder.CreateScreenContainer(transform, "Screen0_QR");
-        screens[0] = screen;
-        screenGroups[0] = screen.GetComponent<CanvasGroup>();
+        screens[SCREEN_QR] = screen;
+        screenGroups[SCREEN_QR] = screen.GetComponent<CanvasGroup>();
 
-        // ── LAYOUT: 2 columnas según wireframe ──
+        // ── LAYOUT: 3 columnas iguales (QR · Código TLX · Modo Práctica) ──
+        // Anchors X: izq 0.03-0.32, centro 0.35-0.64, der 0.67-0.96.
+        // Dividers verticales en X=0.335 y X=0.665.
 
-        // Columna izquierda: QR — empieza más abajo para espacio con título
+        // ─── Columna 1: QR ───
         GameObject leftPanel = new GameObject("QRPanel");
         leftPanel.transform.SetParent(screen.transform, false);
         leftPanel.AddComponent<RectTransform>().Set(
-            new Vector2(0.06f, 0.05f), new Vector2(0.47f, 0.72f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.03f, 0.05f), new Vector2(0.32f, 0.72f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Título sección QR
         MenuCardBuilder.CreateText(leftPanel.transform, "QRTitle",
             "Escanea el QR",
-            36f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
+            32f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
             .GetComponent<RectTransform>().Set(
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
                 new Vector2(0, 0), new Vector2(0, 50));
 
-        // QR grande
-        GameObject qrContainer = MenuCardBuilder.CreateQRDisplay(leftPanel.transform, new Vector2(380, 380));
+        GameObject qrContainer = MenuCardBuilder.CreateQRDisplay(leftPanel.transform, new Vector2(360, 360));
         qrContainer.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
-            new Vector2(0, -70), new Vector2(380, 380));
+            new Vector2(0, -70), new Vector2(360, 360));
         qrImage = qrContainer.transform.Find("QRImage").GetComponent<RawImage>();
 
-        // Status debajo del QR
         statusText = MenuCardBuilder.CreateText(leftPanel.transform, "Status",
             "Esperando verificación...",
-            22f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Left)
+            20f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Left)
             .GetComponent<TextMeshProUGUI>();
         statusText.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-            new Vector2(0, -465), new Vector2(0, 30));
+            new Vector2(0, -445), new Vector2(0, 30));
 
-        // Botón nuevo QR (oculto)
         newQRButton = MenuCardBuilder.CreateButton(leftPanel.transform, "Generar nuevo QR", "secondary",
-            new Vector2(300, 60), () => StartQRSession()).GetComponent<Button>();
+            new Vector2(280, 56), () => StartQRSession()).GetComponent<Button>();
         newQRButton.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
-            new Vector2(150, -510), new Vector2(300, 60));
+            new Vector2(40, -490), new Vector2(280, 56));
         newQRButton.gameObject.SetActive(false);
 
-        // ── Divider vertical ──
-        GameObject divider = new GameObject("VerticalDivider");
-        divider.transform.SetParent(screen.transform, false);
-        divider.AddComponent<RectTransform>().Set(
-            new Vector2(0.5f, 0.10f), new Vector2(0.5f, 0.70f), new Vector2(0.5f, 0.5f),
+        // ─── Divider 1 ───
+        GameObject divider1 = new GameObject("VerticalDivider1");
+        divider1.transform.SetParent(screen.transform, false);
+        divider1.AddComponent<RectTransform>().Set(
+            new Vector2(0.335f, 0.10f), new Vector2(0.335f, 0.70f), new Vector2(0.5f, 0.5f),
             Vector2.zero, new Vector2(1, 0));
-        divider.AddComponent<Image>().color = MenuTheme.DividerColor;
+        divider1.AddComponent<Image>().color = MenuTheme.DividerColor;
 
-        // ── Columna derecha: Código manual ──
-        GameObject rightPanel = new GameObject("CodePanel");
-        rightPanel.transform.SetParent(screen.transform, false);
-        rightPanel.AddComponent<RectTransform>().Set(
-            new Vector2(0.53f, 0.05f), new Vector2(0.94f, 0.72f), new Vector2(0.5f, 0.5f),
+        // ─── Columna 2: Código TLX ───
+        GameObject centerPanel = new GameObject("CodePanel");
+        centerPanel.transform.SetParent(screen.transform, false);
+        centerPanel.AddComponent<RectTransform>().Set(
+            new Vector2(0.35f, 0.05f), new Vector2(0.64f, 0.72f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
-        // Título sección código
-        MenuCardBuilder.CreateText(rightPanel.transform, "CodeTitle",
+        MenuCardBuilder.CreateText(centerPanel.transform, "CodeTitle",
             "Ingresa tu trámite",
-            36f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
+            32f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
             .GetComponent<RectTransform>().Set(
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
                 new Vector2(0, 0), new Vector2(0, 50));
 
-        // Label "TLX-" arriba
-        MenuCardBuilder.CreateText(rightPanel.transform, "Prefix", "TLX-",
-            30f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
+        MenuCardBuilder.CreateText(centerPanel.transform, "Prefix", "TLX-",
+            28f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
             .GetComponent<RectTransform>().Set(
                 new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-                new Vector2(0, -80), new Vector2(0, 40));
+                new Vector2(0, -75), new Vector2(0, 40));
 
-        // PIN input: 6 cajas debajo del label
-        var pinContainer = MenuCardBuilder.CreatePinInput(rightPanel.transform, 6, 70f, 12f);
+        // PIN input: 6 cajas, achicadas a 56px+10gap (360px total) para caber en columna 29% de 1920.
+        const float pinBoxSize = 56f;
+        const float pinBoxGap = 10f;
+        var pinContainer = MenuCardBuilder.CreatePinInput(centerPanel.transform, 6, pinBoxSize, pinBoxGap);
         pinContainer.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(0, 1), new Vector2(0, 1),
-            new Vector2(0, -125), new Vector2(6 * 70f + 5 * 12f, 80f));
+            new Vector2(0, -120), new Vector2(6 * pinBoxSize + 5 * pinBoxGap, 70f));
         codeInput = pinContainer.GetComponentInChildren<TMP_InputField>();
 
-        // Cachear refs para d-pad (hijos creados por CreatePinInput)
         Transform boxRow = pinContainer.transform.Find("BoxRow");
         pinDigits = new int[] { -1, -1, -1, -1, -1, -1 };
         pinDigitTexts = new TextMeshProUGUI[6];
@@ -416,7 +452,6 @@ public class MenuScreenManager : MonoBehaviour
             pinDigitTexts[i] = border.Find("Digit_" + i).GetComponent<TextMeshProUGUI>();
         }
 
-        // Sync teclado → pinDigits (coexistencia con d-pad)
         codeInput.onValueChanged.AddListener((string val) =>
         {
             for (int j = 0; j < 6; j++)
@@ -425,30 +460,69 @@ public class MenuScreenManager : MonoBehaviour
             RefreshPinVisuals();
         });
 
-        // Enter con código completo → verificar (equivalente a click en "Verificar Código")
         codeInput.onSubmit.AddListener((string val) =>
         {
             if (val != null && val.Trim().Length == 6)
                 OnVerifyCode();
             else
-                codeInput.ActivateInputField(); // mantener foco si aún faltan dígitos
+                codeInput.ActivateInputField();
         });
 
-        // Botón verificar — ancho completo, debajo del PIN
-        verifyButton = MenuCardBuilder.CreateButton(rightPanel.transform, "Verificar Código", "primary",
-            new Vector2(0, 70), () => OnVerifyCode()).GetComponent<Button>();
+        verifyButton = MenuCardBuilder.CreateButton(centerPanel.transform, "Verificar Código", "primary",
+            new Vector2(0, 64), () => OnVerifyCode()).GetComponent<Button>();
         verifyButton.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
-            new Vector2(0, -225), new Vector2(0, 70));
+            new Vector2(0, -210), new Vector2(0, 64));
 
-        // Error text
-        errorText0 = MenuCardBuilder.CreateText(rightPanel.transform, "ErrorText", "",
-            20f, FontStyles.Normal, MenuTheme.TextError, TextAlignmentOptions.Left)
+        errorText0 = MenuCardBuilder.CreateText(centerPanel.transform, "ErrorText", "",
+            18f, FontStyles.Normal, MenuTheme.TextError, TextAlignmentOptions.Left)
             .GetComponent<TextMeshProUGUI>();
         errorText0.textWrappingMode = TextWrappingModes.Normal;
         errorText0.GetComponent<RectTransform>().Set(
             new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
-            new Vector2(0, -310), new Vector2(0, 50));
+            new Vector2(0, -290), new Vector2(0, 50));
+
+        // ─── Divider 2 ───
+        GameObject divider2 = new GameObject("VerticalDivider2");
+        divider2.transform.SetParent(screen.transform, false);
+        divider2.AddComponent<RectTransform>().Set(
+            new Vector2(0.665f, 0.10f), new Vector2(0.665f, 0.70f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, new Vector2(1, 0));
+        divider2.AddComponent<Image>().color = MenuTheme.DividerColor;
+
+        // ─── Columna 3: Modo Práctica ───
+        GameObject practicePanel = new GameObject("PracticePanel");
+        practicePanel.transform.SetParent(screen.transform, false);
+        practicePanel.AddComponent<RectTransform>().Set(
+            new Vector2(0.67f, 0.05f), new Vector2(0.96f, 0.72f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        MenuCardBuilder.CreateText(practicePanel.transform, "PracticeTitle",
+            "Modo Práctica",
+            32f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Left)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
+                new Vector2(0, 0), new Vector2(0, 50));
+
+        MenuCardBuilder.CreateText(practicePanel.transform, "PracticeSubtitle",
+            "3 minutos · No cuenta como examen",
+            18f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Left)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
+                new Vector2(0, -55), new Vector2(0, 30));
+
+        MenuCardBuilder.CreateText(practicePanel.transform, "PracticeBlurb",
+            "Familiarízate con el simulador antes de tu examen teórico. Elige el vehículo, el clima y un escenario y conduce libremente por 3 minutos.",
+            18f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.TopLeft)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, 1),
+                new Vector2(0, -110), new Vector2(0, 220));
+
+        Button practiceBtn = MenuCardBuilder.CreateButton(practicePanel.transform, "Practicar", "primary",
+            new Vector2(0, 64), () => OnPracticeMode()).GetComponent<Button>();
+        practiceBtn.GetComponent<RectTransform>().Set(
+            new Vector2(0, 1), new Vector2(1, 1), new Vector2(0.5f, 1),
+            new Vector2(0, -360), new Vector2(0, 64));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -458,8 +532,8 @@ public class MenuScreenManager : MonoBehaviour
     void BuildScreen1_Options()
     {
         GameObject screen = MenuCardBuilder.CreateScreenContainer(transform, "Screen1_Options");
-        screens[1] = screen;
-        screenGroups[1] = screen.GetComponent<CanvasGroup>();
+        screens[SCREEN_OPTIONS] = screen;
+        screenGroups[SCREEN_OPTIONS] = screen.GetComponent<CanvasGroup>();
 
         // Área completa debajo del título
         GameObject area = new GameObject("CenterArea");
@@ -604,7 +678,7 @@ public class MenuScreenManager : MonoBehaviour
         PlayerPrefs.SetInt("TransmisionManual", selectedTransmisionIndex);
         PlayerPrefs.Save();
         Debug.Log($"[MenuScreenManager] Transmisión: {(selectedTransmisionIndex == 1 ? "Manual" : "Automática")}");
-        GoToScreen(2);
+        GoToScreen(SCREEN_WHEEL);
     }
 
     void OnVariantSelected(int idx)
@@ -634,8 +708,8 @@ public class MenuScreenManager : MonoBehaviour
     void BuildScreen2_Wheel()
     {
         GameObject screen = MenuCardBuilder.CreateScreenContainer(transform, "Screen2_Wheel");
-        screens[2] = screen;
-        screenGroups[2] = screen.GetComponent<CanvasGroup>();
+        screens[SCREEN_WHEEL] = screen;
+        screenGroups[SCREEN_WHEEL] = screen.GetComponent<CanvasGroup>();
 
         // Usar anchors amplios, centrado vertical
         GameObject area = new GameObject("CenterArea");
@@ -939,23 +1013,23 @@ public class MenuScreenManager : MonoBehaviour
         {
             case "motocicleta":
                 selectedSceneName = "Motocicleta";
-                GoToScreen(2); // Directo a verificación volante
+                GoToScreen(SCREEN_WHEEL); // Directo a verificación volante
                 break;
             case "publico":
                 selectedSceneName = "BusPasajeros";
-                GoToScreen(2);
+                GoToScreen(SCREEN_WHEEL);
                 break;
             case "carga":
                 selectedSceneName = "CamionDCarga";
-                GoToScreen(2);
+                GoToScreen(SCREEN_WHEEL);
                 break;
             case "emergencia":
                 selectedSceneName = "Ambulancia";
-                GoToScreen(2);
+                GoToScreen(SCREEN_WHEEL);
                 break;
             case "particular":
             default:
-                GoToScreen(1); // Mostrar opciones
+                GoToScreen(SCREEN_OPTIONS); // Mostrar opciones
                 break;
         }
     }
@@ -1034,13 +1108,13 @@ public class MenuScreenManager : MonoBehaviour
     void BuildScreen3_Admin()
     {
         GameObject screen = MenuCardBuilder.CreateScreenContainer(transform, "Screen3_Admin");
-        screens[3] = screen;
-        screenGroups[3] = screen.GetComponent<CanvasGroup>();
+        screens[SCREEN_ADMIN] = screen;
+        screenGroups[SCREEN_ADMIN] = screen.GetComponent<CanvasGroup>();
 
         // Botón Cerrar flotante (esquina superior derecha — fuera del Content
         // para que la layout nunca pueda recortarlo).
         GameObject closeBtn = MenuCardBuilder.CreateButton(screen.transform, "Cerrar", "primary",
-            new Vector2(140f, 50f), () => GoToScreen(0));
+            new Vector2(140f, 50f), () => GoToScreen(SCREEN_QR));
         closeBtn.GetComponent<RectTransform>().Set(
             new Vector2(1, 1), new Vector2(1, 1), new Vector2(1, 1),
             new Vector2(-30, -30), new Vector2(140, 50));
@@ -1144,6 +1218,248 @@ public class MenuScreenManager : MonoBehaviour
         StartCoroutine(AdminRefreshSimulator());
 
         LayoutRebuilder.ForceRebuildLayoutImmediate(contentRt);
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // PANTALLA PRÁCTICA — Configuración del Modo Práctica (3 minutos)
+    // ════════════════════════════════════════════════════════════════════
+
+    void BuildScreen_Practice()
+    {
+        GameObject screen = MenuCardBuilder.CreateScreenContainer(transform, "Screen_Practice");
+        screens[SCREEN_PRACTICE] = screen;
+        screenGroups[SCREEN_PRACTICE] = screen.GetComponent<CanvasGroup>();
+
+        GameObject area = new GameObject("CenterArea");
+        area.transform.SetParent(screen.transform, false);
+        area.AddComponent<RectTransform>().Set(
+            new Vector2(0.05f, 0.03f), new Vector2(0.95f, 0.85f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        // ── Título (90-100%) ──
+        MenuCardBuilder.CreateText(area.transform, "Title", "Configura tu Práctica",
+            38f, FontStyles.Bold, MenuTheme.PrimaryPurple, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.92f), new Vector2(1, 1f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        MenuCardBuilder.CreateText(area.transform, "Subtitle",
+            "3 minutos de manejo libre · No cuenta como examen",
+            18f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.86f), new Vector2(1, 0.92f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        // ── Vehículo (67-84%) ──
+        MenuCardBuilder.CreateText(area.transform, "VehicleLabel", "Tipo de vehículo",
+            22f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.80f), new Vector2(1, 0.84f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        practiceVehicleCards = new GameObject[practiceVehicles.Length];
+        practiceVehicleBorders = new Image[practiceVehicles.Length];
+        BuildPracticeRow(area.transform, "Vehicle", practiceVehicleLabels,
+            new[] { "S", "U", "B", "C", "M", "A" },
+            new string[] { "Compacto", "Familiar", "Pasajeros", "Carga", "Requiere Moto Sim", "Emergencia" },
+            0.66f, 0.79f, 0.13f, 0.01f,
+            practiceVehicleCards, practiceVehicleBorders,
+            i => OnPracticeVehicleSelected(i));
+
+        // ── Transmisión (52-64%) — visible solo si Sedan/SUV ──
+        practiceTransmisionRow = new GameObject("TransmisionRow");
+        practiceTransmisionRow.transform.SetParent(area.transform, false);
+        practiceTransmisionRow.AddComponent<RectTransform>().Set(
+            new Vector2(0, 0.52f), new Vector2(1, 0.64f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        MenuCardBuilder.CreateText(practiceTransmisionRow.transform, "TransmisionLabel", "Transmisión",
+            22f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.85f), new Vector2(1, 1f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        practiceTransmisionCards = new GameObject[2];
+        practiceTransmisionBorders = new Image[2];
+        BuildPracticeRow(practiceTransmisionRow.transform, "Transmision",
+            new[] { "Automática", "Manual" }, new[] { "A", "M" },
+            new[] { "Sin clutch", "Con clutch + H-shifter" },
+            0f, 0.85f, 0.30f, 0.04f,
+            practiceTransmisionCards, practiceTransmisionBorders,
+            i => OnPracticeTransmisionSelected(i));
+
+        // ── Clima (38-50%) ──
+        MenuCardBuilder.CreateText(area.transform, "WeatherLabel", "Condiciones",
+            22f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.46f), new Vector2(1, 0.50f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        practiceWeatherCards = new GameObject[3];
+        practiceWeatherBorders = new Image[3];
+        BuildPracticeRow(area.transform, "Weather", practiceWeatherLabels,
+            new[] { "S", "L", "G" },
+            new[] { "Día despejado", "Lluvia ligera", "Granizo" },
+            0.33f, 0.45f, 0.22f, 0.03f,
+            practiceWeatherCards, practiceWeatherBorders,
+            i => OnPracticeWeatherSelected(i));
+
+        // ── Escenario (20-32%) ──
+        MenuCardBuilder.CreateText(area.transform, "SpawnLabel", "Escenario",
+            22f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
+            .GetComponent<RectTransform>().Set(
+                new Vector2(0, 0.30f), new Vector2(1, 0.34f), new Vector2(0.5f, 0.5f),
+                Vector2.zero, Vector2.zero);
+
+        practiceSpawnCards = new GameObject[6];
+        practiceSpawnBorders = new Image[6];
+        BuildPracticeRow(area.transform, "Spawn", practiceSpawnLabels,
+            new[] { "1", "2", "3", "4", "5", "?" },
+            new string[] { "", "", "", "", "", "" },
+            0.18f, 0.29f, 0.13f, 0.01f,
+            practiceSpawnCards, practiceSpawnBorders,
+            i => OnPracticeSpawnSelected(i));
+
+        // ── Continuar (4-16%) ──
+        practiceContinueBtn = MenuCardBuilder.CreateButton(area.transform, "Iniciar Práctica", "primary",
+            new Vector2(100, 80), OnContinuePractice).GetComponent<Button>();
+        practiceContinueBtn.GetComponent<RectTransform>().Set(
+            new Vector2(0.30f, 0.04f), new Vector2(0.70f, 0.16f), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        // Defaults visuales
+        OnPracticeVehicleSelected(0);
+        OnPracticeTransmisionSelected(0);
+        OnPracticeWeatherSelected(0);
+        OnPracticeSpawnSelected(5);
+    }
+
+    /// <summary>
+    /// Construye una fila horizontal de N cards iguales (helper para la pantalla práctica).
+    /// y0/y1 son anchors verticales dentro del parent (área completa o subrow).
+    /// </summary>
+    void BuildPracticeRow(Transform parent, string namePrefix, string[] titles, string[] letters,
+        string[] descs, float y0, float y1, float cardW, float gap,
+        GameObject[] outCards, Image[] outBorders, System.Action<int> onClick)
+    {
+        float totalW = cardW * titles.Length + gap * (titles.Length - 1);
+        float startX = (1f - totalW) / 2f;
+        for (int i = 0; i < titles.Length; i++)
+        {
+            int idx = i;
+            float left = startX + i * (cardW + gap);
+            GameObject card = MenuCardBuilder.CreateIconCard(parent, null,
+                titles[i], descs[i] ?? "", new Vector2(60, 60), letters[i]);
+            card.GetComponent<RectTransform>().Set(
+                new Vector2(left, y0), new Vector2(left + cardW, y1),
+                new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+            card.AddComponent<CanvasGroup>();
+
+            Button btn = card.AddComponent<Button>();
+            btn.targetGraphic = card.transform.Find("Background").GetComponent<Image>();
+            btn.onClick.AddListener(() => onClick(idx));
+            ColorBlock cb = btn.colors;
+            cb.normalColor = Color.white;
+            cb.highlightedColor = new Color(1.15f, 1.15f, 1.15f, 1f);
+            cb.pressedColor = new Color(0.9f, 0.9f, 0.9f, 1f);
+            cb.fadeDuration = 0.12f;
+            btn.colors = cb;
+
+            outCards[i] = card;
+            outBorders[i] = card.transform.Find("Border").GetComponent<Image>();
+        }
+    }
+
+    void OnPracticeVehicleSelected(int idx)
+    {
+        selectedPracticeVehicleIdx = idx;
+        UpdatePracticeRowSelection(practiceVehicleCards, practiceVehicleBorders, idx);
+        // Transmisión solo aplica a Sedan (0) y Camioneta/SUV (1).
+        bool transmisionVisible = (idx == 0 || idx == 1);
+        if (practiceTransmisionRow != null) practiceTransmisionRow.SetActive(transmisionVisible);
+    }
+
+    void OnPracticeTransmisionSelected(int idx)
+    {
+        selectedPracticeTransmisionIdx = idx;
+        UpdatePracticeRowSelection(practiceTransmisionCards, practiceTransmisionBorders, idx);
+    }
+
+    void OnPracticeWeatherSelected(int idx)
+    {
+        selectedPracticeWeatherIdx = idx;
+        UpdatePracticeRowSelection(practiceWeatherCards, practiceWeatherBorders, idx);
+    }
+
+    void OnPracticeSpawnSelected(int idx)
+    {
+        selectedPracticeSpawnIdx = idx;
+        UpdatePracticeRowSelection(practiceSpawnCards, practiceSpawnBorders, idx);
+    }
+
+    void UpdatePracticeRowSelection(GameObject[] cards, Image[] borders, int selectedIdx)
+    {
+        if (cards == null || borders == null) return;
+        for (int i = 0; i < cards.Length; i++)
+        {
+            bool sel = (i == selectedIdx);
+            borders[i].color = sel ? MenuTheme.CardBorderGold : MenuTheme.CardBorder;
+            cards[i].transform.Find("Background").GetComponent<Image>().color =
+                sel ? MenuTheme.CardSelected : MenuTheme.CardBackground;
+            if (sel)
+                StartCoroutine(MenuAnimator.ScalePunch(
+                    cards[i].GetComponent<RectTransform>(),
+                    MenuTheme.CardPunchScale, MenuTheme.CardPunchDuration));
+        }
+    }
+
+    /// <summary>Click en card "Modo Práctica" de pantalla 0 → setear contexto y abrir pantalla práctica.</summary>
+    void OnPracticeMode()
+    {
+        // Limpiar estado local del menú — StartSessionAndLoadScene() lee tramiteId/citizenName/licenseType
+        // del menu, NO de GameManager. Sin esto, una práctica heredaría el tramiteId de un examen previo.
+        tramiteId = null;
+        citizenName = "Práctica";
+        licenseType = "practica";
+
+        // Setear contexto cross-scene
+        var gm = GameManager.Instance;
+        gm.IsPracticeMode = true;
+        gm.PracticeId = System.Guid.NewGuid().ToString();
+        gm.TramiteId = null;
+        gm.SessionId = null;
+        gm.CitizenName = "Práctica";
+
+        GoToScreen(SCREEN_PRACTICE);
+    }
+
+    /// <summary>"Iniciar Práctica" → persistir selecciones y avanzar a verificación de volante.</summary>
+    void OnContinuePractice()
+    {
+        var gm = GameManager.Instance;
+        gm.PracticeVehicleType = practiceVehicles[selectedPracticeVehicleIdx];
+        bool isAuto = (selectedPracticeVehicleIdx == 0 || selectedPracticeVehicleIdx == 1);
+        gm.PracticeTransmission = isAuto
+            ? (selectedPracticeTransmisionIdx == 1 ? "Manual" : "Automatica")
+            : null;
+        gm.PracticeWeather = practiceWeatherLabels[selectedPracticeWeatherIdx];
+
+        // selectedPracticeSpawnIdx 0..4 = LocationId 1..5; 5 = LocationId 0 (random).
+        // Convención existente en SpawnLocationManager.
+        int locationId = (selectedPracticeSpawnIdx == 5) ? 0 : (selectedPracticeSpawnIdx + 1);
+        gm.LocationId = locationId;
+        gm.PracticeSpawnLocation = locationId == 0 ? "random" : locationId.ToString();
+        // PracticeStartedAt lo setea ExamTimer.Start() al cargar la escena — no aquí —
+        // para no inflar el tiempo con la verificación de volante y el LoadScene.
+
+        PlayerPrefs.SetInt("TransmisionManual", selectedPracticeTransmisionIdx);
+        PlayerPrefs.SetInt("Clima", selectedPracticeWeatherIdx);
+        // Mirror al PlayerPref legacy `Cargolluvia` (LogConsolePanel/LogUploader lo leen).
+        PlayerPrefs.SetInt("Cargolluvia", selectedPracticeWeatherIdx == 1 ? 1 : 0);
+        PlayerPrefs.Save();
+
+        selectedSceneName = practiceVehicles[selectedPracticeVehicleIdx];
+        GoToScreen(SCREEN_WHEEL);
     }
 
     // ── Admin UI Helpers ─────────────────────────────────────────────
@@ -1253,7 +1569,7 @@ public class MenuScreenManager : MonoBehaviour
         StartCoroutine(AdminRegisterBackend(data));
 
         Debug.Log("[Admin] Configuracion guardada");
-        GoToScreen(0);
+        GoToScreen(SCREEN_QR);
     }
 
     IEnumerator AdminRegisterBackend(SimulatorConfig.ConfigData data)
@@ -1323,7 +1639,7 @@ public class MenuScreenManager : MonoBehaviour
     }
 
     /// <summary>Llamado desde AdminPanel.cs cuando F10 abre el admin.</summary>
-    public void NavigateToAdmin() => GoToScreen(3);
+    public void NavigateToAdmin() => GoToScreen(SCREEN_ADMIN);
 
     [System.Serializable]
     private class AdminRegisterRequest
@@ -1584,19 +1900,21 @@ public class MenuScreenManager : MonoBehaviour
 
     void Update()
     {
-        if (currentScreen == 3 && Keyboard.current != null
+        if (currentScreen == SCREEN_ADMIN && Keyboard.current != null
             && Keyboard.current.escapeKey.wasPressedThisFrame)
         {
-            GoToScreen(0);
+            GoToScreen(SCREEN_QR);
             return;
         }
 
-        if (currentScreen == 0)
+        if (currentScreen == SCREEN_QR)
             UpdatePinDpad();
-        else if (currentScreen == 1)
+        else if (currentScreen == SCREEN_OPTIONS)
             UpdateOptionsDpad();
+        else if (currentScreen == SCREEN_PRACTICE)
+            UpdatePracticeDpad();
 
-        if (currentScreen != 2) return;
+        if (currentScreen != SCREEN_WHEEL) return;
 
         // Leer input (dispara detección+cacheo de device/pedales) antes de pintar debug
         float steer = ReadSteerInput();
@@ -2461,6 +2779,116 @@ public class MenuScreenManager : MonoBehaviour
                 img.color = MenuTheme.ButtonPrimary;
                 if (txt != null) txt.color = MenuTheme.ButtonPrimaryText;
             }
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // D-PAD PANTALLA PRÁCTICA
+    // ════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Navegación d-pad para la pantalla de configuración de práctica.
+    /// Filas: 0=vehículo, 1=transmisión (skip si no aplica), 2=clima, 3=escenario, 4=continuar.
+    /// </summary>
+    void UpdatePracticeDpad()
+    {
+        if (hatUp == null) ReadSteerInput();
+        if (hatUp == null) return;
+
+        float dt = Time.unscaledDeltaTime;
+        bool up    = DpadRepeat(hatUp,    ref dpadUpT,    ref dpadUpR,    dt);
+        bool down  = DpadRepeat(hatDown,  ref dpadDownT,  ref dpadDownR,  dt);
+        bool left  = DpadRepeat(hatLeft,  ref dpadLeftT,  ref dpadLeftR,  dt);
+        bool right = DpadRepeat(hatRight, ref dpadRightT, ref dpadRightR, dt);
+
+        bool transmisionVisible = (selectedPracticeVehicleIdx == 0 || selectedPracticeVehicleIdx == 1);
+
+        bool confirmPressed = (SafeReadFloat(circleBtn, out var ccv) && ccv > 0.5f) ||
+                              (SafeReadFloat(enterBtn,  out var cev) && cev > 0.5f);
+        if (confirmPressed)
+        {
+            if (!confirmBtnHeld)
+            {
+                confirmBtnHeld = true;
+                if (practiceRow == 0) OnPracticeVehicleSelected(practiceCol);
+                else if (practiceRow == 1 && transmisionVisible) OnPracticeTransmisionSelected(practiceCol);
+                else if (practiceRow == 2) OnPracticeWeatherSelected(practiceCol);
+                else if (practiceRow == 3) OnPracticeSpawnSelected(practiceCol);
+                else if (practiceRow == 4) OnContinuePractice();
+                RefreshPracticeVisuals();
+            }
+        }
+        else confirmBtnHeld = false;
+
+        if (!up && !down && !left && !right) return;
+
+        // Determinar maxCol según fila actual.
+        int maxCol = PracticeMaxColForRow(practiceRow, transmisionVisible);
+
+        if (up && practiceRow > 0)
+        {
+            practiceRow--;
+            // Saltar fila transmisión cuando no aplica (vehículo distinto a Sedan/SUV).
+            if (practiceRow == 1 && !transmisionVisible) practiceRow = 0;
+            maxCol = PracticeMaxColForRow(practiceRow, transmisionVisible);
+            practiceCol = Mathf.Min(practiceCol, maxCol);
+        }
+        else if (down && practiceRow < 4)
+        {
+            practiceRow++;
+            if (practiceRow == 1 && !transmisionVisible) practiceRow = 2;
+            maxCol = PracticeMaxColForRow(practiceRow, transmisionVisible);
+            practiceCol = Mathf.Min(practiceCol, maxCol);
+        }
+        else if (left && practiceCol > 0) practiceCol--;
+        else if (right && practiceCol < maxCol) practiceCol++;
+
+        RefreshPracticeVisuals();
+    }
+
+    int PracticeMaxColForRow(int row, bool transmisionVisible)
+    {
+        switch (row)
+        {
+            case 0: return practiceVehicles.Length - 1;       // 5 (6 cards)
+            case 1: return transmisionVisible ? 1 : 0;         // 1 si visible
+            case 2: return practiceWeatherLabels.Length - 1;   // 2 (3 cards)
+            case 3: return practiceSpawnLabels.Length - 1;     // 5 (6 cards)
+            case 4: return 0;                                   // botón único
+            default: return 0;
+        }
+    }
+
+    void RefreshPracticeVisuals()
+    {
+        bool transmisionVisible = (selectedPracticeVehicleIdx == 0 || selectedPracticeVehicleIdx == 1);
+        RefreshPracticeRow(practiceVehicleCards, practiceVehicleBorders, 0, selectedPracticeVehicleIdx);
+        if (transmisionVisible)
+            RefreshPracticeRow(practiceTransmisionCards, practiceTransmisionBorders, 1, selectedPracticeTransmisionIdx);
+        RefreshPracticeRow(practiceWeatherCards, practiceWeatherBorders, 2, selectedPracticeWeatherIdx);
+        RefreshPracticeRow(practiceSpawnCards, practiceSpawnBorders, 3, selectedPracticeSpawnIdx);
+
+        if (practiceContinueBtn != null)
+        {
+            Image img = practiceContinueBtn.GetComponent<Image>();
+            TextMeshProUGUI txt = practiceContinueBtn.GetComponentInChildren<TextMeshProUGUI>();
+            bool focused = (practiceRow == 4);
+            if (img != null) img.color = focused ? MenuTheme.Gold : MenuTheme.ButtonPrimary;
+            if (txt != null) txt.color = focused ? MenuTheme.TextPrimary : MenuTheme.ButtonPrimaryText;
+        }
+    }
+
+    void RefreshPracticeRow(GameObject[] cards, Image[] borders, int row, int selectedIdx)
+    {
+        if (cards == null || borders == null) return;
+        for (int i = 0; i < cards.Length; i++)
+        {
+            bool focused = (practiceRow == row && practiceCol == i);
+            bool selected = (i == selectedIdx);
+            borders[i].color = focused ? MenuTheme.Gold :
+                (selected ? MenuTheme.CardBorderGold : MenuTheme.CardBorder);
+            cards[i].transform.Find("Background").GetComponent<Image>().color =
+                selected ? MenuTheme.CardSelected : MenuTheme.CardBackground;
         }
     }
 
