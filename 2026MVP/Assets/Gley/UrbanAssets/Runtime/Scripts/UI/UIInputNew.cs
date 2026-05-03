@@ -166,6 +166,7 @@ namespace Gley.UrbanSystem
         private InputControl<float> _l2Ctrl, _r2Ctrl, _l3Ctrl, _r3Ctrl;
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
         private InputControl<float> _hazardCtrl;       // botón dedicado de intermitentes
+        private InputControl<float> _hornCtrl;         // claxón (hold-to-honk)
         // Reversa soporta multi-path: el binding string puede contener varios
         // paths separados por '|' (OR). Útil cuando un mismo shifter firma
         // reversa en varios controles a la vez.
@@ -194,6 +195,7 @@ namespace Gley.UrbanSystem
         private string _bindPaddleLeft = "button6";
         private string _bindPaddleRight = "button5";
         private string _bindHazard = "";
+        private string _bindHorn = "";
         private string _bindRestart = "";           // vacío = deshabilitado
         private string _bindMenuA = "button7";      // L2
         private string _bindMenuB = "button8";      // R2
@@ -228,6 +230,7 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
         public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
         public const string PREF_BIND_HAZARD = "Bind_hazard";
+        public const string PREF_BIND_HORN = "Bind_horn";
         public const string PREF_BIND_RESTART = "Bind_restart";
         public const string PREF_BIND_MENU_A = "Bind_menuA";
         public const string PREF_BIND_MENU_B = "Bind_menuB";
@@ -310,6 +313,7 @@ namespace Gley.UrbanSystem
         public const string DEFAULT_BIND_PADDLE_LEFT = "button6";
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
         public const string DEFAULT_BIND_HAZARD = "";
+        public const string DEFAULT_BIND_HORN = "";
         public const string DEFAULT_BIND_RESTART = "";
         public const string DEFAULT_BIND_MENU_A = "button7";
         public const string DEFAULT_BIND_MENU_B = "button8";
@@ -345,6 +349,7 @@ namespace Gley.UrbanSystem
             _bindPaddleLeft   = PlayerPrefs.GetString(PREF_BIND_PADDLE_LEFT, DEFAULT_BIND_PADDLE_LEFT);
             _bindPaddleRight  = PlayerPrefs.GetString(PREF_BIND_PADDLE_RIGHT, DEFAULT_BIND_PADDLE_RIGHT);
             _bindHazard       = PlayerPrefs.GetString(PREF_BIND_HAZARD, DEFAULT_BIND_HAZARD);
+            _bindHorn         = PlayerPrefs.GetString(PREF_BIND_HORN, DEFAULT_BIND_HORN);
             _bindRestart      = PlayerPrefs.GetString(PREF_BIND_RESTART, DEFAULT_BIND_RESTART);
             _bindMenuA        = PlayerPrefs.GetString(PREF_BIND_MENU_A, DEFAULT_BIND_MENU_A);
             _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
@@ -367,6 +372,7 @@ namespace Gley.UrbanSystem
             _l1Ctrl       = CacheBindingCtrl(_bindPaddleLeft);
             _r1Ctrl       = CacheBindingCtrl(_bindPaddleRight);
             _hazardCtrl   = CacheBindingCtrl(_bindHazard);
+            _hornCtrl     = CacheBindingCtrl(_bindHorn);
             _restartCtrl  = CacheBindingCtrl(_bindRestart);
             _l2Ctrl       = CacheBindingCtrl(_bindMenuA);
             _r2Ctrl       = CacheBindingCtrl(_bindMenuB);
@@ -925,10 +931,11 @@ namespace Gley.UrbanSystem
 
             if (IsHORITruck(device))
             {
-                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/reverse + throttle vía HoriThrottleReader (raw HID byte intercept)");
+                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/horn/reverse + throttle vía HoriThrottleReader (raw HID byte intercept)");
                 PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
                 PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
                 PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
+                PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
                 PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
                 // Throttle: el HID parser de Unity tiene un bug con el descriptor
                 // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
@@ -1214,8 +1221,10 @@ namespace Gley.UrbanSystem
         // "rechino": en Xbox no hay forma de presionar clutch → no penalizar.
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         public bool HasPhysicalClutch() => _clutchCtrl != null;
+        public bool IsHornPressed() => IsPressed(_hornCtrl);
 #else
         public bool HasPhysicalClutch() => false;
+        public bool IsHornPressed() => false;
 #endif
         // Devuelve y resetea el contador de cambios de marcha sin clutch.
         // Patrón latched (no bool con reset-on-read) para que el orden de
