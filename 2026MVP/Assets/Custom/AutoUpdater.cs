@@ -418,16 +418,18 @@ set WAIT=0
 :waitloop
 tasklist /FI ""IMAGENAME eq {exeName}"" 2>NUL | find /I ""{exeName}"" >NUL
 if errorlevel 1 goto continue_install
-if %WAIT% GEQ 30 (
-    echo WARN: Unity no cerro tras 30s, continuando...
-    echo %DATE% %TIME% WARN: Unity did not exit after 30s >> ""{batInstallLog}""
+if %WAIT% GEQ 10 (
+    echo WARN: Unity no cerro tras 10s, forzando taskkill...
+    echo %DATE% %TIME% WARN: Unity did not exit after 10s, forcing taskkill /F >> ""{batInstallLog}""
+    taskkill /F /IM ""{exeName}"" >NUL 2>&1
+    timeout /t 3 /nobreak >nul
     goto continue_install
 )
 timeout /t 2 /nobreak >nul
 set /a WAIT+=2
 goto waitloop
 :continue_install
-echo %DATE% %TIME% Unity closed, proceeding >> ""{batInstallLog}""
+echo %DATE% %TIME% Unity closed (or force-killed), proceeding >> ""{batInstallLog}""
 
 echo Extrayendo archivos y limpiando Mark-of-the-Web...
 powershell {psFlags} ""Expand-Archive -Path '{psZipPath}' -DestinationPath '{psStagingDir}' -Force; Get-ChildItem -Path '{psStagingDir}' -Recurse -File | Unblock-File""
