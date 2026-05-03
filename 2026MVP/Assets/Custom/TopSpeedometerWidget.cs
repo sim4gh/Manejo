@@ -12,16 +12,70 @@ using TMPro;
 public class TopSpeedometerWidget : MonoBehaviour
 {
     private const float BLINK_INTERVAL = 0.5f;
-    // Verde direccional consistente con SimpleSpeedGauge.
+    // Verde direccional brillante (blink ON cuando direccional activa).
     private static readonly Color ArrowColor = new Color(0.1f, 0.9f, 0.2f, 1f);
+    // Verde tenue (blink OFF, mantiene presencia visual al parpadear).
+    private static readonly Color ArrowDimColor = new Color(0.1f, 0.9f, 0.2f, 0.25f);
+    // Blanco sutil para el estado idle (sin direccional). Hace que las flechas
+    // estén siempre visibles como guía, sin distraer del speed.
+    private static readonly Color ArrowIdleColor = new Color(1f, 1f, 1f, 0.35f);
     // Cyan consistente con FallbackSpeedHud.
     private static readonly Color SpeedColor = new Color(0.2f, 0.9f, 0.9f, 1f);
 
     private TextMeshProUGUI leftArrow;
     public TextMeshProUGUI speedText;
-    private TextMeshProUGUI unitText;
     private TextMeshProUGUI rightArrow;
+    private TextMeshProUGUI gearStripText;
     private Image bg;
+
+    // Sufijo inline rendereado al lado del número con tamaño chico (rich text).
+    // Se concatena en UpdateSpeed sin alocar nada extra que la string del int.
+    private const string SPEED_UNIT_SUFFIX = "<size=28> km/h</size>";
+
+    // Pre-construidos: strip horizontal con todas las marchas, la activa
+    // resaltada en cyan + bold y las demás atenuadas en gris. Index = gear+1
+    // (R=-1→0, N=0→1, 1→2, ..., 6→7). Se generan una sola vez en static ctor;
+    // Update solo elige el string ya cacheado y solo cuando el gear cambia.
+    private static readonly string[] STRIP_MANUAL_BY_GEAR;
+    private static readonly string[] STRIP_AUTO_BY_GEAR;
+    private const string STRIP_ACTIVE_OPEN = "<color=#33EEEE><b>";
+    private const string STRIP_ACTIVE_CLOSE = "</b></color>";
+    private const string STRIP_DIM_OPEN = "<color=#666666>";
+    private const string STRIP_DIM_CLOSE = "</color>";
+    private const string STRIP_SEP = "  ";
+
+    private int _lastStripGear = int.MinValue;
+    private bool _lastStripAuto;
+
+    static TopSpeedometerWidget()
+    {
+        string[] manualLabels = { "1", "2", "3", "4", "5", "6", "R" };
+        STRIP_MANUAL_BY_GEAR = new string[8];
+        STRIP_MANUAL_BY_GEAR[0] = BuildStrip(manualLabels, 6); // R activo
+        STRIP_MANUAL_BY_GEAR[1] = BuildStrip(manualLabels, -1); // N: ninguno
+        for (int g = 1; g <= 6; g++)
+            STRIP_MANUAL_BY_GEAR[g + 1] = BuildStrip(manualLabels, g - 1);
+
+        string[] autoLabels = { "D", "R" };
+        STRIP_AUTO_BY_GEAR = new string[3];
+        STRIP_AUTO_BY_GEAR[0] = BuildStrip(autoLabels, 1); // R activo
+        STRIP_AUTO_BY_GEAR[1] = BuildStrip(autoLabels, -1); // N transitorio
+        STRIP_AUTO_BY_GEAR[2] = BuildStrip(autoLabels, 0); // D activo (gear>=1)
+    }
+
+    private static string BuildStrip(string[] labels, int activeIdx)
+    {
+        var sb = new System.Text.StringBuilder(160);
+        for (int i = 0; i < labels.Length; i++)
+        {
+            if (i > 0) sb.Append(STRIP_SEP);
+            if (i == activeIdx)
+                sb.Append(STRIP_ACTIVE_OPEN).Append(labels[i]).Append(STRIP_ACTIVE_CLOSE);
+            else
+                sb.Append(STRIP_DIM_OPEN).Append(labels[i]).Append(STRIP_DIM_CLOSE);
+        }
+        return sb.ToString();
+    }
 
     private GameObject vehicle;
     private Rigidbody vehicleRb;
@@ -52,13 +106,9 @@ public class TopSpeedometerWidget : MonoBehaviour
         hlg.childForceExpandHeight = true;
         hlg.padding = new RectOffset(16, 16, 0, 0);
 
-        leftArrow = CreateArrow("LeftArrow", "◄");      // ◄
+        leftArrow = CreateArrow("LeftArrow", "◄");
         BuildSpeedBlock();
-        rightArrow = CreateArrow("RightArrow", "►");    // ►
-
-        // Apagar flechas inicialmente (Image.enabled vía color.a para no marcar layout dirty).
-        leftArrow.enabled = false;
-        rightArrow.enabled = false;
+        rightArrow = CreateArrow("RightArrow", "►");
 
         FindVehicle();
     }
@@ -68,14 +118,15 @@ public class TopSpeedometerWidget : MonoBehaviour
         var go = new GameObject(name);
         go.transform.SetParent(transform, false);
         var le = go.AddComponent<LayoutElement>();
-        le.preferredWidth = 64f;
+        le.preferredWidth = 56f;
         le.preferredHeight = 130f;
         le.flexibleWidth = 0f;
         var tmp = go.AddComponent<TextMeshProUGUI>();
         tmp.text = symbol;
-        tmp.fontSize = 92f;
+        // 50% del tamaño original (92→46) — sutiles, no compiten con el "100".
+        tmp.fontSize = 46f;
         tmp.fontStyle = FontStyles.Bold;
-        tmp.color = ArrowColor;
+        tmp.color = ArrowIdleColor;
         tmp.alignment = TextAlignmentOptions.Center;
         tmp.verticalAlignment = VerticalAlignmentOptions.Middle;
         tmp.raycastTarget = false;
@@ -86,7 +137,7 @@ public class TopSpeedometerWidget : MonoBehaviour
 
     void BuildSpeedBlock()
     {
-        // Contenedor para [Speed grande] + [km/h pequeño debajo]
+        // Contenedor: [Speed grande con km/h inline] arriba + [GearStrip] abajo.
         var block = new GameObject("SpeedBlock");
         block.transform.SetParent(transform, false);
         block.AddComponent<RectTransform>();
@@ -95,42 +146,48 @@ public class TopSpeedometerWidget : MonoBehaviour
         le.preferredHeight = 130f;
         le.flexibleWidth = 0f;
 
-        // Speed (top)
+        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
+
+        // Speed (~70% superior): "100 km/h" con "km/h" inline pequeño via rich text.
         var speedGo = new GameObject("Speed");
         speedGo.transform.SetParent(block.transform, false);
         var speedRt = speedGo.AddComponent<RectTransform>();
-        speedRt.anchorMin = new Vector2(0f, 0.26f);
+        speedRt.anchorMin = new Vector2(0f, 0.32f);
         speedRt.anchorMax = new Vector2(1f, 1f);
         speedRt.offsetMin = Vector2.zero;
         speedRt.offsetMax = Vector2.zero;
         speedText = speedGo.AddComponent<TextMeshProUGUI>();
-        speedText.text = "0";
+        speedText.text = "0" + SPEED_UNIT_SUFFIX;
         speedText.fontSize = 104f;
         speedText.fontStyle = FontStyles.Bold;
         speedText.color = SpeedColor;
         speedText.alignment = TextAlignmentOptions.Center;
         speedText.verticalAlignment = VerticalAlignmentOptions.Middle;
         speedText.textWrappingMode = TextWrappingModes.NoWrap;
+        speedText.richText = true;
         speedText.raycastTarget = false;
-        TMP_FontAsset font = Resources.Load<TMP_FontAsset>("Roboto-Bold SDF");
         if (font != null) speedText.font = font;
 
-        // km/h (bottom small)
-        var unitGo = new GameObject("Unit");
-        unitGo.transform.SetParent(block.transform, false);
-        var unitRt = unitGo.AddComponent<RectTransform>();
-        unitRt.anchorMin = new Vector2(0f, 0f);
-        unitRt.anchorMax = new Vector2(1f, 0.26f);
-        unitRt.offsetMin = Vector2.zero;
-        unitRt.offsetMax = Vector2.zero;
-        unitText = unitGo.AddComponent<TextMeshProUGUI>();
-        unitText.text = "km/h";
-        unitText.fontSize = 28f;
-        unitText.color = new Color(1f, 1f, 1f, 0.75f);
-        unitText.alignment = TextAlignmentOptions.Center;
-        unitText.verticalAlignment = VerticalAlignmentOptions.Middle;
-        unitText.raycastTarget = false;
-        if (font != null) unitText.font = font;
+        // GearStrip (~32% inferior): "1 2 3 4 5 6 R" / "D R", centrado.
+        var stripGo = new GameObject("GearStrip");
+        stripGo.transform.SetParent(block.transform, false);
+        var stripRt = stripGo.AddComponent<RectTransform>();
+        stripRt.anchorMin = new Vector2(0f, 0f);
+        stripRt.anchorMax = new Vector2(1f, 0.32f);
+        stripRt.offsetMin = Vector2.zero;
+        stripRt.offsetMax = Vector2.zero;
+        gearStripText = stripGo.AddComponent<TextMeshProUGUI>();
+        gearStripText.text = STRIP_MANUAL_BY_GEAR[1]; // N inicial
+        gearStripText.fontSize = 28f;
+        gearStripText.fontStyle = FontStyles.Bold;
+        gearStripText.color = SpeedColor;
+        gearStripText.alignment = TextAlignmentOptions.Center;
+        gearStripText.verticalAlignment = VerticalAlignmentOptions.Middle;
+        gearStripText.textWrappingMode = TextWrappingModes.NoWrap;
+        gearStripText.richText = true;
+        gearStripText.overflowMode = TextOverflowModes.Overflow;
+        gearStripText.raycastTarget = false;
+        if (font != null) gearStripText.font = font;
     }
 
     void FindVehicle()
@@ -171,6 +228,29 @@ public class TopSpeedometerWidget : MonoBehaviour
 
         UpdateSpeed();
         UpdateBlinkers();
+        UpdateGearStrip();
+    }
+
+    void UpdateGearStrip()
+    {
+        if (gearStripText == null || playerCar == null) return;
+        int gear = playerCar.currentGear;
+        bool isAuto = playerCar.isAutomaticMode;
+        if (gear == _lastStripGear && isAuto == _lastStripAuto) return;
+        _lastStripGear = gear;
+        _lastStripAuto = isAuto;
+        if (isAuto)
+        {
+            // Auto: gear -1 → R, gear 0 → N (transitorio), gear>=1 → D.
+            int autoIdx = gear == -1 ? 0 : (gear == 0 ? 1 : 2);
+            gearStripText.text = STRIP_AUTO_BY_GEAR[autoIdx];
+        }
+        else
+        {
+            // Manual: index = gear+1, clamp por seguridad.
+            int manIdx = Mathf.Clamp(gear + 1, 0, STRIP_MANUAL_BY_GEAR.Length - 1);
+            gearStripText.text = STRIP_MANUAL_BY_GEAR[manIdx];
+        }
     }
 
     void UpdateSpeed()
@@ -181,7 +261,7 @@ public class TopSpeedometerWidget : MonoBehaviour
         if (kmh != lastDisplayedSpeed)
         {
             lastDisplayedSpeed = kmh;
-            speedText.text = kmh.ToString();
+            speedText.text = kmh.ToString() + SPEED_UNIT_SUFFIX;
         }
     }
 
@@ -211,9 +291,16 @@ public class TopSpeedometerWidget : MonoBehaviour
             blinkVisible = false;
         }
 
-        // Toggle vía Image.enabled, no SetActive — no marca layout dirty.
-        leftArrow.enabled = showLeft && blinkVisible;
-        rightArrow.enabled = showRight && blinkVisible;
+        // Idle: blanco sutil siempre visible (guía visual). Direccional activa:
+        // verde brillante cuando blinkVisible, verde tenue (no apagado) en off
+        // — mantiene presencia para que el blink se vea como pulso, no como
+        // aparición/desaparición que distrae.
+        leftArrow.color = showLeft
+            ? (blinkVisible ? ArrowColor : ArrowDimColor)
+            : ArrowIdleColor;
+        rightArrow.color = showRight
+            ? (blinkVisible ? ArrowColor : ArrowDimColor)
+            : ArrowIdleColor;
     }
 
     float GetSpeed()

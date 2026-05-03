@@ -21,6 +21,8 @@ public class TopHudRow : MonoBehaviour
 
     // Velocímetro en top-center (independiente del stack izquierdo).
     // 16+64+12+260+12+64+16 = 444 (padding HLG + flechas + SpeedBlock + spacing).
+    // El gear strip vive dentro del SpeedBlock (debajo del número), no como
+    // 4to elemento del HLG — así el HUD mantiene su ancho original.
     private const float SpeedSlotW = 450f;
     private const float SpeedSlotH = 140f;
     private const float TopOffsetPx = 20f;
