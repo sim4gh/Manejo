@@ -49,6 +49,11 @@ public class ScoringConfig : MonoBehaviour
         public int passingScore = 70;
         public GradeThresholds gradeThresholds = new GradeThresholds();
         public int examDurationSeconds = 300;
+        // Distancia mínima (metros) que el alumno debe recorrer durante el examen
+        // para que la sesión sea válida. Si recorre menos, ExamTimer fuerza
+        // passed=false sin importar el score (evita que dejar el coche parado
+        // los 3-5 min sea aprobar con 100). Configurable desde /admin/scoring.
+        public int minValidDistanceMeters = 200;
         public string updatedAt = "";
         public string lastSyncedAt = "";
     }

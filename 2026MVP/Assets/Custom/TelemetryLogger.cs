@@ -17,7 +17,7 @@ public class TelemetryLogger : MonoBehaviour
         public float speed;                                                                                                                                                
     }                                                                                                                                                                      
                                                                                                                                                                             
-    [System.Serializable]                                                                                                                                                  
+    [System.Serializable]
     public class TelemetryData
     {
         public string sessionId;
@@ -26,8 +26,9 @@ public class TelemetryLogger : MonoBehaviour
         public string tramiteId;
         public float examDurationSeconds;
         public int finalScore;
+        public int finalDistanceMeters;
         public List<TelemetryEvent> events = new List<TelemetryEvent>();
-    }                                                                                                                                                                      
+    }                                                                                                                                                                  
                                                                                                                                                                             
     public TelemetryData data = new TelemetryData();                                                                                                                       
     private float sessionStartTime;                                                                                                                                        
@@ -61,7 +62,8 @@ public class TelemetryLogger : MonoBehaviour
         data.sessionId = GameManager.Instance?.SessionId ?? "";
         data.tramiteId = GameManager.Instance?.Expediente ?? "";
         data.examDurationSeconds = ExamTimer.Instance?.examDuration ?? 300f;
-        data.finalScore = finalScore;                                                 
+        data.finalScore = finalScore;
+        data.finalDistanceMeters = ExamTimer.Instance?.GetDistanceMeters() ?? 0;                                            
                                                                                         
         string json = JsonUtility.ToJson(data, true);                                 
         string filename = $"telemetry_{DateTime.Now:yyyyMMdd_HHmmss}.json";           

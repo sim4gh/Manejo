@@ -31,6 +31,23 @@ public class ExamTimer : MonoBehaviour
     private int lastKnownScore = 100;
     private ViolationDetector cachedDetector;
 
+    // ── Tracking de distancia recorrida ─────────────────────────────────
+    // Bug histórico: si el alumno dejaba el coche parado los 3-5 min del examen,
+    // el ViolationDetector no registraba infracciones (todas requieren movimiento)
+    // y EndExam() reportaba passed=true con score=100. Ahora trackeamos distancia
+    // en metros y en EndExam() forzamos passed=false si está bajo el umbral.
+    private Transform playerTransform;
+    private Vector3 lastTrackedPosition;
+    private bool distanceTrackingReady = false;
+    private float distanceMeters = 0f;
+    // Filtra deltas anómalos por respawn (LevantaMoto.cs flips moto, DestrabarAutomovil.cs
+    // teletransporta vehículo atascado tras 5s) o por SpawnLocationManager teleportando
+    // al waypoint Gley inicial. 30 m en un frame implica >1.8 km/s — claramente teleport.
+    private const float MAX_FRAME_DELTA_METERS = 30f;
+    // Defer 1.5 s para que SpawnLocationManager (singleton bootstrap) y PlayerCar.Start()
+    // hayan reposicionado al alumno antes de tomar la posición de referencia.
+    private const float DISTANCE_TRACK_DEFER_SECONDS = 1.5f;
+
     /// <summary>Disparado al final de CreateTimerUI; permite que TopHudRow adopte el container sin race con InitAfterFrame.</summary>
     public System.Action OnContainerReady;
 
@@ -62,6 +79,36 @@ public class ExamTimer : MonoBehaviour
         // Defer 1 frame para que MultiPantallaManager.Start() corra primero y
         // las cámaras tengan ya su targetDisplay reasignado según config.
         StartCoroutine(InitAfterFrame());
+        Invoke(nameof(StartDistanceTracking), DISTANCE_TRACK_DEFER_SECONDS);
+    }
+
+    /// <summary>Distancia acumulada en metros desde que arrancó el tracking.</summary>
+    public int GetDistanceMeters() => Mathf.RoundToInt(distanceMeters);
+
+    void StartDistanceTracking()
+    {
+        playerTransform = FindPlayerTransform();
+        if (playerTransform == null)
+        {
+            // Reintentar 1 vez más por si la escena tardó en cargar al Player.
+            Invoke(nameof(StartDistanceTracking), 0.5f);
+            return;
+        }
+        lastTrackedPosition = playerTransform.position;
+        distanceTrackingReady = true;
+    }
+
+    // Mismo lookup que SpawnLocationManager.cs: PlayerCar de Gley → tag Player → name Player.
+    static Transform FindPlayerTransform()
+    {
+        var pc = Object.FindFirstObjectByType<Gley.UrbanSystem.PlayerCar>();
+        if (pc != null) return pc.transform;
+        GameObject byTag = null;
+        try { byTag = GameObject.FindGameObjectWithTag("Player"); }
+        catch { /* tag no existente: ignorar */ }
+        if (byTag != null) return byTag.transform;
+        var byName = GameObject.Find("Player");
+        return byName != null ? byName.transform : null;
     }
 
     System.Collections.IEnumerator InitAfterFrame()
@@ -210,6 +257,17 @@ public class ExamTimer : MonoBehaviour
     {
         if (examFinished || timerText == null) return;
 
+        // Acumular distancia ANTES del check de timer expirado, para que el
+        // último frame previo a EndExam() también cuente. Si no, podríamos
+        // dejar una sesión válida unos metros bajo el umbral por borde.
+        if (distanceTrackingReady && playerTransform != null)
+        {
+            Vector3 now = playerTransform.position;
+            float delta = Vector3.Distance(now, lastTrackedPosition);
+            if (delta < MAX_FRAME_DELTA_METERS) distanceMeters += delta;
+            lastTrackedPosition = now;
+        }
+
         float remainingTime = examDuration - (Time.time - startTime);
 
         if (remainingTime <= 0f)
@@ -279,6 +337,25 @@ public class ExamTimer : MonoBehaviour
         // Log evento de fin
         TelemetryLogger.Instance?.LogEvent("FIN_EXAMEN", "Tiempo agotado", 0, 0f);
 
+        // Calcular distancia y validar movimiento mínimo ANTES de exportar telemetría
+        // (TelemetryLogger.ExportToJSON lee finalDistanceMeters de ExamTimer.Instance).
+        int distanceInt = GetDistanceMeters();
+        var cfg = ScoringConfig.Instance?.data;
+        int minDistance = cfg?.minValidDistanceMeters ?? 200;
+        int passingScore = cfg?.passingScore ?? 70;
+        bool insufficientMovement = distanceInt < minDistance;
+
+        if (insufficientMovement)
+        {
+            // Mensaje human-friendly: aparece tal cual en el feedback del trámite
+            // (backend construye feedback = faults.map(f => f.description)) y en
+            // ExamResultsScreen para que el examinador entienda por qué reprobó.
+            TelemetryLogger.Instance?.LogEvent(
+                "INVALIDO_INACTIVIDAD",
+                $"Examen inválido: distancia recorrida insuficiente ({distanceInt} m de {minDistance} m requeridos)",
+                0, 0f);
+        }
+
         // Exportar telemetría
         ViolationDetector detector = GetDetector();
         int finalScore = 100;
@@ -288,19 +365,21 @@ public class ExamTimer : MonoBehaviour
             detector.ExportTelemetry();
         }
 
+        bool passed = (finalScore >= passingScore) && !insufficientMovement;
+
         // Disparar evento
         OnExamFinished?.Invoke();
 
         // Enviar resultados al backend (bifurca por modo práctica)
         bool isPractice = GameManager.Instance != null && GameManager.Instance.IsPracticeMode;
-        if (isPractice) SendPracticeResultsToApi(finalScore);
-        else SendResultsToApi(finalScore);
+        if (isPractice) SendPracticeResultsToApi(finalScore, distanceInt);
+        else SendResultsToApi(finalScore, distanceInt, passed);
 
         // Mostrar pantalla de resultados
-        ExamResultsScreen.Show(finalScore);
+        ExamResultsScreen.Show(finalScore, distanceInt, insufficientMovement);
     }
 
-    void SendResultsToApi(int finalScore)
+    void SendResultsToApi(int finalScore, int distanceInt, bool passed)
     {
         string sessionId = GameManager.Instance?.SessionId;
         if (string.IsNullOrEmpty(sessionId))
@@ -309,28 +388,27 @@ public class ExamTimer : MonoBehaviour
             return;
         }
 
-        bool passed = finalScore >= 70;
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
 
-        StartCoroutine(SimulatorApiClient.EndSession(sessionId, passed, finalScore, faults, false, (success) =>
+        StartCoroutine(SimulatorApiClient.EndSession(sessionId, passed, finalScore, distanceInt, faults, false, (success) =>
         {
             if (!success)
             {
                 Debug.LogWarning("[ExamTimer] Fallo al enviar resultados — guardando para retry");
-                SimulatorApiClient.SavePendingResult(sessionId, passed, finalScore, faults, false);
+                SimulatorApiClient.SavePendingResult(sessionId, passed, finalScore, distanceInt, faults, false);
             }
         }));
     }
 
-    void SendPracticeResultsToApi(int finalScore)
+    void SendPracticeResultsToApi(int finalScore, int distanceInt)
     {
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
-        StartCoroutine(SimulatorApiClient.EndPracticeSession(finalScore, faults, true, (success) =>
+        StartCoroutine(SimulatorApiClient.EndPracticeSession(finalScore, distanceInt, faults, true, (success) =>
         {
             if (!success)
             {
                 Debug.LogWarning("[ExamTimer] Fallo al enviar práctica — guardando para retry");
-                SimulatorApiClient.SavePendingPracticeResult(finalScore, faults, true);
+                SimulatorApiClient.SavePendingPracticeResult(finalScore, distanceInt, faults, true);
             }
         }));
     }
@@ -355,6 +433,7 @@ public class ExamTimer : MonoBehaviour
 
         ViolationDetector det = GetDetector();
         int score = det != null ? det.totalScore : lastKnownScore;
+        int distanceInt = GetDistanceMeters();
         var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
 
         // Modo Práctica: guardar parcial con completed=false (la práctica
@@ -362,8 +441,8 @@ public class ExamTimer : MonoBehaviour
         // no aplica.
         if (GameManager.Instance != null && GameManager.Instance.IsPracticeMode)
         {
-            SimulatorApiClient.SavePendingPracticeResult(score, faults, false);
-            Debug.Log($"[ExamTimer] Práctica interrumpida (score={score}, completed=false)");
+            SimulatorApiClient.SavePendingPracticeResult(score, distanceInt, faults, false);
+            Debug.Log($"[ExamTimer] Práctica interrumpida (score={score}, distance={distanceInt}m, completed=false)");
             return;
         }
 
@@ -371,8 +450,8 @@ public class ExamTimer : MonoBehaviour
         if (string.IsNullOrEmpty(sessionId)) return;
 
         // Examen real interrumpido: passed=false, interrupted=true
-        SimulatorApiClient.SavePendingResult(sessionId, false, score, faults, true);
-        Debug.Log($"[ExamTimer] Examen interrumpido (score={score}, interrupted=true)");
+        SimulatorApiClient.SavePendingResult(sessionId, false, score, distanceInt, faults, true);
+        Debug.Log($"[ExamTimer] Examen interrumpido (score={score}, distance={distanceInt}m, interrupted=true)");
     }
 
     static string FormatTime(float seconds)
