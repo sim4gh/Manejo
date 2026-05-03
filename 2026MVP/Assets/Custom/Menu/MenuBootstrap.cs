@@ -24,6 +24,10 @@ public static class MenuBootstrap
     {
         if (scene.name == "MainMenu")
         {
+            // Limpiar estado de la sesión anterior antes de armar el menú —
+            // de otro modo IsPracticeMode/Practice* quedarían persistentes y
+            // contaminarían el siguiente flujo (incluído un examen real).
+            if (GameManager.Instance != null) GameManager.Instance.ClearSession();
             SetupMenu();
         }
     }

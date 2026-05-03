@@ -59,17 +59,52 @@ public static class SimulatorApiClient
         public string sessionId;
     }
 
+    // ── Modo Práctica ───────────────────────────────────────────────
+
+    [System.Serializable]
+    public class EndPracticeRequest
+    {
+        public string practiceId;
+        public string pcId;
+        public string vehicleType;
+        public string transmission;     // nullable — "" en JSON cuando no aplica
+        public string weather;
+        public string spawnLocation;
+        public string startedAt;        // ISO 8601 UTC
+        public string completedAt;      // ISO 8601 UTC
+        public int durationSeconds;
+        public int score;
+        public SessionFault[] faults;
+        public bool completed;
+    }
+
     // ── Resultado pendiente (para retry offline) ─────────────────────
 
     [System.Serializable]
     public class PendingResult
     {
-        public string sessionId;
-        public bool passed;
+        // Discriminador: "exam" (default — sesión real con sessionId) o "practice".
+        // Antiguos archivos sin kind se cargan como "exam" gracias a JsonUtility.
+        public string kind;
+        // Comunes a ambos
         public int score;
         public SessionFault[] faults;
         public string savedAt;
+        // Sólo kind=="exam"
+        public string sessionId;
+        public bool passed;
         public bool interrupted;
+        // Sólo kind=="practice"
+        public string practiceId;
+        public string pcId;
+        public string vehicleType;
+        public string transmission;
+        public string weather;
+        public string spawnLocation;
+        public string startedAt;
+        public string completedAt;
+        public int durationSeconds;
+        public bool completed;
     }
 
     [System.Serializable]
@@ -176,6 +211,70 @@ public static class SimulatorApiClient
         }
     }
 
+    // ── API: Enviar resultados de Práctica ───────────────────────────
+
+    /// <summary>
+    /// POST /simulator/practice-results — envía resultados de modo práctica.
+    /// Lee identidad y configuración de GameManager.Instance.
+    /// completed=true cuando los 3 min terminaron normales; false si interrumpido.
+    /// onComplete recibe true si fue exitoso, false si falló.
+    /// </summary>
+    public static IEnumerator EndPracticeSession(int finalScore, SessionFault[] faults,
+        bool completed, System.Action<bool> onComplete)
+    {
+        string url = $"{BaseUrl}/simulator/practice-results";
+        var gm = GameManager.Instance;
+        var config = SimulatorConfig.Instance?.data;
+
+        int duration = completed ? 180 : 0;
+        if (gm != null && gm.PracticeStartedAt != default(System.DateTime))
+        {
+            duration = Mathf.Max(0,
+                Mathf.RoundToInt((float)(System.DateTime.UtcNow - gm.PracticeStartedAt).TotalSeconds));
+        }
+
+        var requestBody = new EndPracticeRequest
+        {
+            practiceId = gm?.PracticeId ?? "",
+            pcId = config?.pcId ?? "",
+            vehicleType = gm?.PracticeVehicleType ?? "",
+            transmission = gm?.PracticeTransmission ?? "",
+            weather = gm?.PracticeWeather ?? "Sol",
+            spawnLocation = gm?.PracticeSpawnLocation ?? "random",
+            startedAt = (gm?.PracticeStartedAt ?? System.DateTime.UtcNow).ToString("o"),
+            completedAt = System.DateTime.UtcNow.ToString("o"),
+            durationSeconds = completed ? 180 : duration,
+            score = finalScore,
+            faults = faults,
+            completed = completed,
+        };
+
+        string json = JsonUtility.ToJson(requestBody);
+        Debug.Log($"[SimulatorAPI] POST {url} score={finalScore} vehicle={requestBody.vehicleType} completed={completed}");
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = TIMEOUT_SECONDS;
+
+            yield return request.SendWebRequest();
+
+            if (request.result == UnityWebRequest.Result.Success)
+            {
+                Debug.Log($"[SimulatorAPI] Práctica enviada exitosamente ({requestBody.practiceId})");
+                onComplete?.Invoke(true);
+            }
+            else
+            {
+                Debug.LogWarning($"[SimulatorAPI] Error enviando práctica: {request.error} ({request.responseCode})");
+                onComplete?.Invoke(false);
+            }
+        }
+    }
+
     // ── Mapeo de telemetría a faults ─────────────────────────────────
 
     /// <summary>
@@ -272,6 +371,7 @@ public static class SimulatorApiClient
         var list = LoadPendingResults();
         list.results.Add(new PendingResult
         {
+            kind = "exam",
             sessionId = sessionId,
             passed = passed,
             score = score,
@@ -284,6 +384,43 @@ public static class SimulatorApiClient
         File.WriteAllText(PendingPath, json);
         cachedPendingCount = list.results.Count;
         Debug.Log($"[SimulatorAPI] Resultado pendiente guardado ({cachedPendingCount} total)");
+    }
+
+    /// <summary>Guarda una práctica fallida para retry posterior.</summary>
+    public static void SavePendingPracticeResult(int score, SessionFault[] faults, bool completed)
+    {
+        var gm = GameManager.Instance;
+        var config = SimulatorConfig.Instance?.data;
+        int duration = completed ? 180 : 0;
+        if (gm != null && gm.PracticeStartedAt != default(System.DateTime))
+        {
+            duration = Mathf.Max(0,
+                Mathf.RoundToInt((float)(System.DateTime.UtcNow - gm.PracticeStartedAt).TotalSeconds));
+        }
+
+        var list = LoadPendingResults();
+        list.results.Add(new PendingResult
+        {
+            kind = "practice",
+            score = score,
+            faults = faults,
+            savedAt = System.DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+            practiceId = gm?.PracticeId ?? System.Guid.NewGuid().ToString(),
+            pcId = config?.pcId ?? "",
+            vehicleType = gm?.PracticeVehicleType ?? "",
+            transmission = gm?.PracticeTransmission ?? "",
+            weather = gm?.PracticeWeather ?? "Sol",
+            spawnLocation = gm?.PracticeSpawnLocation ?? "random",
+            startedAt = (gm?.PracticeStartedAt ?? System.DateTime.UtcNow).ToString("o"),
+            completedAt = System.DateTime.UtcNow.ToString("o"),
+            durationSeconds = completed ? 180 : duration,
+            completed = completed,
+        });
+
+        string json = JsonUtility.ToJson(list, true);
+        File.WriteAllText(PendingPath, json);
+        cachedPendingCount = list.results.Count;
+        Debug.Log($"[SimulatorAPI] Práctica pendiente guardada ({cachedPendingCount} total)");
     }
 
     public static PendingResultsList LoadPendingResults()
@@ -322,13 +459,20 @@ public static class SimulatorApiClient
         foreach (var pending in list.results)
         {
             bool success = false;
-            yield return EndSession(pending.sessionId, pending.passed, pending.score,
-                pending.faults, pending.interrupted, (ok) => success = ok);
-
-            if (!success)
-                remaining.Add(pending);
+            // Discriminador kind: "exam" (default cuando vacío, archivos antiguos) o "practice".
+            if (pending.kind == "practice")
+            {
+                yield return EndPracticeSessionFromPending(pending, (ok) => success = ok);
+                if (success) Debug.Log($"[SimulatorAPI] Práctica pendiente {pending.practiceId} enviada");
+            }
             else
-                Debug.Log($"[SimulatorAPI] Resultado pendiente {pending.sessionId} enviado");
+            {
+                yield return EndSession(pending.sessionId, pending.passed, pending.score,
+                    pending.faults, pending.interrupted, (ok) => success = ok);
+                if (success) Debug.Log($"[SimulatorAPI] Resultado pendiente {pending.sessionId} enviado");
+            }
+
+            if (!success) remaining.Add(pending);
         }
 
         if (remaining.Count == 0)
@@ -342,6 +486,42 @@ public static class SimulatorApiClient
             File.WriteAllText(PendingPath, JsonUtility.ToJson(newList, true));
             cachedPendingCount = remaining.Count;
             Debug.Log($"[SimulatorAPI] Quedan {remaining.Count} resultados pendientes");
+        }
+    }
+
+    /// <summary>
+    /// Reintenta una práctica pendiente leyendo todos los datos del PendingResult
+    /// (no depende de GameManager.Instance, que en este punto ya se reseteó).
+    /// </summary>
+    private static IEnumerator EndPracticeSessionFromPending(PendingResult p, System.Action<bool> onComplete)
+    {
+        string url = $"{BaseUrl}/simulator/practice-results";
+        var requestBody = new EndPracticeRequest
+        {
+            practiceId = p.practiceId,
+            pcId = p.pcId,
+            vehicleType = p.vehicleType,
+            transmission = p.transmission ?? "",
+            weather = p.weather,
+            spawnLocation = p.spawnLocation,
+            startedAt = p.startedAt,
+            completedAt = p.completedAt,
+            durationSeconds = p.durationSeconds,
+            score = p.score,
+            faults = p.faults,
+            completed = p.completed,
+        };
+        string json = JsonUtility.ToJson(requestBody);
+
+        using (var request = new UnityWebRequest(url, "POST"))
+        {
+            byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+            request.uploadHandler = new UploadHandlerRaw(bodyRaw);
+            request.downloadHandler = new DownloadHandlerBuffer();
+            request.SetRequestHeader("Content-Type", "application/json");
+            request.timeout = TIMEOUT_SECONDS;
+            yield return request.SendWebRequest();
+            onComplete?.Invoke(request.result == UnityWebRequest.Result.Success);
         }
     }
 

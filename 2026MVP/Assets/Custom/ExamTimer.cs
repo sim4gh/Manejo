@@ -50,6 +50,14 @@ public class ExamTimer : MonoBehaviour
 
     void Start()
     {
+        // Modo Práctica: 3 minutos en vez de 5, y registramos el inicio aquí
+        // (no en el menú) para que la verificación de volante y el LoadScene
+        // no inflen el tiempo reportado al backend.
+        if (GameManager.Instance != null && GameManager.Instance.IsPracticeMode)
+        {
+            examDuration = 180f;
+            GameManager.Instance.PracticeStartedAt = System.DateTime.UtcNow;
+        }
         startTime = Time.time;
         // Defer 1 frame para que MultiPantallaManager.Start() corra primero y
         // las cámaras tengan ya su targetDisplay reasignado según config.
@@ -283,8 +291,10 @@ public class ExamTimer : MonoBehaviour
         // Disparar evento
         OnExamFinished?.Invoke();
 
-        // Enviar resultados al backend
-        SendResultsToApi(finalScore);
+        // Enviar resultados al backend (bifurca por modo práctica)
+        bool isPractice = GameManager.Instance != null && GameManager.Instance.IsPracticeMode;
+        if (isPractice) SendPracticeResultsToApi(finalScore);
+        else SendResultsToApi(finalScore);
 
         // Mostrar pantalla de resultados
         ExamResultsScreen.Show(finalScore);
@@ -312,6 +322,19 @@ public class ExamTimer : MonoBehaviour
         }));
     }
 
+    void SendPracticeResultsToApi(int finalScore)
+    {
+        var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
+        StartCoroutine(SimulatorApiClient.EndPracticeSession(finalScore, faults, true, (success) =>
+        {
+            if (!success)
+            {
+                Debug.LogWarning("[ExamTimer] Fallo al enviar práctica — guardando para retry");
+                SimulatorApiClient.SavePendingPracticeResult(finalScore, faults, true);
+            }
+        }));
+    }
+
     // ── Interrupción: guardar resultados parciales si el examen no terminó ──
 
     void OnApplicationQuit()
@@ -330,16 +353,24 @@ public class ExamTimer : MonoBehaviour
         if (examFinished) return;
         examFinished = true; // Primero — cerrar race window (OnDestroy + OnApplicationQuit)
 
+        ViolationDetector det = GetDetector();
+        int score = det != null ? det.totalScore : lastKnownScore;
+        var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
+
+        // Modo Práctica: guardar parcial con completed=false (la práctica
+        // se cortó antes de los 3 min). Sin sessionId, el flujo del examen real
+        // no aplica.
+        if (GameManager.Instance != null && GameManager.Instance.IsPracticeMode)
+        {
+            SimulatorApiClient.SavePendingPracticeResult(score, faults, false);
+            Debug.Log($"[ExamTimer] Práctica interrumpida (score={score}, completed=false)");
+            return;
+        }
+
         string sessionId = GameManager.Instance?.SessionId;
         if (string.IsNullOrEmpty(sessionId)) return;
 
-        // Preferir el score actual del detector si sigue vivo — cierra la ventana
-        // de 1 frame entre el último Update() y la interrupción. Fallback al cache.
-        ViolationDetector det = GetDetector();
-        int score = det != null ? det.totalScore : lastKnownScore;
-
-        // Interrumpido: siempre passed=false, interrupted=true
-        var faults = SimulatorApiClient.BuildFaultsFromTelemetry();
+        // Examen real interrumpido: passed=false, interrupted=true
         SimulatorApiClient.SavePendingResult(sessionId, false, score, faults, true);
         Debug.Log($"[ExamTimer] Examen interrumpido (score={score}, interrupted=true)");
     }
