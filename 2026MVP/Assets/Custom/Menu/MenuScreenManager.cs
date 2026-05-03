@@ -1499,7 +1499,11 @@ public class MenuScreenManager : MonoBehaviour
         // PracticeStartedAt lo setea ExamTimer.Start() al cargar la escena — no aquí —
         // para no inflar el tiempo con la verificación de volante y el LoadScene.
 
-        PlayerPrefs.SetInt("TransmisionManual", selectedPracticeTransmisionIdx);
+        // Solo persistir TransmisionManual cuando el vehículo expone esa elección
+        // (Sedan/SUV). Para Bus/Camión/Moto/Ambulancia forzamos Automática para que
+        // la verificación de volante no requiera clutch por una elección oculta del
+        // usuario en una práctica anterior con Sedan.
+        PlayerPrefs.SetInt("TransmisionManual", isAuto ? selectedPracticeTransmisionIdx : 0);
         PlayerPrefs.SetInt("Clima", selectedPracticeWeatherIdx);
         // Mirror al PlayerPref legacy `Cargolluvia` (LogConsolePanel/LogUploader lo leen).
         PlayerPrefs.SetInt("Cargolluvia", selectedPracticeWeatherIdx == 1 ? 1 : 0);

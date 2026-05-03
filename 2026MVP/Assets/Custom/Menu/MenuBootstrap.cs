@@ -27,7 +27,14 @@ public static class MenuBootstrap
             // Limpiar estado de la sesión anterior antes de armar el menú —
             // de otro modo IsPracticeMode/Practice* quedarían persistentes y
             // contaminarían el siguiente flujo (incluído un examen real).
-            if (GameManager.Instance != null) GameManager.Instance.ClearSession();
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.ClearSession();
+                // Reintentar resultados pendientes cada vez que se vuelve al menú —
+                // no solo al boot inicial. En kioskos con red intermitente, esto evita
+                // que un resultado fallido quede pegado hasta el próximo reinicio.
+                GameManager.Instance.StartCoroutine(SimulatorApiClient.RetryPendingResults());
+            }
             SetupMenu();
         }
     }
