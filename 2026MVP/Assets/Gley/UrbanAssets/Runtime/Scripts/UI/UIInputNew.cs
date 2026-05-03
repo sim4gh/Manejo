@@ -155,9 +155,17 @@ namespace Gley.UrbanSystem
         // porque el layout HID del G923 trae "::" y espacios que a veces no resuelve)
         private InputControl<float> _steerCtrl; // stick/x
         private InputControl<float> _gasCtrl;   // z
-        // HORI Truck workaround: cuando true, el gas raw value se lee de
-        // HoriThrottleReader (ya en escala 0..1) en lugar de _gasCtrl.
+
+        #region HORI HPC-044U throttle bypass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+        // ⚠️ CRITICAL — el throttle del HORI Truck Control System (HPC-044U)
+        //   funciona SOLO gracias a este bypass. NO eliminar, NO simplificar,
+        //   NO reemplazar con InputControl normal. Ver HoriThrottleReader.cs
+        //   para el bug completo. Tomó 6h debugging + 4 builds para llegar aquí.
+        // Cuando _useHoriRawGas=true, ReadGasRawValue() bypassa _gasCtrl y lee
+        // el throttle directo del HID raw via HoriThrottleProvider delegate.
         private bool _useHoriRawGas;
+        #endregion
+
         private InputControl<float> _brakeCtrl; // rz
         private InputControl<float> _clutchCtrl; // stick/y en PS, null en Xbox
 
@@ -212,13 +220,19 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_STEER_AXIS = "Bind_steerAxis";
         public const string PREF_BIND_REVERSE = "Bind_reverse";
 
+        #region HORI HPC-044U throttle bypass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+        // ⚠️ CRITICAL — Sentinel + delegate del bypass del throttle HORI.
+        //   NO eliminar, NO renombrar, NO cambiar semántica. Si tocas algo aquí
+        //   ROMPES el acelerador en TODOS los kioskos productivos con HORI Truck
+        //   (Pasajeros 1, Pasajeros 2, Carga, Casa Aramis y todos los futuros).
+        //
         // Sentinel value para G923_GasAxis: el throttle del HORI HPC-044U queda
         // huérfano en el HID parser de Unity (los 2 sliders están aliased al
         // mismo byte y el byte del throttle 21-22 no tiene AxisControl que lo
-        // lea). HoriThrottleReader.cs (Assets/Custom/) intercepta los state
-        // events del wheel via InputSystem.onEvent y lee el byte directo.
-        // Cuando G923_GasAxis == este path, ReadGasRawValue() bypass el
-        // _gasCtrl y devuelve HoriThrottleReader.Instance.Value.
+        // lea). HoriThrottleReader.cs (Assets/Custom/) abre el HID device path
+        // crudo con CreateFile + ReadFile thread y lee el byte directo. Cuando
+        // G923_GasAxis == este path, ReadGasRawValue() bypassa _gasCtrl y
+        // devuelve HoriThrottleProvider() (que apunta al reader).
         public const string HORI_RAW_GAS_PATH = "__HORI_RAW_HID_THROTTLE__";
 
         // Inyección desde Assembly-CSharp (HoriThrottleReader.cs en Assets/
@@ -226,6 +240,7 @@ namespace Gley.UrbanSystem
         // sí al revés. HoriThrottleReader se registra aquí en su Bootstrap.
         // Devuelve el throttle 0..1 leído raw del HID byte 21-22.
         public static System.Func<float> HoriThrottleProvider;
+        #endregion
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
         public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
@@ -562,6 +577,10 @@ namespace Gley.UrbanSystem
             _shifterDevice = null;
             _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
             _clutchCtrl = null;
+            // ⚠️ HORI bypass detach reset — DO NOT REMOVE (ver HORI_THROTTLE_BUG_RESOLUTION.md)
+            // Si no se resetea aquí, al desconectar el HORI el flag persiste y
+            // el siguiente wheel adoptado intenta usar HoriThrottleProvider que
+            // está apuntando a un device muerto.
             _useHoriRawGas = false;
             _crossCtrls = System.Array.Empty<InputControl<float>>();
             _triangleCtrl = null; _restartCtrl = null;
@@ -612,6 +631,15 @@ namespace Gley.UrbanSystem
             catch (System.InvalidOperationException) { return false; }
         }
 
+        #region HORI HPC-044U throttle bypass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+        // ⚠️ CRITICAL — TODA lectura del gas en el frame loop del wheel pasa
+        //   por aquí. Si conviertes esto a `SafeReadFloatRaw(_gasCtrl, ...)`
+        //   directo (asumiendo que _gasCtrl siempre está bien cacheado),
+        //   ROMPES el throttle del HORI Truck. El bug de Unity HID parser deja
+        //   el byte del throttle huérfano para el HORI HPC-044U — Unity NO
+        //   tiene un AxisControl que lo lea. _gasCtrl es null para HORI por
+        //   diseño; la lectura va via HoriThrottleProvider delegate.
+        //
         // Lectura del gas raw que respeta el bypass HORI: si _useHoriRawGas
         // está set, lee de HoriThrottleReader (raw HID byte 21-22 → 0..1).
         // Caso contrario, lee de _gasCtrl como antes (Logitech/moto/etc.).
@@ -626,6 +654,7 @@ namespace Gley.UrbanSystem
             }
             return SafeReadFloatRaw(_gasCtrl, out var v) ? v : _gasRest;
         }
+        #endregion
 
         // Detecta el volante y cachea todos los controles. Idempotente:
         // llamar múltiples veces es barato si ya se encontró.
@@ -929,6 +958,14 @@ namespace Gley.UrbanSystem
             // ser "rz"). El operador puede recalibrar via Pantalla 2 si quiere.
             if (IsLogitechG923Family(device)) EnsureG923PSDefaults(device);
 
+            #region HORI HPC-044U detection + throttle bypass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+            // ⚠️ CRITICAL — Este bloque setea G923_GasAxis al sentinel HORI_RAW_GAS_PATH
+            //   y habilita _useHoriRawGas. SIN ESTE BLOQUE, los kioskos HORI tienen
+            //   throttle MUERTO. Pantalla 2 Discovery NO puede descubrir el throttle
+            //   del HORI (byte huérfano en Unity HID parser) — por eso hardcodeamos
+            //   aquí. NO eliminar, NO mover bajo otro IsXxx() bloque.
+            //   Botones (paddle/hazard/horn/reverse) son safe para ajustar; el
+            //   throttle bypass NO.
             if (IsHORITruck(device))
             {
                 Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/horn/reverse + throttle vía HoriThrottleReader (raw HID byte intercept)");
@@ -953,11 +990,19 @@ namespace Gley.UrbanSystem
                 // pedales). Discovery los descubre en Pantalla 2.
                 PlayerPrefs.Save();
             }
+            #endregion
 
             // Ejes — paths calibrados dinámicamente en la pantalla del menú
             // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
             string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
             string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
+            #region HORI HPC-044U sentinel guard + reload — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+            // ⚠️ CRITICAL — Este guard previene que el sentinel HORI envenene
+            //   un G923 si el usuario cambia de wheel sin re-discovery. Codex
+            //   review 2026-05-03 lo identificó como HIGH risk. NO eliminar.
+            //   Y la línea `_gasCtrl = _useHoriRawGas ? null : ...` deja
+            //   _gasCtrl=null intencionalmente para HORI — es lo que activa el
+            //   bypass via ReadGasRawValue() en el frame loop.
             // Sentinel HORI: si gasPath quedó persistido como HORI_RAW_GAS_PATH
             // pero el device actual NO es HORI (ej. usuario cambió de HORI a
             // G923 sin pasar por re-discovery), invalida el sentinel para que
@@ -973,6 +1018,7 @@ namespace Gley.UrbanSystem
             }
             _useHoriRawGas = (gasPath == HORI_RAW_GAS_PATH);
             _gasCtrl   = _useHoriRawGas ? null : CacheControl(gasPath);
+            #endregion
             _brakeCtrl = CacheControl(brakePath);
             // Clutch (opcional — solo G923 PS). Si no hay path en PlayerPrefs,
             // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.

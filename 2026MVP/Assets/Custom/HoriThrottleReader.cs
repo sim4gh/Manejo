@@ -1,3 +1,28 @@
+// ╔══════════════════════════════════════════════════════════════════════════╗
+// ║  ⚠️  CRITICAL — NO MODIFICAR SIN LEER EL POSTMORTEM ENTERO  ⚠️           ║
+// ║                                                                          ║
+// ║  Este archivo es la ÚNICA forma en que el throttle del HORI HPC-044U    ║
+// ║  funciona en Unity. Tomó 6h de debugging + 4 builds + 3 planes para     ║
+// ║  llegar a esta solución. NO ES NEGOCIABLE.                              ║
+// ║                                                                          ║
+// ║  Antes de cambiar CUALQUIER COSA aquí o en sus integraciones:           ║
+// ║    1. Lee `Manejo/2026MVP/HORI_THROTTLE_BUG_RESOLUTION.md` ENTERO.       ║
+// ║    2. Revisa PR #127 (General-Kain/Manejo) y los planes A/B/C.          ║
+// ║    3. Confirma con el usuario antes de tocar.                           ║
+// ║                                                                          ║
+// ║  Cualquier "simplificación" obvia (ej. "usar InputSystem.onEvent",       ║
+// ║  "registrar un layout custom", "leer slider/slider1") YA SE PROBÓ y     ║
+// ║  YA FALLÓ. Las razones están documentadas en el postmortem.             ║
+// ║                                                                          ║
+// ║  Integraciones que NO debes tocar sin entender este archivo:            ║
+// ║    - UIInputNew.HoriThrottleProvider (delegate)                         ║
+// ║    - UIInputNew.HORI_RAW_GAS_PATH (sentinel)                            ║
+// ║    - UIInputNew._useHoriRawGas (flag)                                    ║
+// ║    - UIInputNew.ReadGasRawValue() (helper)                              ║
+// ║    - UIInputNew.AttachToWheelDevice() bloque IsHORITruck                ║
+// ║    - MenuScreenManager Phase 3 auto-pass HORI                           ║
+// ╚══════════════════════════════════════════════════════════════════════════╝
+//
 // HORI Truck Control System (HPC-044U) — workaround del bug en Unity HID parser.
 //
 // Bug verificado empíricamente:

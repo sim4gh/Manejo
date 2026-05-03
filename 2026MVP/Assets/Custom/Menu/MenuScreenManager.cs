@@ -1739,6 +1739,20 @@ public class MenuScreenManager : MonoBehaviour
         // |delta| desde su reposo (capturado al inicio de la fase).
         if (!throttleDone)
         {
+            #region HORI HPC-044U gas phase auto-pass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
+            // ⚠️ CRITICAL — Sin este auto-pass, Pantalla 2 Discovery se atora
+            //   en Phase 3 con el HORI Truck Control System: el throttle del
+            //   HORI vive en un byte huérfano del HID report (Unity HID parser
+            //   bug por sliders duplicados Usage 0x36) y NINGÚN candidate de
+            //   PEDAL_AXIS_CANDIDATES detecta el delta cuando el usuario pisa
+            //   el acelerador. Sin auto-pass el operador queda bloqueado en la
+            //   pantalla de calibración SIN poder avanzar al examen.
+            // El throttle se lee en runtime via HoriThrottleReader (P/Invoke
+            // directo al HID device). UIInputNew.AttachToWheelDevice setea el
+            // sentinel también — esto es REDUNDANCIA defensiva por si Pantalla 2
+            // corre antes que AttachToWheelDevice (orden de bootstrap).
+            // NO eliminar.
+            //
             // HORI Truck workaround: el byte del throttle (HID 21-22) quedó
             // huérfano en el HID parser de Unity (no hay AxisControl que lo
             // lea — verificado raw HID dump 2026-05-03). Auto-pasamos esta
@@ -1758,6 +1772,7 @@ public class MenuScreenManager : MonoBehaviour
                 wheelPrompt.text = "Pisa el FRENO a fondo";
                 return;
             }
+            #endregion
             int bestIdx = SamplePedalCandidates(-1, out float bestAbsDelta);
             float gasProgress = Mathf.Clamp01(bestAbsDelta);
 
