@@ -77,6 +77,17 @@ namespace ShadedTechnology.WindshieldRainAsset.Demo
         }
 #endif
 
+        // Custom (Tlax2026): permite que WiperAutoController.cs maneje el modo
+        // sin pasar por el InputSystem. Si el prefab tiene menos presets de los
+        // pedidos, degrada al máximo disponible en vez de quedar fuera de rango.
+        public void SetMode(int mode)
+        {
+            int max = m_WipingPresets != null ? m_WipingPresets.Length : 0;
+            if (mode < 0) mode = 0;
+            if (mode > max) mode = max;
+            _wiperMode = mode;
+        }
+
         // Update is called once per frame
         void Update()
         {
