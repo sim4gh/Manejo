@@ -1473,6 +1473,12 @@ public class MenuScreenManager : MonoBehaviour
             return;
         }
 
+        // HORI Truck: NO fast-path completo. Discovery sí corre para steering/
+        // brake/clutch (esas axes Unity sí las expone). Solo el Phase 3 (gas)
+        // se auto-pasa porque el byte del throttle quedó huérfano en el HID
+        // parser y HoriThrottleReader.cs lo lee directo del state buffer.
+        // Ver gas-phase block más abajo.
+
         string currentFp = ComputeDeviceFingerprint(dev);
         string savedFp = PlayerPrefs.GetString(PREF_CAL_FINGERPRINT, "");
         bool fingerprintMatches = !string.IsNullOrEmpty(currentFp) && currentFp == savedFp;
@@ -1733,6 +1739,25 @@ public class MenuScreenManager : MonoBehaviour
         // |delta| desde su reposo (capturado al inicio de la fase).
         if (!throttleDone)
         {
+            // HORI Truck workaround: el byte del throttle (HID 21-22) quedó
+            // huérfano en el HID parser de Unity (no hay AxisControl que lo
+            // lea — verificado raw HID dump 2026-05-03). Auto-pasamos esta
+            // fase y dejamos que HoriThrottleReader.cs lea el byte directo
+            // via InputSystem.onEvent intercept. Sentinel HORI_RAW_GAS_PATH.
+            var devForGas = TryAttachToDevice();
+            if (devForGas != null && UIInputNew.IsHORITruck(devForGas))
+            {
+                throttleDone = true;
+                gasFillRT.anchorMax = new Vector2(1, 1);
+                gasFill.color = MenuTheme.IndicatorDone;
+                gasIndicator.color = MenuTheme.IndicatorDone;
+                PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
+                PlayerPrefs.SetFloat("G923_GasRest", 0f);
+                PlayerPrefs.SetFloat("G923_GasPress", 1f);
+                Debug.Log($"[MenuScreenManager] HORI Truck — gas phase auto-pasada, throttle vía HoriThrottleReader (sentinel '{UIInputNew.HORI_RAW_GAS_PATH}')");
+                wheelPrompt.text = "Pisa el FRENO a fondo";
+                return;
+            }
             int bestIdx = SamplePedalCandidates(-1, out float bestAbsDelta);
             float gasProgress = Mathf.Clamp01(bestAbsDelta);
 
