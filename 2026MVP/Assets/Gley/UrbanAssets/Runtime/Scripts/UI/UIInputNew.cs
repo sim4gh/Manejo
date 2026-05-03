@@ -155,6 +155,9 @@ namespace Gley.UrbanSystem
         // porque el layout HID del G923 trae "::" y espacios que a veces no resuelve)
         private InputControl<float> _steerCtrl; // stick/x
         private InputControl<float> _gasCtrl;   // z
+        // HORI Truck workaround: cuando true, el gas raw value se lee de
+        // HoriThrottleReader (ya en escala 0..1) en lugar de _gasCtrl.
+        private bool _useHoriRawGas;
         private InputControl<float> _brakeCtrl; // rz
         private InputControl<float> _clutchCtrl; // stick/y en PS, null en Xbox
 
@@ -206,6 +209,21 @@ namespace Gley.UrbanSystem
 
         public const string PREF_BIND_STEER_AXIS = "Bind_steerAxis";
         public const string PREF_BIND_REVERSE = "Bind_reverse";
+
+        // Sentinel value para G923_GasAxis: el throttle del HORI HPC-044U queda
+        // huérfano en el HID parser de Unity (los 2 sliders están aliased al
+        // mismo byte y el byte del throttle 21-22 no tiene AxisControl que lo
+        // lea). HoriThrottleReader.cs (Assets/Custom/) intercepta los state
+        // events del wheel via InputSystem.onEvent y lee el byte directo.
+        // Cuando G923_GasAxis == este path, ReadGasRawValue() bypass el
+        // _gasCtrl y devuelve HoriThrottleReader.Instance.Value.
+        public const string HORI_RAW_GAS_PATH = "__HORI_RAW_HID_THROTTLE__";
+
+        // Inyección desde Assembly-CSharp (HoriThrottleReader.cs en Assets/
+        // Custom/) — cross-asmdef no permite que Gley referencie Custom, pero
+        // sí al revés. HoriThrottleReader se registra aquí en su Bootstrap.
+        // Devuelve el throttle 0..1 leído raw del HID byte 21-22.
+        public static System.Func<float> HoriThrottleProvider;
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
         public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
@@ -538,6 +556,7 @@ namespace Gley.UrbanSystem
             _shifterDevice = null;
             _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
             _clutchCtrl = null;
+            _useHoriRawGas = false;
             _crossCtrls = System.Array.Empty<InputControl<float>>();
             _triangleCtrl = null; _restartCtrl = null;
             _l1Ctrl = null; _r1Ctrl = null;
@@ -585,6 +604,21 @@ namespace Gley.UrbanSystem
             if (dev == null || !dev.added) return false;
             try { value = ctrl.ReadUnprocessedValue(); return true; }
             catch (System.InvalidOperationException) { return false; }
+        }
+
+        // Lectura del gas raw que respeta el bypass HORI: si _useHoriRawGas
+        // está set, lee de HoriThrottleReader (raw HID byte 21-22 → 0..1).
+        // Caso contrario, lee de _gasCtrl como antes (Logitech/moto/etc.).
+        private float ReadGasRawValue()
+        {
+            if (_useHoriRawGas)
+            {
+                // HoriThrottleProvider puede ser null en boot temprano si el
+                // singleton no se ha bootstrapped todavía — return rest.
+                var p = HoriThrottleProvider;
+                return p != null ? p() : _gasRest;
+            }
+            return SafeReadFloatRaw(_gasCtrl, out var v) ? v : _gasRest;
         }
 
         // Detecta el volante y cachea todos los controles. Idempotente:
@@ -891,11 +925,25 @@ namespace Gley.UrbanSystem
 
             if (IsHORITruck(device))
             {
-                Debug.Log("[UIInputNew] HORI Truck detectado — aplicando defaults");
+                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/reverse + throttle vía HoriThrottleReader (raw HID byte intercept)");
                 PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
                 PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
                 PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
                 PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
+                // Throttle: el HID parser de Unity tiene un bug con el descriptor
+                // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
+                // byte del throttle (21-22 del input report) huérfano — ningún
+                // AxisControl lo lee. Solución: HoriThrottleReader.cs (Assets/
+                // Custom/) intercepta los state events del wheel via InputSystem.
+                // onEvent y lee el byte directo. UIInputNew detecta este path
+                // sentinel y bypass el _gasCtrl read normal.
+                PlayerPrefs.SetString("G923_GasAxis", HORI_RAW_GAS_PATH);
+                PlayerPrefs.SetFloat("G923_GasRest",   0f);
+                PlayerPrefs.SetFloat("G923_GasPress",  1f);
+                _useHoriRawGas = true;
+                // Brake y clutch SÍ se leen via Unity (slider/slider1/rz aliased
+                // pero al menos brake y clutch responden a sus respectivos
+                // pedales). Discovery los descubre en Pantalla 2.
                 PlayerPrefs.Save();
             }
 
@@ -903,7 +951,21 @@ namespace Gley.UrbanSystem
             // (pedales). El steering path viene de PlayerPrefs via ReloadBindings().
             string gasPath   = PlayerPrefs.GetString("G923_GasAxis", "z");
             string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "rz");
-            _gasCtrl   = CacheControl(gasPath);
+            // Sentinel HORI: si gasPath quedó persistido como HORI_RAW_GAS_PATH
+            // pero el device actual NO es HORI (ej. usuario cambió de HORI a
+            // G923 sin pasar por re-discovery), invalida el sentinel para que
+            // no envenene la lectura del gas. Codex review 2026-05-03.
+            if (gasPath == HORI_RAW_GAS_PATH && !IsHORITruck(device))
+            {
+                Debug.LogWarning($"[UIInputNew] gasPath sentinel HORI persistido pero device es {device.displayName} — limpiando.");
+                PlayerPrefs.DeleteKey("G923_GasAxis");
+                PlayerPrefs.DeleteKey("G923_GasRest");
+                PlayerPrefs.DeleteKey("G923_GasPress");
+                PlayerPrefs.Save();
+                gasPath = "z";
+            }
+            _useHoriRawGas = (gasPath == HORI_RAW_GAS_PATH);
+            _gasCtrl   = _useHoriRawGas ? null : CacheControl(gasPath);
             _brakeCtrl = CacheControl(brakePath);
             // Clutch (opcional — solo G923 PS). Si no hay path en PlayerPrefs,
             // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
@@ -1287,7 +1349,7 @@ namespace Gley.UrbanSystem
                 else if (_hasWheel)
                 {
                     // Sin teclado: pedales del volante, mantener último gear
-                    float gasRaw = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float gasRaw = ReadGasRawValue();
                     float brakeRaw = SafeReadFloatRaw(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
@@ -1336,7 +1398,7 @@ namespace Gley.UrbanSystem
                 }
                 else if (_hasWheel)
                 {
-                    float gasRaw = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+                    float gasRaw = ReadGasRawValue();
                     float brakeRaw = SafeReadFloatRaw(_brakeCtrl, out var rb) ? rb : _brakeRest;
                     float gasLinear = NormalizePedal(gasRaw, _gasRest, _gasPress);
                     // Curva del gas: pow(x, N). N<1 = más respuesta inicial, N>1 = más control fino.
@@ -1492,7 +1554,7 @@ namespace Gley.UrbanSystem
             // Raw reads
             float leanRaw = SafeReadFloatRaw(_leanCtrl, out var rl) ? rl : 0f;
             float hbarRaw = SafeReadFloatRaw(_hbarCtrl, out var rh) ? rh : 0f;
-            float gasRaw  = SafeReadFloatRaw(_gasCtrl, out var rg) ? rg : _gasRest;
+            float gasRaw  = ReadGasRawValue();
             bool brakePressed  = SafeReadFloat(_brakeCtrl,  out var rb) && rb > 0.5f;
             bool clutchPressed = SafeReadFloat(_clutchCtrl, out var rc) && rc > 0.5f;
 
