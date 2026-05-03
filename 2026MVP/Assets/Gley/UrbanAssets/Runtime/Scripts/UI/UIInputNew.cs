@@ -175,6 +175,7 @@ namespace Gley.UrbanSystem
         private InputControl<float> _l1Ctrl, _r1Ctrl; // paddles para direccionales
         private InputControl<float> _hazardCtrl;       // botón dedicado de intermitentes
         private InputControl<float> _hornCtrl;         // claxón (hold-to-honk)
+        private InputControl<float> _doorCtrl;         // puerta del bus (toggle abrir/cerrar en BusPasajeros)
         // Reversa soporta multi-path: el binding string puede contener varios
         // paths separados por '|' (OR). Útil cuando un mismo shifter firma
         // reversa en varios controles a la vez.
@@ -204,6 +205,7 @@ namespace Gley.UrbanSystem
         private string _bindPaddleRight = "button5";
         private string _bindHazard = "";
         private string _bindHorn = "";
+        private string _bindDoor = "";              // puerta del bus (BusPasajeros)
         private string _bindRestart = "";           // vacío = deshabilitado
         private string _bindMenuA = "button7";      // L2
         private string _bindMenuB = "button8";      // R2
@@ -246,6 +248,7 @@ namespace Gley.UrbanSystem
         public const string PREF_BIND_PADDLE_RIGHT = "Bind_paddleRight";
         public const string PREF_BIND_HAZARD = "Bind_hazard";
         public const string PREF_BIND_HORN = "Bind_horn";
+        public const string PREF_BIND_DOOR = "Bind_door";
         public const string PREF_BIND_RESTART = "Bind_restart";
         public const string PREF_BIND_MENU_A = "Bind_menuA";
         public const string PREF_BIND_MENU_B = "Bind_menuB";
@@ -329,6 +332,7 @@ namespace Gley.UrbanSystem
         public const string DEFAULT_BIND_PADDLE_RIGHT = "button5";
         public const string DEFAULT_BIND_HAZARD = "";
         public const string DEFAULT_BIND_HORN = "";
+        public const string DEFAULT_BIND_DOOR = "";
         public const string DEFAULT_BIND_RESTART = "";
         public const string DEFAULT_BIND_MENU_A = "button7";
         public const string DEFAULT_BIND_MENU_B = "button8";
@@ -365,6 +369,7 @@ namespace Gley.UrbanSystem
             _bindPaddleRight  = PlayerPrefs.GetString(PREF_BIND_PADDLE_RIGHT, DEFAULT_BIND_PADDLE_RIGHT);
             _bindHazard       = PlayerPrefs.GetString(PREF_BIND_HAZARD, DEFAULT_BIND_HAZARD);
             _bindHorn         = PlayerPrefs.GetString(PREF_BIND_HORN, DEFAULT_BIND_HORN);
+            _bindDoor         = PlayerPrefs.GetString(PREF_BIND_DOOR, DEFAULT_BIND_DOOR);
             _bindRestart      = PlayerPrefs.GetString(PREF_BIND_RESTART, DEFAULT_BIND_RESTART);
             _bindMenuA        = PlayerPrefs.GetString(PREF_BIND_MENU_A, DEFAULT_BIND_MENU_A);
             _bindMenuB        = PlayerPrefs.GetString(PREF_BIND_MENU_B, DEFAULT_BIND_MENU_B);
@@ -388,6 +393,7 @@ namespace Gley.UrbanSystem
             _r1Ctrl       = CacheBindingCtrl(_bindPaddleRight);
             _hazardCtrl   = CacheBindingCtrl(_bindHazard);
             _hornCtrl     = CacheBindingCtrl(_bindHorn);
+            _doorCtrl     = CacheBindingCtrl(_bindDoor);
             _restartCtrl  = CacheBindingCtrl(_bindRestart);
             _l2Ctrl       = CacheBindingCtrl(_bindMenuA);
             _r2Ctrl       = CacheBindingCtrl(_bindMenuB);
@@ -974,6 +980,10 @@ namespace Gley.UrbanSystem
                 PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
                 PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
                 PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
+                // Puerta del bus: solo asignar si no hay valor previo (no pisar
+                // remapeo del operador en F8). Default wheel:button21.
+                if (!PlayerPrefs.HasKey(PREF_BIND_DOOR))
+                    PlayerPrefs.SetString(PREF_BIND_DOOR, "wheel:button21");
                 // Throttle: el HID parser de Unity tiene un bug con el descriptor
                 // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
                 // byte del throttle (21-22 del input report) huérfano — ningún
@@ -1268,9 +1278,16 @@ namespace Gley.UrbanSystem
 #if !(UNITY_ANDROID || UNITY_IOS) || UNITY_EDITOR
         public bool HasPhysicalClutch() => _clutchCtrl != null;
         public bool IsHornPressed() => IsPressed(_hornCtrl);
+        // Puerta del bus: estado continuo (held). El edge detection vive en el
+        // consumidor (ParadaManagerBus) para que múltiples paradas no se
+        // pisen el flag de "frame anterior".
+        public bool IsDoorPressed() => IsPressed(_doorCtrl);
+        public string GetDoorBindingPath() => _bindDoor;
 #else
         public bool HasPhysicalClutch() => false;
         public bool IsHornPressed() => false;
+        public bool IsDoorPressed() => false;
+        public string GetDoorBindingPath() => "";
 #endif
         // Devuelve y resetea el contador de cambios de marcha sin clutch.
         // Patrón latched (no bool con reset-on-read) para que el orden de

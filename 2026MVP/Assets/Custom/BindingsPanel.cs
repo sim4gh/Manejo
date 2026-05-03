@@ -79,6 +79,7 @@ public class BindingsPanel : MonoBehaviour
         actions.Add(new ActionEntry { id = "paddleLeft",  prefKey = UIInputNew.PREF_BIND_PADDLE_LEFT,   defaultValue = UIInputNew.DEFAULT_BIND_PADDLE_LEFT,   displayName = "Direccional Izq (paddle)" });
         actions.Add(new ActionEntry { id = "paddleRight", prefKey = UIInputNew.PREF_BIND_PADDLE_RIGHT,  defaultValue = UIInputNew.DEFAULT_BIND_PADDLE_RIGHT,  displayName = "Direccional Der (paddle)" });
         actions.Add(new ActionEntry { id = "restart",     prefKey = UIInputNew.PREF_BIND_RESTART,       defaultValue = UIInputNew.DEFAULT_BIND_RESTART,       displayName = "Reiniciar escena (botón)" });
+        actions.Add(new ActionEntry { id = "door",        prefKey = UIInputNew.PREF_BIND_DOOR,          defaultValue = UIInputNew.DEFAULT_BIND_DOOR,          displayName = "Puerta del bus (toggle)" });
         actions.Add(new ActionEntry { id = "menuA",       prefKey = UIInputNew.PREF_BIND_MENU_A,        defaultValue = UIInputNew.DEFAULT_BIND_MENU_A,        displayName = "Combo menú A (hold + B)" });
         actions.Add(new ActionEntry { id = "menuB",       prefKey = UIInputNew.PREF_BIND_MENU_B,        defaultValue = UIInputNew.DEFAULT_BIND_MENU_B,        displayName = "Combo menú B" });
         actions.Add(new ActionEntry { id = "restartA",    prefKey = UIInputNew.PREF_BIND_RESTART_A,     defaultValue = UIInputNew.DEFAULT_BIND_RESTART_A,     displayName = "Combo restart A (hold + B)" });
