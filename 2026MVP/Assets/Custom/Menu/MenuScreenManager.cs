@@ -116,8 +116,6 @@ public class MenuScreenManager : MonoBehaviour
     private static readonly string[] practiceVehicleLabels =
         { "Sedán", "SUV", "Pasajeros", "Carga", "Moto", "Ambulancia" };
     private static readonly string[] practiceWeatherLabels = { "Sol", "Lluvia", "Granizo" };
-    private static readonly string[] practiceSpawnLabels =
-        { "Centro", "Mercado", "Plaza", "Industrial", "Periférico", "Aleatorio" };
     // "boxes" son los Image cuadrados a la izquierda de cada opción (estilo checkbox).
     // "rows" son los GameObjects de cada fila clickeable.
     private GameObject[] practiceVehicleRows;
@@ -127,14 +125,12 @@ public class MenuScreenManager : MonoBehaviour
     private GameObject practiceTransmisionRow;
     private GameObject[] practiceWeatherRows;
     private Image[] practiceWeatherBoxes;
-    private GameObject[] practiceSpawnRows;
-    private Image[] practiceSpawnBoxes;
     private Button practiceContinueBtn;
     private int selectedPracticeVehicleIdx = 0;
     private int selectedPracticeTransmisionIdx = 0; // 0=Auto, 1=Manual
     private int selectedPracticeWeatherIdx = 0;     // 0=Sol
-    private int selectedPracticeSpawnIdx = 5;       // 5=Aleatorio (default)
-    // D-pad pantalla práctica: 0=vehículo, 1=transmisión, 2=clima, 3=escenario, 4=continuar
+    // El escenario (LocationId) siempre se sortea al azar — no es configurable
+    // por el usuario en modo práctica.
     private int practiceRow = 0;
     private int practiceCol = 0;
 
@@ -1258,68 +1254,57 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 0.86f), new Vector2(1, 0.92f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-        // Layout vertical (top → bottom): Vehículo, Condiciones, Escenario, Transmisión (último
+        // Layout vertical (top → bottom): Vehículo, Condiciones, Transmisión (último
         // porque es opcional y desaparece para vehículos sin transmisión configurable).
-        // Cuando transmisión se oculta queda un gap vacío arriba del botón Continuar — está bien,
-        // el botón se mantiene fijo abajo y el resto del layout no salta.
+        // El escenario siempre se sortea aleatorio — no es configurable por el usuario.
 
-        // ── Tipo de vehículo (70-84%) ──
-        BuildPracticeSectionLabel(area.transform, "VehicleLabel", "Tipo de vehículo", 0.80f, 0.84f);
+        // ── Tipo de vehículo (68-83%) ──
+        BuildPracticeSectionLabel(area.transform, "VehicleLabel", "Tipo de vehículo", 0.78f, 0.83f);
         practiceVehicleRows = new GameObject[practiceVehicles.Length];
         practiceVehicleBoxes = new Image[practiceVehicles.Length];
         BuildPracticeOptions(area.transform, "Vehicle", practiceVehicleLabels,
-            0.70f, 0.79f,
+            0.66f, 0.77f,
             practiceVehicleRows, practiceVehicleBoxes,
             i => OnPracticeVehicleSelected(i));
 
-        // ── Condiciones (52-66%) ──
-        BuildPracticeSectionLabel(area.transform, "WeatherLabel", "Condiciones", 0.62f, 0.66f);
+        // ── Condiciones (44-59%) ──
+        BuildPracticeSectionLabel(area.transform, "WeatherLabel", "Condiciones", 0.54f, 0.59f);
         practiceWeatherRows = new GameObject[3];
         practiceWeatherBoxes = new Image[3];
         BuildPracticeOptions(area.transform, "Weather", practiceWeatherLabels,
-            0.52f, 0.61f,
+            0.42f, 0.53f,
             practiceWeatherRows, practiceWeatherBoxes,
             i => OnPracticeWeatherSelected(i));
 
-        // ── Escenario (34-48%) ──
-        BuildPracticeSectionLabel(area.transform, "SpawnLabel", "Escenario", 0.44f, 0.48f);
-        practiceSpawnRows = new GameObject[6];
-        practiceSpawnBoxes = new Image[6];
-        BuildPracticeOptions(area.transform, "Spawn", practiceSpawnLabels,
-            0.34f, 0.43f,
-            practiceSpawnRows, practiceSpawnBoxes,
-            i => OnPracticeSpawnSelected(i));
-
-        // ── Tipo de transmisión (16-30%) — visible solo si Sedan/SUV. Va al final
+        // ── Tipo de transmisión (20-35%) — visible solo si Sedan/SUV. Va al final
         // porque su visibilidad cambia según el vehículo y no debe causar que el resto
         // del layout salte cuando se oculta. ──
         practiceTransmisionRow = new GameObject("TransmisionRow");
         practiceTransmisionRow.transform.SetParent(area.transform, false);
         practiceTransmisionRow.AddComponent<RectTransform>().Set(
-            new Vector2(0, 0.16f), new Vector2(1, 0.30f), new Vector2(0.5f, 0.5f),
+            new Vector2(0, 0.20f), new Vector2(1, 0.35f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
         BuildPracticeSectionLabel(practiceTransmisionRow.transform, "TransmisionLabel",
-            "Tipo de transmisión", 0.72f, 1f);
+            "Tipo de transmisión", 0.66f, 1f);
         practiceTransmisionRows = new GameObject[2];
         practiceTransmisionBoxes = new Image[2];
         BuildPracticeOptions(practiceTransmisionRow.transform, "Transmision",
             new[] { "Automática", "Manual" },
-            0f, 0.65f,
+            0f, 0.60f,
             practiceTransmisionRows, practiceTransmisionBoxes,
             i => OnPracticeTransmisionSelected(i));
 
-        // ── Continuar (1-13%) ──
+        // ── Continuar (3-15%) ──
         practiceContinueBtn = MenuCardBuilder.CreateButton(area.transform, "Iniciar Práctica", "primary",
             new Vector2(100, 70), OnContinuePractice).GetComponent<Button>();
         practiceContinueBtn.GetComponent<RectTransform>().Set(
-            new Vector2(0.32f, 0.01f), new Vector2(0.68f, 0.13f), new Vector2(0.5f, 0.5f),
+            new Vector2(0.32f, 0.03f), new Vector2(0.68f, 0.15f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
         // Defaults visuales
         OnPracticeVehicleSelected(0);
         OnPracticeTransmisionSelected(0);
         OnPracticeWeatherSelected(0);
-        OnPracticeSpawnSelected(5);
     }
 
     /// <summary>Etiqueta de sección ("Tipo de vehículo", "Condiciones", etc.) — bold, izquierda.</summary>
@@ -1457,12 +1442,6 @@ public class MenuScreenManager : MonoBehaviour
         UpdatePracticeOptions(practiceWeatherBoxes, idx);
     }
 
-    void OnPracticeSpawnSelected(int idx)
-    {
-        selectedPracticeSpawnIdx = idx;
-        UpdatePracticeOptions(practiceSpawnBoxes, idx);
-    }
-
     /// <summary>Pinta el cuadrado seleccionado morado y los demás en gris claro.</summary>
     void UpdatePracticeOptions(Image[] boxes, int selectedIdx)
     {
@@ -1513,11 +1492,10 @@ public class MenuScreenManager : MonoBehaviour
             : null;
         gm.PracticeWeather = practiceWeatherLabels[selectedPracticeWeatherIdx];
 
-        // selectedPracticeSpawnIdx 0..4 = LocationId 1..5; 5 = LocationId 0 (random).
-        // Convención existente en SpawnLocationManager.
-        int locationId = (selectedPracticeSpawnIdx == 5) ? 0 : (selectedPracticeSpawnIdx + 1);
-        gm.LocationId = locationId;
-        gm.PracticeSpawnLocation = locationId == 0 ? "random" : locationId.ToString();
+        // El escenario en práctica siempre es aleatorio — convención de SpawnLocationManager:
+        // LocationId=0 sortea waypoint random entre 1..5 al cargar la escena.
+        gm.LocationId = 0;
+        gm.PracticeSpawnLocation = "random";
         // PracticeStartedAt lo setea ExamTimer.Start() al cargar la escena — no aquí —
         // para no inflar el tiempo con la verificación de volante y el LoadScene.
 
@@ -2882,9 +2860,8 @@ public class MenuScreenManager : MonoBehaviour
                 confirmBtnHeld = true;
                 if (practiceRow == 0) OnPracticeVehicleSelected(practiceCol);
                 else if (practiceRow == 1) OnPracticeWeatherSelected(practiceCol);
-                else if (practiceRow == 2) OnPracticeSpawnSelected(practiceCol);
-                else if (practiceRow == 3 && transmisionVisible) OnPracticeTransmisionSelected(practiceCol);
-                else if (practiceRow == 4) OnContinuePractice();
+                else if (practiceRow == 2 && transmisionVisible) OnPracticeTransmisionSelected(practiceCol);
+                else if (practiceRow == 3) OnContinuePractice();
                 RefreshPracticeVisuals();
             }
         }
@@ -2898,14 +2875,14 @@ public class MenuScreenManager : MonoBehaviour
         {
             practiceRow--;
             // Saltar fila transmisión cuando no aplica (vehículo no compatible).
-            if (practiceRow == 3 && !transmisionVisible) practiceRow = 2;
+            if (practiceRow == 2 && !transmisionVisible) practiceRow = 1;
             maxCol = PracticeMaxColForRow(practiceRow, transmisionVisible);
             practiceCol = Mathf.Min(practiceCol, maxCol);
         }
-        else if (down && practiceRow < 4)
+        else if (down && practiceRow < 3)
         {
             practiceRow++;
-            if (practiceRow == 3 && !transmisionVisible) practiceRow = 4;
+            if (practiceRow == 2 && !transmisionVisible) practiceRow = 3;
             maxCol = PracticeMaxColForRow(practiceRow, transmisionVisible);
             practiceCol = Mathf.Min(practiceCol, maxCol);
         }
@@ -2917,14 +2894,13 @@ public class MenuScreenManager : MonoBehaviour
 
     int PracticeMaxColForRow(int row, bool transmisionVisible)
     {
-        // 0=vehículo, 1=clima, 2=escenario, 3=transmisión (opcional), 4=continuar
+        // 0=vehículo, 1=clima, 2=transmisión (opcional), 3=continuar
         switch (row)
         {
             case 0: return practiceVehicles.Length - 1;        // 5 (6 opciones)
             case 1: return practiceWeatherLabels.Length - 1;   // 2 (3 opciones)
-            case 2: return practiceSpawnLabels.Length - 1;     // 5 (6 opciones)
-            case 3: return transmisionVisible ? 1 : 0;          // 1 si visible
-            case 4: return 0;                                    // botón único
+            case 2: return transmisionVisible ? 1 : 0;          // 1 si visible
+            case 3: return 0;                                    // botón único
             default: return 0;
         }
     }
@@ -2934,15 +2910,14 @@ public class MenuScreenManager : MonoBehaviour
         bool transmisionVisible = (selectedPracticeVehicleIdx == 0 || selectedPracticeVehicleIdx == 1);
         RefreshPracticeOptions(practiceVehicleBoxes, 0, selectedPracticeVehicleIdx);
         RefreshPracticeOptions(practiceWeatherBoxes, 1, selectedPracticeWeatherIdx);
-        RefreshPracticeOptions(practiceSpawnBoxes, 2, selectedPracticeSpawnIdx);
         if (transmisionVisible)
-            RefreshPracticeOptions(practiceTransmisionBoxes, 3, selectedPracticeTransmisionIdx);
+            RefreshPracticeOptions(practiceTransmisionBoxes, 2, selectedPracticeTransmisionIdx);
 
         if (practiceContinueBtn != null)
         {
             Image img = practiceContinueBtn.GetComponent<Image>();
             TextMeshProUGUI txt = practiceContinueBtn.GetComponentInChildren<TextMeshProUGUI>();
-            bool focused = (practiceRow == 4);
+            bool focused = (practiceRow == 3);
             if (img != null) img.color = focused ? MenuTheme.Gold : MenuTheme.ButtonPrimary;
             if (txt != null) txt.color = focused ? MenuTheme.TextPrimary : MenuTheme.ButtonPrimaryText;
         }
