@@ -138,7 +138,7 @@ public class SpeedometerSetup : MonoBehaviour
         limitTmp.verticalAlignment = VerticalAlignmentOptions.Middle;
         limitTmp.color = Color.black;
         limitTmp.raycastTarget = false;
-        limitTmp.enableWordWrapping = false;
+        limitTmp.textWrappingMode = TextWrappingModes.NoWrap;
         limitTmp.overflowMode = TextOverflowModes.Overflow;
         limitTmp.enableAutoSizing = true;
         limitTmp.fontSizeMin = 18f;

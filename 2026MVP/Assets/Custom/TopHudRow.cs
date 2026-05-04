@@ -204,7 +204,7 @@ public class TopHudRow : MonoBehaviour
         tmp.raycastTarget = false;
         // Sin wrap + auto-size: límites de 3 dígitos (110, 120) se escalan en una sola
         // línea en vez de partirse en "11" / "0".
-        tmp.enableWordWrapping = false;
+        tmp.textWrappingMode = TextWrappingModes.NoWrap;
         tmp.overflowMode = TextOverflowModes.Overflow;
         tmp.enableAutoSizing = true;
         tmp.fontSizeMin = 32f;
