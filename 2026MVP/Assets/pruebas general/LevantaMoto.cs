@@ -2,11 +2,10 @@ using UnityEngine;
 
 public class LevantaMoto : MonoBehaviour
 {
-    [Header("Configuración")]
+    [Header("Configuraciï¿½n")]
     public float rotationThreshold = 80f;  
     public float delayBeforeReset = 5f;    
 
-    private bool isCounting = false;
     private float timer = 0f;
 
     void Update()
@@ -19,7 +18,7 @@ public class LevantaMoto : MonoBehaviour
 
             if (timer >= delayBeforeReset)
             {
-                // Reset súbito a 0 en Z
+                // Reset sï¿½bito a 0 en Z
                 transform.eulerAngles = new Vector3(
                     transform.eulerAngles.x,
                     transform.eulerAngles.y,

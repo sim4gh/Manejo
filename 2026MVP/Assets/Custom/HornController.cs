@@ -10,7 +10,7 @@ public class HornController : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void AutoCreate()
     {
-        if (FindObjectOfType<HornController>() != null) return;
+        if (FindFirstObjectByType<HornController>() != null) return;
         var go = new GameObject("[HornController]");
         go.AddComponent<HornController>();
         DontDestroyOnLoad(go);
@@ -86,13 +86,13 @@ public class HornController : MonoBehaviour
 
         // UIInputNew vive en el PlayerCar y aparece después del scene load.
         // Reintenta cada 0.5s mientras no esté disponible (evita
-        // FindObjectOfType cada frame, que es lento).
+        // FindFirstObjectByType cada frame, que es lento).
         if (_input == null)
         {
             _inputResolveTimer -= Time.unscaledDeltaTime;
             if (_inputResolveTimer > 0f) return;
             _inputResolveTimer = 0.5f;
-            _input = FindObjectOfType<Gley.UrbanSystem.UIInputNew>();
+            _input = FindFirstObjectByType<Gley.UrbanSystem.UIInputNew>();
             if (_input == null) return;
         }
 

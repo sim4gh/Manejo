@@ -19,7 +19,7 @@ public static class SpawnLocationManager
     static bool subscribed;
 
     // Índices distribuidos en la red de waypoints de Gley UrbanExample.
-    // Para refinar un slot: maneja a la zona deseada y presiona [K] — log
+    // Para refinar un slot: maneja a la zona deseada y presiona [V] — log
     // en F7 imprime el índice del waypoint más cercano al Player. Cambia
     // el entero correspondiente y rebuildea.
     //   slot 1 = 11111 (legacy)                  slot 2 = 11112 (zona 2)
@@ -208,7 +208,7 @@ internal class SpawnLocationRunner : MonoBehaviour
 }
 
 /// <summary>
-/// Helper de debug: presiona [K] para loggear el índice del waypoint Gley más
+/// Helper de debug: presiona [V] para loggear el índice del waypoint Gley más
 /// cercano al Player. Útil para descubrir qué número poner en
 /// SpawnLocationManager.DEFAULT_WAYPOINTS para una zona específica (glorieta,
 /// escolar, hospital, etc.) sin tener que abrir el editor de Unity.
@@ -218,7 +218,7 @@ internal class WaypointDebugger : MonoBehaviour
     void Update()
     {
         var kb = Keyboard.current;
-        if (kb == null || !kb.kKey.wasPressedThisFrame) return;
+        if (kb == null || !kb.vKey.wasPressedThisFrame) return;
 
         // Defensivo: si se quedó vivo durante un cambio de escena, no toques
         // Gley a menos que la escena actual sea de manejo (whitelist).
