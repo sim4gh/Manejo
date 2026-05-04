@@ -447,8 +447,12 @@ public class ViolationDetector : MonoBehaviour
             // escena, pero SÍ debe sentir el impacto — el feedback sensorial
             // es esencial para el examen. Log se conserva para ayudar a
             // detectar geometría que merezca tag/layer apropiado.
-            violationType = "Obstacle";
-            Debug.Log($"[ViolationDetector] Colisión sin clasificar (feedback sin penalty): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
+            if (layer != LayerMask.NameToLayer("Suelo"))
+            {
+                violationType = "Obstacle";
+                Debug.Log($"[ViolationDetector] Colisión sin clasificar (feedback sin penalty): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
+            }
+            violationType = "Suelo";
         }
 
         // Registrar cooldown del tipo apropiado
