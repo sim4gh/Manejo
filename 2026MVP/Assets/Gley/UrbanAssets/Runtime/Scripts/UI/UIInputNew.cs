@@ -313,9 +313,9 @@ namespace Gley.UrbanSystem
         public const string DEFAULT_MOTO_BRAKE_PATH  = "trigger";
         public const string DEFAULT_MOTO_CLUTCH_PATH = "button2";
         // Steering blend (Opción C codex). Tunable via PlayerPrefs sin recompilar.
-        public const float  DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT = 0.8f;
-        public const float  DEFAULT_MOTO_BLEND_START_KMH = 15f;
-        public const float  DEFAULT_MOTO_BLEND_END_KMH   = 30f;
+        public const float  DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT = 0.5f;
+        public const float  DEFAULT_MOTO_BLEND_START_KMH = 30f;
+        public const float  DEFAULT_MOTO_BLEND_END_KMH   = 60f;
 
         private bool _isMotoSimulator = false;
         private InputControl<float> _leanCtrl;   // X axis BNO chasis
@@ -1698,9 +1698,9 @@ namespace Gley.UrbanSystem
         // combos L2+R2/L3+R3.
         //
         // Steering (Opción C, codex 2026-05-01): blend velocidad-dependiente.
-        //   - <15 km/h : 100% handlebar (parking, baja velocidad).
-        //   - 15-30 km/h : transición SmoothStep entre handlebar y mix lean+hbar.
-        //   - >30 km/h : 80% lean + 20% handlebar (asistencia del manubrio).
+        //   - <30 km/h : 100% handlebar.
+        //   - 30-60 km/h : transición SmoothStep entre handlebar y mix lean+hbar.
+        //   - >60 km/h : 50% lean + 50% handlebar.
         // Tunable via PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT y PREF_MOTO_BLEND_*.
         //
         // Throttle: Rz axis [_gasRest..gasPress] → [0,1] via NormalizePedal,
@@ -1743,7 +1743,7 @@ namespace Gley.UrbanSystem
             float blendEnd   = PlayerPrefs.GetFloat(PREF_MOTO_BLEND_END_KMH,   DEFAULT_MOTO_BLEND_END_KMH);
             float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(blendStart, blendEnd, speedKmh));
             float wHigh = PlayerPrefs.GetFloat(PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT, DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT);
-            // A alta velocidad: wHigh*lean + (1-wHigh)*hbar. wHigh=0.8 → 80% lean, 20% hbar.
+            // A alta velocidad: wHigh*lean + (1-wHigh)*hbar. wHigh=0.5 → 50% lean, 50% hbar.
             // Handlebar mantiene un rol residual de estabilidad/corrección fina.
             float steerHigh = wHigh * lean + (1f - wHigh) * hbar;
             horizontalInput = Mathf.Clamp(Mathf.Lerp(hbar, steerHigh, blend), -1f, +1f);
