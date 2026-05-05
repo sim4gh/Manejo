@@ -241,9 +241,17 @@ public class MenuScreenManager : MonoBehaviour
         circleBtn = null; enterBtn = null;
         gasCtrl = null; brakeCtrl = null;
         attachedDevice = null;
-        // CachePedalCandidates fue llamado con el device viejo; al re-attach se
-        // vuelve a llamar (ver AttachToDevice). No hace falta limpiarlo aquí
-        // porque las fases de calibración usan el array recién cacheado.
+        // FIX: limpiar pedalCandidates explicitamente. Sin esto, las refs al
+        // device viejo persisten tras un replug (ej. OTA del firmware que
+        // reinicia USB). Si SnapshotPedalRests corre antes que la siguiente
+        // CachePedalCandidates con el device nuevo, los reads fallan silencioso
+        // (SafeReadFloatRaw retorna false porque dev.added=false) o tiran
+        // InvalidOperationException, y el Discovery se atora — la fase del gas
+        // nunca acumula delta aunque el axis Rz del device nuevo si responda.
+        if (pedalCandidates != null)
+        {
+            for (int i = 0; i < pedalCandidates.Length; i++) pedalCandidates[i] = null;
+        }
     }
 
     // Lectura segura: valida que el device esté en el sistema y atrapa la
@@ -1789,8 +1797,23 @@ public class MenuScreenManager : MonoBehaviour
         // Simulator. Saltamos directo al gameplay. Calibración por rango específica
         // de la moto se hace via firmware /calibrate (BNO chasis center) o, en
         // iteración futura, via MotoCalibrationController (UI Unity dedicada).
-        if (dev != null && UIInputNew.IsMotoSimulator(dev))
+        //
+        // Detección multicapa:
+        //   1) IsMotoSimulator(dev): strings ("Moto Simulator"/"SimuladoresTlax") o VID/PID 0x4D54.
+        //   2) Fallback session-context: si licenseType=="motocicleta" Y el device es
+        //      Joystick con axis rz Y no es G923/HORI/Shifter — asumir moto sim.
+        //      Cubre el caso edge donde el firmware enumere con strings/VID-PID
+        //      default de TinyUSB (bug pre-v2.5.7) y Windows mantenga "TinyUSB HID".
+        bool isMotoSession = string.Equals(licenseType, "motocicleta", System.StringComparison.OrdinalIgnoreCase);
+        bool isMotoFallback = dev != null && dev is Joystick
+            && dev.TryGetChildControl("rz") != null
+            && !UIInputNew.IsLogitechG923Family(dev)
+            && !UIInputNew.IsHORITruck(dev)
+            && !UIInputNew.IsShifterDevice(dev);
+        if (dev != null && (UIInputNew.IsMotoSimulator(dev) || (isMotoSession && isMotoFallback)))
         {
+            if (!UIInputNew.IsMotoSimulator(dev))
+                Debug.LogWarning($"[MenuScreenManager] Moto fast-path via session-context fallback (licenseType=motocicleta + Joystick con rz). Device: '{dev.displayName}'");
             string fp = ComputeDeviceFingerprint(dev);
             if (!string.IsNullOrEmpty(fp))
                 PlayerPrefs.SetString(UIInputNew.PREF_MOTO_DEVICE_FINGERPRINT, fp);
@@ -2285,8 +2308,14 @@ public class MenuScreenManager : MonoBehaviour
         if (pedalCandidates == null) return;
         for (int i = 0; i < pedalCandidates.Length; i++)
         {
-            if (pedalCandidates[i] != null)
-                pedalCandidateRests[i] = pedalCandidates[i].ReadUnprocessedValue();
+            // FIX: usar SafeReadFloatRaw para validar dev.added y atrapar la
+            // InvalidOperationException si el control es stale (ej. tras un
+            // replug del USB sin que CachePedalCandidates haya re-corrido aun).
+            // Sin esto, ReadUnprocessedValue() directo puede tirar excepcion
+            // no manejada o persistir un valor garbage como rest, rompiendo
+            // SamplePedalCandidates en la fase 3 del Discovery.
+            if (SafeReadFloatRaw(pedalCandidates[i], out float rest))
+                pedalCandidateRests[i] = rest;
             pedalCandidateMaxDeltas[i] = 0f;
         }
     }

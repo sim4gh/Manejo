@@ -303,10 +303,14 @@ namespace Gley.UrbanSystem
         // PlayerPrefs si los paths reales difieren. HID buttons en Unity Input
         // System suelen ser 1-indexed (button1 = primer botón del descriptor),
         // por eso brake=button1 (firmware bit 0 = HID button #1) y clutch=button2.
-        public const string DEFAULT_MOTO_LEAN_PATH   = "x";
+        // El firmware envía steerX al HID X axis. Unity expone X como
+        // "stick/x" (compound Stick) en el HID layout autogenerado para este
+        // device — NO como axis raíz "x". Default actualizado en v1.4.4 tras
+        // verificar log S3 con lean[x]=False / stick/x SÍ presente.
+        public const string DEFAULT_MOTO_LEAN_PATH   = "stick/x";
         public const string DEFAULT_MOTO_HBAR_PATH   = "z";
         public const string DEFAULT_MOTO_GAS_PATH    = "rz";
-        public const string DEFAULT_MOTO_BRAKE_PATH  = "button1";
+        public const string DEFAULT_MOTO_BRAKE_PATH  = "trigger";
         public const string DEFAULT_MOTO_CLUTCH_PATH = "button2";
         // Steering blend (Opción C codex). Tunable via PlayerPrefs sin recompilar.
         public const float  DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT = 0.8f;
@@ -686,9 +690,29 @@ namespace Gley.UrbanSystem
 
             if (isMotoScene)
             {
+                // 1a) Strict: matchea por strings ("Moto Simulator" / "SimuladoresTlax")
+                //     o VID/PID custom (0x303A:0x4D54).
                 foreach (var device in InputSystem.devices)
                 {
                     if (IsMotoSimulator(device) && AttachToWheelDevice(device, "moto-scene priority"))
+                        return true;
+                }
+
+                // 1b) Fallback scene-context: cualquier Joystick con axis rz en
+                //     escena Motocicleta. El PC moto solo tiene el moto-controller
+                //     conectado; sin riesgo de wrong-device. Cubre el caso edge donde
+                //     el firmware enumere con strings/VID-PID default de TinyUSB
+                //     (bug pre-v2.5.7 — orden de USB init invertido) y Windows
+                //     mantenga el cache "TinyUSB HID" tras flash.
+                foreach (var device in InputSystem.devices)
+                {
+                    if (!(device is Joystick)) continue;
+                    if (IsShifterDevice(device)) continue;
+                    if (IsLogitechG923Family(device)) continue;
+                    if (IsHORITruck(device)) continue;
+                    if (device.TryGetChildControl("rz") == null) continue;
+                    Debug.LogWarning($"[UIInputNew] Moto scene fallback: '{device.displayName}' tratado como Moto Simulator (rz axis presente, no wheel conocido)");
+                    if (AttachAsMotoSimulator(device, "moto-scene Joystick-with-rz fallback"))
                         return true;
                 }
             }
@@ -811,9 +835,31 @@ namespace Gley.UrbanSystem
             string name = d.displayName ?? string.Empty;
             string product = d.description.product ?? string.Empty;
             string mfr = d.description.manufacturer ?? string.Empty;
-            return name.IndexOf("Moto Simulator", System.StringComparison.OrdinalIgnoreCase) >= 0
+            if (name.IndexOf("Moto Simulator", System.StringComparison.OrdinalIgnoreCase) >= 0
                 || product.IndexOf("Moto Simulator", System.StringComparison.OrdinalIgnoreCase) >= 0
-                || mfr.IndexOf("SimuladoresTlax", System.StringComparison.OrdinalIgnoreCase) >= 0;
+                || mfr.IndexOf("SimuladoresTlax", System.StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            // Fallback: match por VID/PID custom del firmware moto-controller.
+            // Independiente del cache de friendly name de Windows (que en algunos
+            // hosts reporta "TinyUSB HID" en displayName/product). Los IDs
+            // numericos del descriptor real llegan al capabilities JSON.
+            //   VID 0x303A = Espressif. PID 0x4D54 = "MT" custom del moto-controller.
+            // Parseamos con HIDDeviceDescriptor.FromJson — mas robusto que string match
+            // crudo a variaciones de formato/orden del JSON.
+            try
+            {
+                var caps = d.description.capabilities;
+                if (!string.IsNullOrEmpty(caps))
+                {
+                    var hid = UnityEngine.InputSystem.HID.HID.HIDDeviceDescriptor.FromJson(caps);
+                    if (hid.vendorId == 0x303A && hid.productId == 0x4D54)
+                        return true;
+                }
+            }
+            catch { /* descriptor invalido o parser cambio — silent fallback */ }
+
+            return false;
         }
 
         // Backwards-compat: callers viejos. Equivalente a IsKnownWheelCandidate.
@@ -1118,6 +1164,30 @@ namespace Gley.UrbanSystem
             // de PlayerPrefs "TransmisionManual" (que aplica a auto/camión).
             _isAutomaticMode = true;
             _currentGear = 1;
+
+            // Limpiar PlayerPrefs heredadas del Discovery wheel-genérico que
+            // pudieron contaminar la calibración cuando el firmware enumeró sin
+            // strings custom (bug pre-v2.5.7) → el menú cayó a Joystick fallback
+            // y Discovery capturó G923_BrakeAxis=z (handlebar BNO#2), Bind_steerAxis=
+            // stick/x (lean chasis), Bind_reverse=stick/right (que activaba R en HUD
+            // al girar manubrio derecho). Ese estado ya no aplica una vez que la
+            // moto entra por su path dedicado.
+            string[] polluted = {
+                "G923_GasAxis", "G923_BrakeAxis",
+                "G923_GasRest", "G923_GasPress", "G923_BrakeRest", "G923_BrakePress",
+                "G923_SteerCenter", "G923_SteerMax", "G923_SteerMin",
+                "Cal_ReverseDone", "Bind_reverse", "Bind_steerAxis"
+            };
+            int polledRemoved = 0;
+            foreach (var key in polluted)
+            {
+                if (PlayerPrefs.HasKey(key)) { PlayerPrefs.DeleteKey(key); polledRemoved++; }
+            }
+            if (polledRemoved > 0)
+            {
+                PlayerPrefs.Save();
+                Debug.Log($"[UIInputNew] Moto adopt: limpiadas {polledRemoved} PlayerPrefs G923_*/Bind_* del Discovery wheel-genérico previo");
+            }
             // Rigidbody del Player de la moto para steering blend velocidad-dependiente.
             // Búsqueda en cascada: GO actual → ancestros → Player tag. Si nada
             // matchea, queda null y blend=0 (steerInput = handlebar puro). En esce-
@@ -1140,11 +1210,28 @@ namespace Gley.UrbanSystem
             string gasPath   = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,   DEFAULT_MOTO_GAS_PATH);
             string brakePath = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH, DEFAULT_MOTO_BRAKE_PATH);
             string clutchPath= PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH,DEFAULT_MOTO_CLUTCH_PATH);
+            // Lean/hbar/gas fallback list: el HID layout que Unity asigna al
+            // device varía con cómo se enumere (VID/PID, descriptor). Probar
+            // path persistido, luego stick/x (compound), luego x raíz; idem
+            // para hbar (z). Verificado v1.4.3 log S3: lean[x]=False con path
+            // "x", pero stick/x SÍ está presente.
             _leanCtrl   = CacheControl(leanPath);
+            if (_leanCtrl == null && leanPath != "stick/x") _leanCtrl = CacheControl("stick/x");
+            if (_leanCtrl == null && leanPath != "x") _leanCtrl = CacheControl("x");
             _hbarCtrl   = CacheControl(hbarPath);
+            if (_hbarCtrl == null && hbarPath != "z") _hbarCtrl = CacheControl("z");
             _gasCtrl    = CacheControl(gasPath);
+            if (_gasCtrl == null && gasPath != "rz") _gasCtrl = CacheControl("rz");
+            // Brake/clutch fallback list: Unity InputSystem alia el primer button del
+            // HID Joystick layout como "trigger" en algunos hosts (este es el caso del
+            // moto-controller actual via "TinyUSB HID"). Probar el path persistido
+            // primero, luego "trigger" (alias estandar del primer button), luego
+            // "button1" (fallback si Unity cambia el aliasing en el futuro).
             _brakeCtrl  = CacheControl(brakePath);
+            if (_brakeCtrl == null && brakePath != "trigger") _brakeCtrl = CacheControl("trigger");
+            if (_brakeCtrl == null && brakePath != "button1") _brakeCtrl = CacheControl("button1");
             _clutchCtrl = CacheControl(clutchPath);
+            if (_clutchCtrl == null && clutchPath != "button2") _clutchCtrl = CacheControl("button2");
             // Para que F7/OnGUI/debug reads de _steerCtrl (que asumen wheel-style)
             // muestren el handlebar — sin este alias, los overlays mostrarían null.
             _steerCtrl = _hbarCtrl;
