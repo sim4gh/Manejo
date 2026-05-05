@@ -174,6 +174,20 @@ namespace Gley.UrbanSystem
         // en automático queda forzado en false (no hay clutch).
         private bool _clutchDisengaged = false;
 
+        // Gear ratios (solo modo manual). Index 0=N (no usado), 1-6 = marchas.
+        // Cada marcha tiene rango [min, max]:
+        //   - Bajo min  => lugging (torque cae cuadráticamente). 1ra tiene min=0.
+        //   - Sobre max => rev limit (torque cae a 0 en último 15%).
+        // Sin estos, las marchas serían decorativas (todas darían el mismo torque).
+        [Tooltip("Multiplicador de torque por marcha. Index 0=N (no usado), 1-6.")]
+        public float[] gearTorqueMultiplier = { 0f, 1.6f, 1.2f, 0.9f, 0.7f, 0.55f, 0.45f };
+
+        [Tooltip("Velocidad mínima útil por marcha (km/h). Index 0=N, 1-6. Bajo este valor el motor 'lugger': torque cae cuadráticamente. 1ra debe ser 0 para arrancar.")]
+        public float[] gearMinSpeedKmh = { 0f, 0f, 15f, 30f, 50f, 75f, 100f };
+
+        [Tooltip("Velocidad máxima alcanzable por marcha (km/h). Index 0=N, 1-6.")]
+        public float[] gearMaxSpeedKmh = { 0f, 25f, 45f, 70f, 100f, 130f, 160f };
+
         // Gear actual: 0=N, 1-6, -1=R — leido por SimpleSpeedGauge
         [HideInInspector] public int currentGear = 0;
         [HideInInspector] public bool isAutomaticMode;
@@ -214,7 +228,39 @@ namespace Gley.UrbanSystem
             else if (currentGear == 0) // Neutral
                 motorTorque = 0f;
             else // 1-6
-                motorTorque = maxMotorTorque * gasInput;
+            {
+                // En manual aplicamos gear ratios: torque y velocidad tope
+                // dependen de la marcha. Sin esto el shifter es decorativo:
+                // cualquier marcha 1-6 daba el mismo torque.
+                // En automático currentGear queda forzado a 1 en Start(); si
+                // aplicáramos el ratio de 1ra ahí, el coche topearía a 25 km/h.
+                if (!isAutomaticMode && currentGear >= 1
+                    && currentGear < gearTorqueMultiplier.Length
+                    && currentGear < gearMaxSpeedKmh.Length
+                    && currentGear < gearMinSpeedKmh.Length)
+                {
+                    float speedKmh = velocity.magnitude * 3.6f;
+                    float minSpeed = gearMinSpeedKmh[currentGear];
+                    float maxSpeed = gearMaxSpeedKmh[currentGear];
+                    float torqueMul = gearTorqueMultiplier[currentGear];
+
+                    // Soft rev-limit: el torque cae a 0 al acercarse a maxSpeed (último 15%).
+                    float revFactor = 1f - Mathf.Clamp01((speedKmh - maxSpeed * 0.85f) / (maxSpeed * 0.15f));
+
+                    // Lugging cuadrático: bajo minSpeed el torque cae a 0 sin piso.
+                    // Arrancar en 2-6 (speed=0) da lugFactor=0 → coche clavado.
+                    // 1ra tiene minSpeed=0 → lugFactor=1 siempre (arranca libre).
+                    float lugFactor = (minSpeed > 0.1f && speedKmh < minSpeed)
+                        ? Mathf.Pow(speedKmh / minSpeed, 2f)
+                        : 1f;
+
+                    motorTorque = maxMotorTorque * gasInput * torqueMul * revFactor * lugFactor;
+                }
+                else
+                {
+                    motorTorque = maxMotorTorque * gasInput;
+                }
+            }
 
             // Manual con clutch desacoplado: cortar transmisión de torque al eje
             // motriz. El motor sigue revolucionando (ver UpdateEngineSound) pero

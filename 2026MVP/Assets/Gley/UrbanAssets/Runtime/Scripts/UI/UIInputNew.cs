@@ -1589,6 +1589,15 @@ namespace Gley.UrbanSystem
                             }
                         }
                     }
+                    // Reversa por Bind_reverse: en G923 PS el R físico es button19
+                    // (cubierto por el array hardcoded de _gearControls), pero en
+                    // Xbox es button12, que NO está en ese array. Consultar
+                    // _crossCtrls — mismo botón que usa el modo automático —
+                    // hace que ambas variantes funcionen sin tocar el array.
+                    if (_currentGear == 0 && IsAnyPressed(_crossCtrls))
+                    {
+                        _currentGear = -1;
+                    }
                 }
 
                 // Edge-trigger: detectar cambio de gear NO-neutral sin clutch
