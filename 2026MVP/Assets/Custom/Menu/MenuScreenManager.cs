@@ -108,6 +108,15 @@ public class MenuScreenManager : MonoBehaviour
     private GameObject[] transmisionCards;
     private Image[] transmisionBorders;
     private Button continueBtn1;
+    // Wrappers para mostrar/ocultar secciones según licenseType
+    // (particular muestra ambas; carga/publico/emergencia solo transmisión).
+    private GameObject modelSectionGO;
+    private GameObject transmisionSectionGO;
+    private RectTransform transmisionSectionRT;
+    // Anchors originales de la sección transmisión cuando se muestra junto
+    // al selector de modelo (parte baja). Se guardan en BuildScreen1_Options
+    // y se restauran/reasignan en ApplyOptionsLayoutForLicenseType.
+    private Vector2 transmisionAnchorsMinDual, transmisionAnchorsMaxDual;
 
     // Pantalla Práctica
     // Nombres de escena (deben coincidir EXACTO con Build Settings)
@@ -153,7 +162,14 @@ public class MenuScreenManager : MonoBehaviour
     private Image reverseIndicator;
     private Image reverseFill;
     private RectTransform reverseFillRT;
+    // Pantalla 2: subtítulo bajo el título principal ("Examen: <tipo>").
+    // Era llamado examInfoText pero la asignación en BuildScreen2_Wheel
+    // pisaba la asignación previa de BuildScreen1_Options — bug pre-existente
+    // que dejaba a Pantalla 1 sin label de info. Codex review 2026-05-06.
     private TextMeshProUGUI examInfoText;
+    // Pantalla 1: subtítulo equivalente. Separado porque ambas pantallas
+    // existen simultáneamente y necesitan referencias independientes.
+    private TextMeshProUGUI examInfoTextScreen1;
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
     private bool reverseDone;
@@ -567,15 +583,23 @@ public class MenuScreenManager : MonoBehaviour
                 new Vector2(0, 0.90f), new Vector2(1, 1f), new Vector2(0.5f, 0.5f),
                 Vector2.zero, Vector2.zero);
 
-        examInfoText = MenuCardBuilder.CreateText(area.transform, "ExamInfo", "",
+        examInfoTextScreen1 = MenuCardBuilder.CreateText(area.transform, "ExamInfo", "",
             22f, FontStyles.Normal, MenuTheme.TextSecondary, TextAlignmentOptions.Center)
             .GetComponent<TextMeshProUGUI>();
-        examInfoText.GetComponent<RectTransform>().Set(
+        examInfoTextScreen1.GetComponent<RectTransform>().Set(
             new Vector2(0, 0.84f), new Vector2(1, 0.90f), new Vector2(0.5f, 0.5f),
             Vector2.zero, Vector2.zero);
 
         // ── Fila 2: Modelo label + 2 cards (52%-80%) ──
-        MenuCardBuilder.CreateText(area.transform, "ModelLabel", "Selecciona tu modelo",
+        // Envuelta en modelSectionGO para poder ocultarla cuando licenseType
+        // != "particular" (los demás vehículos no eligen modelo).
+        modelSectionGO = new GameObject("ModelSection");
+        modelSectionGO.transform.SetParent(area.transform, false);
+        modelSectionGO.AddComponent<RectTransform>().Set(
+            new Vector2(0, 0), new Vector2(1, 1), new Vector2(0.5f, 0.5f),
+            Vector2.zero, Vector2.zero);
+
+        MenuCardBuilder.CreateText(modelSectionGO.transform, "ModelLabel", "Selecciona tu modelo",
             24f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
             .GetComponent<RectTransform>().Set(
                 new Vector2(0, 0.78f), new Vector2(1, 0.86f), new Vector2(0.5f, 0.5f),
@@ -596,7 +620,7 @@ public class MenuScreenManager : MonoBehaviour
             float startX = (1f - totalW) / 2f;
             float left = startX + i * (cardW + gap);
 
-            GameObject card = MenuCardBuilder.CreateIconCard(area.transform, null,
+            GameObject card = MenuCardBuilder.CreateIconCard(modelSectionGO.transform, null,
                 titles[i], descs[i], new Vector2(80, 80), letters[i]);
             card.GetComponent<RectTransform>().Set(
                 new Vector2(left, 0.52f), new Vector2(left + cardW, 0.78f),
@@ -617,8 +641,20 @@ public class MenuScreenManager : MonoBehaviour
             variantBorders[i] = card.transform.Find("Border").GetComponent<Image>();
         }
 
-        // ── Fila 3: Transmisión label + 2 cards (22%-48%) ──
-        MenuCardBuilder.CreateText(area.transform, "TransmisionLabel", "Tipo de transmisión",
+        // ── Fila 3: Transmisión label + 2 cards ──
+        // Envuelta en transmisionSectionGO. Anchors duales (22%-48%) cuando
+        // se muestra junto a Modelo; reposicionada (40%-78%) cuando es la
+        // única sección (carga/publico/emergencia).
+        transmisionSectionGO = new GameObject("TransmisionSection");
+        transmisionSectionGO.transform.SetParent(area.transform, false);
+        transmisionSectionRT = transmisionSectionGO.AddComponent<RectTransform>();
+        transmisionAnchorsMinDual = new Vector2(0, 0);
+        transmisionAnchorsMaxDual = new Vector2(1, 1);
+        transmisionSectionRT.Set(
+            transmisionAnchorsMinDual, transmisionAnchorsMaxDual,
+            new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
+
+        MenuCardBuilder.CreateText(transmisionSectionGO.transform, "TransmisionLabel", "Tipo de transmisión",
             24f, FontStyles.Bold, MenuTheme.TextPrimary, TextAlignmentOptions.Center)
             .GetComponent<RectTransform>().Set(
                 new Vector2(0, 0.46f), new Vector2(1, 0.51f), new Vector2(0.5f, 0.5f),
@@ -639,7 +675,7 @@ public class MenuScreenManager : MonoBehaviour
             float startX = (1f - totalW) / 2f;
             float left = startX + i * (cardW + gap);
 
-            GameObject card = MenuCardBuilder.CreateIconCard(area.transform, null,
+            GameObject card = MenuCardBuilder.CreateIconCard(transmisionSectionGO.transform, null,
                 tTitles[i], tDescs[i], new Vector2(60, 60), tLetters[i]);
             card.GetComponent<RectTransform>().Set(
                 new Vector2(left, 0.22f), new Vector2(left + cardW, 0.45f),
@@ -697,6 +733,76 @@ public class MenuScreenManager : MonoBehaviour
         PlayerPrefs.Save();
         Debug.Log($"[MenuScreenManager] Transmisión: {(selectedTransmisionIndex == 1 ? "Manual" : "Automática")}");
         GoToScreen(SCREEN_WHEEL);
+    }
+
+    // Configura Pantalla 1 según el licenseType:
+    //   particular   → muestra Modelo (Sedan/SUV) + Transmisión
+    //   carga / publico / emergencia → solo Transmisión, oculta Modelo
+    //   motocicleta  → no llega aquí (va directo a SCREEN_WHEEL)
+    // Cuando solo se muestra Transmisión, reposicionamos la sección a la
+    // mitad superior del área para que no quede pegada al fondo.
+    void ApplyOptionsLayoutForLicenseType(string lt)
+    {
+        bool isParticular = string.Equals(lt, "particular", System.StringComparison.OrdinalIgnoreCase);
+        if (modelSectionGO != null) modelSectionGO.SetActive(isParticular);
+        if (transmisionSectionRT != null)
+        {
+            // Sin selector de modelo: la sección transmisión se mueve hacia
+            // arriba para ocupar el centro visualmente. Con selector de
+            // modelo: anchors originales (la sección entra por debajo).
+            if (isParticular)
+            {
+                transmisionSectionRT.anchorMin = transmisionAnchorsMinDual;
+                transmisionSectionRT.anchorMax = transmisionAnchorsMaxDual;
+            }
+            else
+            {
+                // Empuja todo el contenido hacia arriba. El label+cards
+                // quedan a 22-78% del área (centrados verticalmente sobre
+                // el botón "Continuar" que vive a 4-18%).
+                transmisionSectionRT.anchorMin = new Vector2(0, 0.20f);
+                transmisionSectionRT.anchorMax = new Vector2(1, 0.95f);
+            }
+            transmisionSectionRT.anchoredPosition = Vector2.zero;
+            transmisionSectionRT.sizeDelta = Vector2.zero;
+        }
+
+        // Sincronizar selectedSceneName con la selección actual del variant
+        // selector cuando es particular. Sin esto, una sesión carga/publico/
+        // emergencia anterior dejaba selectedSceneName con la escena vieja
+        // (CamionDCarga/BusPasajeros/Ambulancia) y al continuar particular
+        // sin tocar el selector se cargaba la escena equivocada.
+        // (Bug encontrado por Codex review 2026-05-06.)
+        // selectedVariantIndex defaulta a -1; clamp a [0, length-1] para
+        // robustez (BuildScreen1_Options llama OnVariantSelected(0) en
+        // init, pero no nos jugamos el orden de inicialización).
+        if (isParticular)
+        {
+            int safeIdx = (selectedVariantIndex >= 0 && selectedVariantIndex < variantScenes.Length)
+                ? selectedVariantIndex : 0;
+            OnVariantSelected(safeIdx);
+        }
+
+        // D-pad: si la fila 0 (modelo) está oculta, posicionar el foco
+        // inicial en fila 1 (transmisión). UpdateOptionsDpad respeta el
+        // minRow dinámico vía modelSectionGO.activeSelf. Para particular,
+        // dejamos el foco en fila 0 (modelo) por consistencia con el flujo
+        // previo.
+        if (!isParticular)
+        {
+            screen1Row = 1;
+            screen1Col = 0;
+        }
+        else
+        {
+            screen1Row = 0;
+            screen1Col = 0;
+        }
+
+        // Refrescar visuals del foco/selección — sin esto el highlight visible
+        // puede quedar en una fila/col de la sesión anterior hasta el primer
+        // input del d-pad.
+        RefreshScreen1Visuals();
     }
 
     void OnVariantSelected(int idx)
@@ -1026,7 +1132,11 @@ public class MenuScreenManager : MonoBehaviour
         GameManager.Instance.CitizenName = citizenName;
         GameManager.Instance.LicenseType = licenseType;
 
-        // Determinar escena según licenseType
+        // Determinar escena según licenseType. Motocicleta NO ofrece
+        // selector de transmisión (sin clutch ni H-shifter). Los demás
+        // (carga, publico, emergencia, particular) entran a Pantalla 1
+        // para elegir Manual/Automática. ApplyOptionsLayoutForLicenseType
+        // oculta la sección "Modelo" cuando no es particular.
         switch (licenseType)
         {
             case "motocicleta":
@@ -1035,19 +1145,23 @@ public class MenuScreenManager : MonoBehaviour
                 break;
             case "publico":
                 selectedSceneName = "BusPasajeros";
-                GoToScreen(SCREEN_WHEEL);
+                ApplyOptionsLayoutForLicenseType(licenseType);
+                GoToScreen(SCREEN_OPTIONS);
                 break;
             case "carga":
                 selectedSceneName = "CamionDCarga";
-                GoToScreen(SCREEN_WHEEL);
+                ApplyOptionsLayoutForLicenseType(licenseType);
+                GoToScreen(SCREEN_OPTIONS);
                 break;
             case "emergencia":
                 selectedSceneName = "Ambulancia";
-                GoToScreen(SCREEN_WHEEL);
+                ApplyOptionsLayoutForLicenseType(licenseType);
+                GoToScreen(SCREEN_OPTIONS);
                 break;
             case "particular":
             default:
-                GoToScreen(SCREEN_OPTIONS); // Mostrar opciones
+                ApplyOptionsLayoutForLicenseType("particular");
+                GoToScreen(SCREEN_OPTIONS); // Mostrar opciones (modelo + transmisión)
                 break;
         }
     }
@@ -1742,10 +1856,10 @@ public class MenuScreenManager : MonoBehaviour
         if (mainTitleGo != null) mainTitleGo.SetActive(index != 3);
 
         // Preparar pantalla
-        if (index == 1 && examInfoText != null)
+        if (index == 1 && examInfoTextScreen1 != null)
         {
             string name = string.IsNullOrEmpty(citizenName) ? "" : $"Hola, {citizenName}. ";
-            examInfoText.text = $"{name}Examen: Vehículo Particular";
+            examInfoTextScreen1.text = $"{name}Examen: {GetExamTypeLabel(licenseType)}";
         }
         if (index == 2)
         {
@@ -2012,17 +2126,20 @@ public class MenuScreenManager : MonoBehaviour
             if (reassignButton != null) reassignButton.gameObject.SetActive(false);
         }
 
-        string examType = licenseType switch
-        {
-            "particular" => "Vehículo Particular",
-            "motocicleta" => "Motocicleta",
-            "publico" => "Transporte Público",
-            "carga" => "Carga Pesada",
-            _ => licenseType
-        };
         string name = string.IsNullOrEmpty(citizenName) ? "" : citizenName + " | ";
-        if (examInfoText != null) examInfoText.text = $"{name}Examen: {examType}";
+        if (examInfoText != null) examInfoText.text = $"{name}Examen: {GetExamTypeLabel(licenseType)}";
     }
+
+    static string GetExamTypeLabel(string lt) => lt switch
+    {
+        "particular"  => "Vehículo Particular",
+        "motocicleta" => "Motocicleta",
+        "publico"     => "Transporte Público",
+        "carga"       => "Carga Pesada",
+        "emergencia"  => "Emergencia",
+        "practica"    => "Práctica",
+        _ => lt ?? ""
+    };
 
     void Update()
     {
@@ -2984,8 +3101,11 @@ public class MenuScreenManager : MonoBehaviour
         // Bug pre-existente arreglado: con 2 cards reales (índices 0 y 1) maxCol
         // debe ser 1, no 2 (permitía navegar a una col fantasma).
         int maxCol = (screen1Row == 0 || screen1Row == 1) ? 1 : 0;
+        // Si el selector de modelo está oculto (carga/publico/emergencia),
+        // la fila 0 no se puede alcanzar — minRow=1 (transmisión).
+        int minRow = (modelSectionGO != null && modelSectionGO.activeSelf) ? 0 : 1;
 
-        if (up && screen1Row > 0)
+        if (up && screen1Row > minRow)
         {
             screen1Row--;
             maxCol = (screen1Row == 0 || screen1Row == 1) ? 1 : 0;
