@@ -179,8 +179,12 @@ namespace Gley.UrbanSystem
         //   - Bajo min  => lugging (torque cae cuadráticamente). 1ra tiene min=0.
         //   - Sobre max => rev limit (torque cae a 0 en último 15%).
         // Sin estos, las marchas serían decorativas (todas darían el mismo torque).
-        [Tooltip("Multiplicador de torque por marcha. Index 0=N (no usado), 1-6.")]
-        public float[] gearTorqueMultiplier = { 0f, 1.6f, 1.2f, 0.9f, 0.7f, 0.55f, 0.45f };
+        // Nota: marchas altas (5-6) deben quedar cerca de 1.0; reducir el multiplicador
+        // emula "gear ratio" mecánico, pero el WheelCollider no compensa con RPM mayor
+        // como un coche real. Si bajas mucho 5-6, drag > torque y el coche topea muy
+        // por debajo de su gearMaxSpeedKmh (en feat anterior 6ta no pasaba de 110 km/h).
+        [Tooltip("Multiplicador de torque por marcha. Index 0=N (no usado), 1-6. Mantener 5-6 cerca de 1.0 para que puedan alcanzar gearMaxSpeedKmh.")]
+        public float[] gearTorqueMultiplier = { 0f, 1.5f, 1.3f, 1.15f, 1.05f, 1.0f, 1.0f };
 
         [Tooltip("Velocidad mínima útil por marcha (km/h). Index 0=N, 1-6. Bajo este valor el motor 'lugger': torque cae cuadráticamente. 1ra debe ser 0 para arrancar.")]
         public float[] gearMinSpeedKmh = { 0f, 0f, 15f, 30f, 50f, 75f, 100f };
