@@ -438,6 +438,21 @@ namespace Gley.UrbanSystem
                 ctrls.Add(c);
                 vals.Add(i + 1);
             }
+
+            // Si NINGÚN bind resolvió en el hardware actual, los prefs son
+            // huérfanos (ej. usuario calibró HORI con shifter:button1..6 y
+            // ahora conecta G923 sin recalibrar). Caer al legacy 13-19 para
+            // que el modo manual del G923 siga funcionando — el operador
+            // puede recalibrar via F8 o Pantalla 2 cuando quiera.
+            if (ctrls.Count == 0)
+            {
+                Debug.LogWarning("[UIInputNew] Bind_gear* configurados pero ningún path resuelve en este device — fallback legacy buttons 13-19");
+                _gearControls = new InputControl<float>[7];
+                for (int i = 0; i < 7; i++) _gearControls[i] = CacheButton(13 + i);
+                _gearValues = new int[] { 1, 2, 3, 4, 5, 6, -1 };
+                return;
+            }
+
             _gearControls = ctrls.ToArray();
             _gearValues = vals.ToArray();
         }
@@ -899,6 +914,39 @@ namespace Gley.UrbanSystem
             return hasShifter && !hasWheel;
         }
 
+        // Helper para que MenuScreenManager (sanity check) valide o resuelva
+        // paths con prefijos "wheel:"/"shifter:" sin replicar la lógica de
+        // ResolveControlPath. Devuelve el control si existe; null si no.
+        // Sin prefijo: prueba wheel primero, fallback shifter (mismo orden
+        // que el ResolveControlPath de instancia).
+        public static InputControl<float> ResolveControlPathFor(InputDevice wheel, InputDevice shifter, string path)
+        {
+            if (string.IsNullOrEmpty(path)) return null;
+            const string WHEEL_PREFIX = "wheel:";
+            const string SHIFTER_PREFIX = "shifter:";
+            if (path.StartsWith(WHEEL_PREFIX, System.StringComparison.Ordinal))
+            {
+                if (wheel == null || !wheel.added) return null;
+                return wheel.TryGetChildControl(path.Substring(WHEEL_PREFIX.Length)) as InputControl<float>;
+            }
+            if (path.StartsWith(SHIFTER_PREFIX, System.StringComparison.Ordinal))
+            {
+                if (shifter == null || !shifter.added) return null;
+                return shifter.TryGetChildControl(path.Substring(SHIFTER_PREFIX.Length)) as InputControl<float>;
+            }
+            if (wheel != null && wheel.added)
+            {
+                var c = wheel.TryGetChildControl(path) as InputControl<float>;
+                if (c != null) return c;
+            }
+            if (shifter != null && shifter.added)
+                return shifter.TryGetChildControl(path) as InputControl<float>;
+            return null;
+        }
+
+        public static bool ResolvePathExists(InputDevice wheel, InputDevice shifter, string path)
+            => ResolveControlPathFor(wheel, shifter, path) != null;
+
         // Mapeo G923 conocido por modo. El switch físico del G923 (PS/Xbox)
         // cambia el HID layout — diferentes axes y buttons exponen las mismas
         // funciones físicas. Detectamos por displayName y aplicamos defaults
@@ -1020,16 +1068,43 @@ namespace Gley.UrbanSystem
             //   throttle bypass NO.
             if (IsHORITruck(device))
             {
-                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/horn/reverse + throttle vía HoriThrottleReader (raw HID byte intercept)");
-                PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
-                PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
-                PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
-                PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
-                PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
-                // Puerta del bus: solo asignar si no hay valor previo (no pisar
-                // remapeo del operador en F8). Default wheel:button21.
+                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/horn/reverse + H-shifter + throttle vía HoriThrottleReader (raw HID byte intercept)");
+                // Botones: solo escribir si no hay valor previo. Esto deja
+                // sobrevivir las reasignaciones F8 entre re-attaches (boot,
+                // reconectar USB). Si se cambia de hardware, el flujo
+                // "Reasignar controles" en Pantalla 2 limpia los binds
+                // explícitamente vía ClearWheelCalibration().
+                if (!PlayerPrefs.HasKey(PREF_BIND_PADDLE_LEFT))
+                    PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
+                if (!PlayerPrefs.HasKey(PREF_BIND_PADDLE_RIGHT))
+                    PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
+                if (!PlayerPrefs.HasKey(PREF_BIND_HAZARD))
+                    PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
+                if (!PlayerPrefs.HasKey(PREF_BIND_HORN))
+                    PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
+                if (!PlayerPrefs.HasKey(PREF_BIND_REVERSE))
+                    PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
                 if (!PlayerPrefs.HasKey(PREF_BIND_DOOR))
                     PlayerPrefs.SetString(PREF_BIND_DOOR, "wheel:button21");
+                // H-shifter HORI: 6 marchas físicas en el SHIFTER device.
+                // Mapping verificado en F7 con HORI conectado (2026-05-06):
+                //   1ª = "trigger" (Unity nombra el control así por el HID
+                //        usage del HORI, NO es "button1"),
+                //   2ª..6ª = button2..6,
+                //   R = button7 (ya cubierto en PREF_BIND_REVERSE).
+                // Idempotente: si el operador reasigna en F8, sobrevive.
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR1))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR1, "shifter:trigger");
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR2))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR2, "shifter:button2");
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR3))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR3, "shifter:button3");
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR4))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR4, "shifter:button4");
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR5))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR5, "shifter:button5");
+                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR6))
+                    PlayerPrefs.SetString(PREF_BIND_GEAR6, "shifter:button6");
                 // Throttle: el HID parser de Unity tiene un bug con el descriptor
                 // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
                 // byte del throttle (21-22 del input report) huérfano — ningún
@@ -1037,13 +1112,15 @@ namespace Gley.UrbanSystem
                 // Custom/) intercepta los state events del wheel via InputSystem.
                 // onEvent y lee el byte directo. UIInputNew detecta este path
                 // sentinel y bypass el _gasCtrl read normal.
+                // ⚠️ INCONDICIONAL — sin esto el throttle queda muerto.
                 PlayerPrefs.SetString("G923_GasAxis", HORI_RAW_GAS_PATH);
                 PlayerPrefs.SetFloat("G923_GasRest",   0f);
                 PlayerPrefs.SetFloat("G923_GasPress",  1f);
                 _useHoriRawGas = true;
                 // Brake y clutch SÍ se leen via Unity (slider/slider1/rz aliased
                 // pero al menos brake y clutch responden a sus respectivos
-                // pedales). Discovery los descubre en Pantalla 2.
+                // pedales). Discovery los descubre en Pantalla 2 (clutch tiene
+                // fase dedicada solo si TransmisionManual==1).
                 PlayerPrefs.Save();
             }
             #endregion

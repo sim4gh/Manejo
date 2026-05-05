@@ -494,7 +494,7 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 - **Deteccion:** `UIInputNew.IsHORITruck()` por displayName/product que contenga "HORI"
 - **Defaults automaticos** en `AttachToWheelDevice()` al detectar HORI (no usa `EnsureG923PSDefaults`)
 
-### Mapping verificado (F7, 2026-04-29)
+### Mapping verificado (F7, 2026-05-06)
 
 | Funcion | Path | Device | Reposo |
 |---------|------|--------|--------|
@@ -503,14 +503,26 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 | Direccional der | `button41` | WHEEL | — |
 | Intermitentes | `shifter:button27` | SHIFTER | — |
 | Reversa | `shifter:button7` | SHIFTER | — |
+| H-shifter 1ª | `shifter:trigger` | SHIFTER | — |
+| H-shifter 2ª | `shifter:button2` | SHIFTER | — |
+| H-shifter 3ª | `shifter:button3` | SHIFTER | — |
+| H-shifter 4ª | `shifter:button4` | SHIFTER | — |
+| H-shifter 5ª | `shifter:button5` | SHIFTER | — |
+| H-shifter 6ª | `shifter:button6` | SHIFTER | — |
 
 - **Pedales**: descubiertos por Pantalla 2 Discovery (`slider`/`slider1` agregados a `PEDAL_AXIS_CANDIDATES`)
 - **Intermitentes**: binding dedicado `Bind_hazard` (G923 usa combo L1+R1, HORI tiene boton fisico)
 - **Steering**: descubierto dinamicamente por Pantalla 2 (no verificado el eje exacto)
+- **H-shifter**: Unity nombra la 1ª como `trigger` (no `button1`) por HID usage especial. Defaults idempotentes en `AttachToWheelDevice` (sobreviven reasignaciones F8). Ver `PLAN_HORI_TRUCK.md` sección "Modo manual".
+
+### Modo manual + clutch
+- Funcional desde 2026-05-06. `Bind_gear1..6` y `Bind_reverse` defaults idempotentes en `AttachToWheelDevice` cuando se detecta HORI.
+- **Clutch axis**: Discovery dinámico (Phase 6) en Pantalla 2 condicional a `TransmisionManual==1 && IsHORITruck`. NO hardcoded — Unity alias slider/slider1/rz arbitrariamente entre brake y clutch (ver `HORI_THROTTLE_BUG_RESOLUTION.md:170-171`).
+- Detección de "rechino" funciona igual que G923 PS (mismo edge-trigger en `UIInputNew`, mismo gating con `HasPhysicalClutch()` en `ViolationDetector`).
+- **Cambio HORI→G923 sin recalibrar**: `ReCacheGearControls` cae al fallback legacy 13-19 si los paths `shifter:*` no resuelven; `SanityCheckThenLoad` adicionalmente limpia binds huérfanos.
 
 ### Pendiente
-- Mapear marchas H-shifter (buttons en SHIFTER device)
-- Verificar force feedback
+- Verificar force feedback (HORI no tiene FFB — `LogitechFFB.cs` no-op)
 
 ## Build
 
