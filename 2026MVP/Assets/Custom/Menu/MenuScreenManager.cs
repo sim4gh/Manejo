@@ -157,6 +157,12 @@ public class MenuScreenManager : MonoBehaviour
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
     private bool reverseDone;
+    // Clutch phase: solo aplica si TransmisionManual==1 && IsHORITruck.
+    // En G923 PS el clutch se hardcodea en EnsureG923PSDefaults; en Xbox
+    // y automático no hay clutch. Por eso clutchDone arranca en true para
+    // todos los demás casos y la fase ni se ejecuta.
+    private bool clutchDone = true;
+    private int _brakeChosenIdx = -1; // persistido para excluir en Phase 6
     private Button skipButton;
     private Button reassignButton;
     // Coroutine del sanity check del estado Verified (splash "Preparando
@@ -1820,6 +1826,7 @@ public class MenuScreenManager : MonoBehaviour
             PlayerPrefs.Save();
             // Marcar todas las fases como completadas (visual feedback verde).
             rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
+            clutchDone = true; // Moto: sin clutch físico.
             steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
             rightIndicator.color = leftIndicator.color = gasIndicator.color =
                 brakeIndicator.color = reverseIndicator.color = MenuTheme.IndicatorDone;
@@ -1847,6 +1854,7 @@ public class MenuScreenManager : MonoBehaviour
             PlayerPrefs.Save();
             // Marcar todas las fases como completadas para que la UI muestre verde.
             rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
+            clutchDone = true; // G923 PS: clutch hardcoded en EnsureG923PSDefaults. Xbox: sin clutch.
             steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
             // UI: indicadores y fills en estado "done".
             rightIndicator.color = leftIndicator.color = gasIndicator.color =
@@ -1889,14 +1897,54 @@ public class MenuScreenManager : MonoBehaviour
             && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress");
         bool reverseCal = fingerprintMatches && PlayerPrefs.GetInt(PREF_CAL_REVERSE_DONE, 0) == 1;
 
+        // Clutch phase: solo HORI + Manual + sin clutch axis válido. G923 PS
+        // setea G923_ClutchAxis="stick/y" en EnsureG923PSDefaults (fast-path
+        // arriba); G923 Xbox no tiene clutch físico; HORI en automático no
+        // necesita clutch — para todos esos casos clutchPhaseNeeded=false.
+        // El axis del clutch HORI no se puede hardcodear porque Unity alias
+        // slider/slider1/rz arbitrariamente entre brake y clutch (ver
+        // HORI_THROTTLE_BUG_RESOLUTION.md). Por eso lo descubrimos pisando.
+        bool clutchAlreadyCal = fingerprintMatches
+            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS)
+            && !string.IsNullOrEmpty(PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, ""))
+            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
+            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+        bool clutchPhaseNeeded = PlayerPrefs.GetInt("TransmisionManual", 0) == 1
+            && dev != null && UIInputNew.IsHORITruck(dev) && !clutchAlreadyCal;
+
         rightDone = leftDone = steeringCal;
         throttleDone = brakeDone = pedalsCal;
         reverseDone = reverseCal;
+        clutchDone = !clutchPhaseNeeded;
+        _brakeChosenIdx = -1; // se llenará en la phase brake (Update)
 
         // Reset deltas de candidatos para esta sesión de calibración
         if (pedalCandidateMaxDeltas != null)
             for (int i = 0; i < pedalCandidateMaxDeltas.Length; i++) pedalCandidateMaxDeltas[i] = 0f;
         gasChosenIdx = -1;
+
+        // Si los pedales ya están calibrados (pedalsCal) pero la Phase 6
+        // (CLUTCH) sí necesita correr, recuperamos los índices de gas y
+        // brake desde los paths persistidos para excluirlos correctamente
+        // en SamplePedalCandidates(gasIdx, brakeIdx, ...). Además, cuando
+        // se salta phases 3/4 hay que cachear los candidatos manualmente
+        // — Phase 3 normalmente llama CachePedalCandidates+SnapshotPedalRests
+        // pero si pedalsCal=true no se ejecuta y Phase 6 quedaría sin datos.
+        if (pedalsCal)
+        {
+            string savedGas   = PlayerPrefs.GetString("G923_GasAxis", "");
+            string savedBrake = PlayerPrefs.GetString("G923_BrakeAxis", "");
+            for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
+            {
+                if (gasChosenIdx == -1   && PEDAL_AXIS_CANDIDATES[i] == savedGas)   gasChosenIdx = i;
+                if (_brakeChosenIdx == -1 && PEDAL_AXIS_CANDIDATES[i] == savedBrake) _brakeChosenIdx = i;
+            }
+            if (clutchPhaseNeeded && dev != null)
+            {
+                CachePedalCandidates(dev);
+                SnapshotPedalRests();
+            }
+        }
 
         // Reset descubrimiento del eje del volante. Snapshot se hace en
         // Update al entrar a fase 1 (el usuario ya tiene las manos puestas).
@@ -1938,7 +1986,7 @@ public class MenuScreenManager : MonoBehaviour
         reverseFill.color = reverseDone ? MenuTheme.IndicatorDone : MenuTheme.SecondaryCrimson;
 
         // ── 3) Decidir el modo de la pantalla ──
-        bool fullyCalibrated = steeringCal && pedalsCal && reverseCal;
+        bool fullyCalibrated = steeringCal && pedalsCal && reverseCal && !clutchPhaseNeeded;
 
         if (fullyCalibrated)
         {
@@ -1951,10 +1999,14 @@ public class MenuScreenManager : MonoBehaviour
         else
         {
             // Discovery / Partial: prompt según primera fase pendiente.
+            // Phase 6 (CLUTCH) corre entre brake y reverse: solo cuando aplica
+            // (HORI + Manual sin clutch axis previo). En el resto de los casos
+            // clutchDone=true desde el inicio y la fase nunca se ve.
             wheelPrompt.text = !rightDone    ? "Gira el volante hacia la DERECHA"
                              : !leftDone     ? "Gira el volante hacia la IZQUIERDA"
                              : !throttleDone ? "Pisa el ACELERADOR a fondo"
                              : !brakeDone    ? "Pisa el FRENO a fondo"
+                             : !clutchDone   ? "Pisa el EMBRAGUE a fondo"
                              :                 "Activa la REVERSA";
             if (skipButton != null) skipButton.gameObject.SetActive(true);
             if (reassignButton != null) reassignButton.gameObject.SetActive(false);
@@ -2006,7 +2058,7 @@ public class MenuScreenManager : MonoBehaviour
         if (steer > steerMaxSeen) steerMaxSeen = steer;
         if (steer < steerMinSeen) steerMinSeen = steer;
 
-        if (rightDone && leftDone && throttleDone && brakeDone && reverseDone) return;
+        if (rightDone && leftDone && throttleDone && brakeDone && clutchDone && reverseDone) return;
 
         if (!rightDone)
         {
@@ -2205,6 +2257,7 @@ public class MenuScreenManager : MonoBehaviour
             if (bestAbsDelta >= PEDAL_DELTA_THRESHOLD && bestIdx >= 0)
             {
                 brakeDone = true;
+                _brakeChosenIdx = bestIdx; // Phase 6 (clutch) lo excluye.
                 float rest = pedalCandidateRests[bestIdx];
                 float press = rest + pedalCandidateMaxDeltas[bestIdx];
                 string brakeAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
@@ -2223,7 +2276,22 @@ public class MenuScreenManager : MonoBehaviour
                 PlayerPrefs.Save();
                 Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3} fp={fpBrake}");
 
-                if (reverseDone)
+                // Encadenar próxima fase: clutch (HORI manual) → reverse → load.
+                if (!clutchDone)
+                {
+                    // Resetear deltas de los candidatos para la fase clutch
+                    // (los deltas acumulados durante brake quedarían como
+                    // "press" del clutch — phantom positives).
+                    if (pedalCandidateMaxDeltas != null)
+                        for (int i = 0; i < pedalCandidateMaxDeltas.Length; i++) pedalCandidateMaxDeltas[i] = 0f;
+                    SnapshotPedalRests();
+                    wheelPrompt.text = "Pisa el EMBRAGUE a fondo";
+                    // brakeFill queda como progress visual del clutch (reusado).
+                    brakeFillRT.anchorMax = new Vector2(0, 1);
+                    brakeFill.color = MenuTheme.SecondaryCrimson;
+                    brakeIndicator.color = MenuTheme.IndicatorPending;
+                }
+                else if (reverseDone)
                 {
                     wheelPrompt.text = "Cargando prueba...";
                     skipButton.gameObject.SetActive(false);
@@ -2239,6 +2307,55 @@ public class MenuScreenManager : MonoBehaviour
             {
                 brakeFillRT.anchorMax = new Vector2(brakeProgress, 1);
                 brakeFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, brakeProgress);
+            }
+            return;
+        }
+
+        // ── Fase 6: calibración dinámica del EMBRAGUE (HORI manual only) ──
+        // Reusa la barra brakeFill como feedback visual (sin agregar UI nueva).
+        // Excluye gas y brake; el axis del clutch HORI es el slider/slider1/rz
+        // restante que reaccione al pedal físico de embrague. Ver
+        // HORI_THROTTLE_BUG_RESOLUTION.md sobre por qué no se hardcodea.
+        if (!clutchDone)
+        {
+            int bestIdx = SamplePedalCandidates(gasChosenIdx, _brakeChosenIdx, out float bestAbsDelta);
+            float clutchProgress = Mathf.Clamp01(bestAbsDelta);
+
+            if (bestAbsDelta >= PEDAL_DELTA_THRESHOLD && bestIdx >= 0)
+            {
+                clutchDone = true;
+                float rest = pedalCandidateRests[bestIdx];
+                float press = rest + pedalCandidateMaxDeltas[bestIdx];
+                string clutchAxisPath = PEDAL_AXIS_CANDIDATES[bestIdx];
+
+                brakeFillRT.anchorMax = new Vector2(1, 1);
+                brakeFill.color = MenuTheme.IndicatorDone;
+                brakeIndicator.color = MenuTheme.IndicatorDone;
+
+                PlayerPrefs.SetString(UIInputNew.PREF_G923_CLUTCH_AXIS, clutchAxisPath);
+                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_REST, rest);
+                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_PRESS, press);
+                string fpClutch = ComputeDeviceFingerprint(TryAttachToDevice());
+                if (!string.IsNullOrEmpty(fpClutch)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpClutch);
+                PlayerPrefs.Save();
+                Debug.Log($"[MenuScreenManager] Embrague → eje '{clutchAxisPath}' rest={rest:F3} press={press:F3} fp={fpClutch}");
+
+                if (reverseDone)
+                {
+                    wheelPrompt.text = "Cargando prueba...";
+                    skipButton.gameObject.SetActive(false);
+                    StartCoroutine(LoadSceneDelayed(1.5f));
+                }
+                else
+                {
+                    SnapshotReverseBaseline();
+                    wheelPrompt.text = "Activa la REVERSA";
+                }
+            }
+            else if (Mathf.Abs(clutchProgress - brakeFillRT.anchorMax.x) > 0.005f)
+            {
+                brakeFillRT.anchorMax = new Vector2(clutchProgress, 1);
+                brakeFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, clutchProgress);
             }
             return;
         }
@@ -2326,6 +2443,10 @@ public class MenuScreenManager : MonoBehaviour
     // Además se excluye el eje del volante (_steerExcludedPedalIdx) si éste
     // coincide con uno de los candidatos de pedal.
     int SamplePedalCandidates(int excludeIdx, out float bestAbsDelta)
+        => SamplePedalCandidates(excludeIdx, -1, out bestAbsDelta);
+
+    // Overload para Phase 6 (CLUTCH): excluye gas + brake + steer simultáneamente.
+    int SamplePedalCandidates(int excludeIdx1, int excludeIdx2, out float bestAbsDelta)
     {
         bestAbsDelta = 0f;
         int bestIdx = -1;
@@ -2337,7 +2458,7 @@ public class MenuScreenManager : MonoBehaviour
             float delta = v - pedalCandidateRests[i];
             if (Mathf.Abs(delta) > Mathf.Abs(pedalCandidateMaxDeltas[i]))
                 pedalCandidateMaxDeltas[i] = delta; // preserva signo
-            if (i == excludeIdx || i == _steerExcludedPedalIdx) continue;
+            if (i == excludeIdx1 || i == excludeIdx2 || i == _steerExcludedPedalIdx) continue;
             float absD = Mathf.Abs(pedalCandidateMaxDeltas[i]);
             if (absD > bestAbsDelta) { bestAbsDelta = absD; bestIdx = i; }
         }
@@ -2670,6 +2791,16 @@ public class MenuScreenManager : MonoBehaviour
         // los conservamos, un wheel nuevo intentaría leer del path viejo.
         PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_STEER_AXIS);
         PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_REVERSE);
+        // H-shifter gears: si quedaron paths "shifter:*" del HORI y ahora se
+        // calibra otro hardware (G923 sin shifter), esos paths no resuelven y
+        // dejarían el modo manual roto. Limpiar siempre que el operador pida
+        // "Reasignar controles" para empezar slate limpio.
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR1);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR2);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR3);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR4);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR5);
+        PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_GEAR6);
         PlayerPrefs.Save();
     }
 
@@ -2694,14 +2825,24 @@ public class MenuScreenManager : MonoBehaviour
         InputDevice dev = TryAttachToDevice();
         string gasPath = PlayerPrefs.GetString("G923_GasAxis", "");
         string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "");
-        InputControl<float> gasC = (dev != null && !string.IsNullOrEmpty(gasPath))
+
+        // El throttle del HORI no es un Unity InputControl: es el sentinel
+        // HORI_RAW_GAS_PATH y se lee vía P/Invoke en HoriThrottleReader.
+        // TryGetChildControl(sentinel) siempre devuelve null, lo que invalidaba
+        // toda la calibración del HORI cada vez que se entraba al splash.
+        // Bug encontrado por Codex review 2026-05-06.
+        bool gasIsHoriRaw = gasPath == UIInputNew.HORI_RAW_GAS_PATH;
+        InputControl<float> gasC = (dev != null && !gasIsHoriRaw && !string.IsNullOrEmpty(gasPath))
             ? dev.TryGetChildControl(gasPath) as InputControl<float> : null;
         InputControl<float> brakeC = (dev != null && !string.IsNullOrEmpty(brakePath))
             ? dev.TryGetChildControl(brakePath) as InputControl<float> : null;
 
         // Si el axis previamente calibrado ya no existe en el device, la
-        // calibración no sirve — degradar a discovery.
-        if (dev != null && (gasC == null || brakeC == null))
+        // calibración no sirve — degradar a discovery. Para HORI, el gas
+        // (sentinel) cuenta como "OK" si el bypass está activo (HoriThrottle-
+        // Reader cargado) — solo degradamos si el brake no resuelve.
+        bool gasOk = gasIsHoriRaw || gasC != null;
+        if (dev != null && (!gasOk || brakeC == null))
         {
             Debug.Log("[MenuScreenManager] Sanity check: axis previamente calibrado no existe en el device → discovery");
             ClearWheelCalibration();
@@ -2709,23 +2850,68 @@ public class MenuScreenManager : MonoBehaviour
             yield break;
         }
 
-        // Clutch: solo valido en modo manual y si hay path guardado (G923 PS).
-        // En Xbox y modo Auto el clutch no se evalúa — el axis no debería ser
-        // requisito para arrancar.
+        // Buscar shifter device para validación multi-device de paths
+        // "shifter:*" (HORI). Si no existe shifter pero hay binds shifter:*
+        // persistidos, esos binds son huérfanos (cambio de hardware).
+        InputDevice shifterDev = null;
+        foreach (var d in InputSystem.devices)
+        {
+            if (d == dev) continue;
+            if (UIInputNew.IsShifterDevice(d)) { shifterDev = d; break; }
+        }
+
+        // Clutch: solo valido en modo manual y si hay path guardado (G923 PS
+        // o HORI con clutch descubierto). En Xbox y modo Auto el clutch no se
+        // evalúa — el axis no debería ser requisito para arrancar.
         bool needClutch = PlayerPrefs.GetInt("TransmisionManual", 0) == 1
                        && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
         string clutchPath = PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, "");
-        InputControl<float> clutchC = (needClutch && dev != null && !string.IsNullOrEmpty(clutchPath))
-            ? dev.TryGetChildControl(clutchPath) as InputControl<float> : null;
+        // Resolver con multi-device (wheel + shifter) para soportar paths
+        // tipo "shifter:slider" si el clutch está en el SHIFTER device.
+        InputControl<float> clutchC = needClutch
+            ? UIInputNew.ResolveControlPathFor(dev, shifterDev, clutchPath)
+            : null;
         if (needClutch && dev != null && clutchC == null)
         {
-            Debug.Log("[MenuScreenManager] Sanity check: axis de clutch calibrado no existe en el device → limpiar prefs de clutch (modo manual seguirá sin desacople)");
+            Debug.Log("[MenuScreenManager] Sanity check: axis de clutch calibrado no resuelve (wheel+shifter) → limpiar prefs de clutch (modo manual seguirá sin desacople)");
             PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
             PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_REST);
             PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
             PlayerPrefs.Save();
             // No degradamos a discovery por esto — el manual sin clutch funciona
             // (modo didáctico). El operador puede recalibrar via Pantalla 2.
+        }
+
+        // Bind_gear1..6 + Bind_reverse: si alguno tiene prefijo "shifter:"
+        // pero no hay shifter device, los binds quedaron huérfanos (cambio
+        // HORI→G923 o desconexión del shifter). Limpiar todos para que
+        // ReCacheGearControls caiga al fallback legacy 13-19 del G923.
+        string[] gearKeys = {
+            UIInputNew.PREF_BIND_GEAR1, UIInputNew.PREF_BIND_GEAR2,
+            UIInputNew.PREF_BIND_GEAR3, UIInputNew.PREF_BIND_GEAR4,
+            UIInputNew.PREF_BIND_GEAR5, UIInputNew.PREF_BIND_GEAR6,
+            UIInputNew.PREF_BIND_REVERSE
+        };
+        bool anyShifterOrphan = false;
+        foreach (var key in gearKeys)
+        {
+            string p = PlayerPrefs.GetString(key, "");
+            if (string.IsNullOrEmpty(p)) continue;
+            if (!p.StartsWith("shifter:", System.StringComparison.Ordinal)) continue;
+            if (shifterDev == null
+                || !UIInputNew.ResolvePathExists(dev, shifterDev, p))
+            {
+                anyShifterOrphan = true;
+                break;
+            }
+        }
+        if (anyShifterOrphan)
+        {
+            Debug.Log("[MenuScreenManager] Sanity check: Bind_gear*/Bind_reverse contienen 'shifter:' huérfanos (sin shifter device o path no resuelve) → limpiar para volver a defaults del hardware actual");
+            for (int i = 0; i < 6; i++)
+                PlayerPrefs.DeleteKey(gearKeys[i]);
+            PlayerPrefs.DeleteKey(UIInputNew.PREF_BIND_REVERSE);
+            PlayerPrefs.Save();
         }
 
         float gasRest = PlayerPrefs.GetFloat("G923_GasRest", 0f);

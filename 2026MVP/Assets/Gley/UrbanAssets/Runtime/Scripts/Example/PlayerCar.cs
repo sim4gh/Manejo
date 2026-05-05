@@ -185,8 +185,8 @@ namespace Gley.UrbanSystem
         [Tooltip("Velocidad mínima útil por marcha (km/h). Index 0=N, 1-6. Bajo este valor el motor 'lugger': torque cae cuadráticamente. 1ra debe ser 0 para arrancar.")]
         public float[] gearMinSpeedKmh = { 0f, 0f, 15f, 30f, 50f, 75f, 100f };
 
-        [Tooltip("Velocidad máxima alcanzable por marcha (km/h). Index 0=N, 1-6.")]
-        public float[] gearMaxSpeedKmh = { 0f, 25f, 45f, 70f, 100f, 130f, 160f };
+        [Tooltip("Velocidad máxima alcanzable por marcha (km/h). Index 0=N, 1-6. 6ta=180 da headroom sobre el límite legal de 110 km/h en autopista para que el examinado pueda excederse y disparar penalización.")]
+        public float[] gearMaxSpeedKmh = { 0f, 25f, 45f, 70f, 100f, 130f, 180f };
 
         // Gear actual: 0=N, 1-6, -1=R — leido por SimpleSpeedGauge
         [HideInInspector] public int currentGear = 0;
