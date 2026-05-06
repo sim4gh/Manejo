@@ -940,16 +940,31 @@ public class MenuScreenManager : MonoBehaviour
         sessionId = response.sessionId;
         IdSesion._Mi_ID = sessionId;
 
-        // Generar QR
-        QRCodeGenerator qrGen = new QRCodeGenerator();
-        QRCodeData qrData = qrGen.CreateQrCode(response.verifyUrl, QRCodeGenerator.ECCLevel.Q);
-        PngByteQRCode qrCode = new PngByteQRCode(qrData);
-        byte[] qrBytes = qrCode.GetGraphic(20);
+        // Generar QR. Reasignar RawImage.texture NO libera la textura previa
+        // (objeto nativo GPU sobrevive al GC managed). En kioskos que viven
+        // 14-16h en el menú, el TTL del backend invalida la sesión y dispara
+        // CreateKioskSession() en loop — sin Destroy se acumulan decenas de
+        // Texture2D huérfanas hasta OOM al cargar la siguiente escena.
+        byte[] qrBytes;
+        using (var qrGen = new QRCodeGenerator())
+        using (var qrData = qrGen.CreateQrCode(response.verifyUrl, QRCodeGenerator.ECCLevel.Q))
+        {
+            var qrCode = new PngByteQRCode(qrData);
+            qrBytes = qrCode.GetGraphic(20);
+        }
 
         Texture2D qrTex = new Texture2D(2, 2);
         qrTex.LoadImage(qrBytes);
         qrTex.filterMode = FilterMode.Point;
-        if (qrImage != null) qrImage.texture = qrTex;
+        if (qrImage != null)
+        {
+            if (qrImage.texture is Texture2D oldTex) Destroy(oldTex);
+            qrImage.texture = qrTex;
+        }
+        else
+        {
+            Destroy(qrTex);
+        }
 
         statusText.text = "Esperando verificación...";
         req.Dispose();
@@ -3425,6 +3440,7 @@ public class MenuScreenManager : MonoBehaviour
             InputSystem.onDeviceChange -= _deviceChangeHandler;
             _deviceChangeHandler = null;
         }
+        if (qrImage != null && qrImage.texture is Texture2D qrTex) Destroy(qrTex);
     }
 
     void EnableButton(Button btn, bool enabled)
