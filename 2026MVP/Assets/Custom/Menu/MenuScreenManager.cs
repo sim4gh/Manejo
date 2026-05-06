@@ -185,6 +185,15 @@ public class MenuScreenManager : MonoBehaviour
     // prueba..."). Se cancela si el usuario aprieta "Reasignar controles" o
     // si la pantalla se reabre durante el splash.
     private Coroutine sanityCheckCo;
+
+    // Pantalla 2: modal de "Manual no viable en este hardware". Cuando el
+    // device + calibración no soportan Manual (G923 Xbox sin clutch físico,
+    // HORI sin Phase 6 corrida), bloqueamos avance y le pedimos al usuario
+    // decidir entre continuar en Auto o volver a Pantalla 1. Re-purposamos
+    // skipButton/reassignButton — ver OnSkipWheel/OnReassignControls que
+    // dispatchean según _manualBlockedModalActive.
+    private bool _manualBlockedModalActive = false;
+    private UIInputNew.ManualBlockReason _manualBlockedReason = UIInputNew.ManualBlockReason.None;
     private const float WHEEL_THRESHOLD = 0.9f;
     private const float REVERSE_AXIS_DETECT_DELTA = 0.5f; // delta vs baseline para H-shifter en eje
     // Llave de PlayerPrefs con la huella (product|manufacturer|serial) del
@@ -1925,6 +1934,20 @@ public class MenuScreenManager : MonoBehaviour
         // ── 1) Detectar dispositivo y comparar huella con la calibración guardada ──
         InputDevice dev = TryAttachToDevice();
 
+        // ── 1.5) Bloquear avance si Manual no es viable en este hardware ──
+        // Antes de los fast-paths (moto/G923), validar que la combinación de
+        // device + TransmisionManual tiene clutch viable. Si no, mostrar modal
+        // explícito en vez de degradar silenciosamente a Auto en
+        // UIInputNew.AttachToWheelDevice (red de seguridad). Bug histórico:
+        // G923 Xbox + Manual entraba en Auto sin avisar al examinador, que
+        // luego "metía cambios sin clutch" porque realmente no estaba en manual.
+        var manualBlockReason = UIInputNew.GetManualBlockReason(dev);
+        if (manualBlockReason != UIInputNew.ManualBlockReason.None)
+        {
+            ShowManualBlockedDialog(manualBlockReason, dev);
+            return;
+        }
+
         // FAST-PATH: Moto Simulator (ESP32-S3 USB HID custom). Las 5 fases del
         // Discovery wheel-style no aplican a la moto: lean/handlebar son ejes
         // distintos, brake/clutch son botones (no ejes con rest/press), y la
@@ -2523,6 +2546,14 @@ public class MenuScreenManager : MonoBehaviour
 
     void OnSkipWheel()
     {
+        // Cuando el modal "Manual no viable" está activo, skipButton actúa como
+        // "Continuar en Automático" (ver ShowManualBlockedDialog). Dispatch
+        // antes que la lógica normal de skip.
+        if (_manualBlockedModalActive)
+        {
+            OnManualBlockedContinueAuto();
+            return;
+        }
         skipButton.interactable = false;
         wheelPrompt.text = "Cargando prueba...";
         var txt = skipButton.GetComponentInChildren<TextMeshProUGUI>();
@@ -2938,6 +2969,13 @@ public class MenuScreenManager : MonoBehaviour
 
     void OnReassignControls()
     {
+        // Cuando el modal "Manual no viable" está activo, reassignButton actúa
+        // como "Volver a transmisión" (ver ShowManualBlockedDialog).
+        if (_manualBlockedModalActive)
+        {
+            OnManualBlockedCancelToOptions();
+            return;
+        }
         Debug.Log("[MenuScreenManager] Reasignar controles solicitado por usuario");
         if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
         ClearWheelCalibration();
@@ -2947,6 +2985,126 @@ public class MenuScreenManager : MonoBehaviour
         if (steerAction != null) { steerAction.Disable(); steerAction.Dispose(); steerAction = null; }
         _steerExcludedPedalIdx = -1;
         PrepareWheelScreen();
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // Modal "Manual no viable en este hardware"
+    // ════════════════════════════════════════════════════════════════════
+    //
+    // Pantalla 2 lo activa antes de cualquier fast-path cuando el examinador
+    // eligió Manual pero el device actual no expone clutch viable (G923 Xbox
+    // sin pedal físico, HORI sin Phase 6 corrida). Re-purposa skipButton +
+    // reassignButton (los handlers ya existentes dispatchean al modal cuando
+    // _manualBlockedModalActive==true). Sin este modal, el examen entraría
+    // en Auto degradado silenciosamente y el examinador "metería cambios sin
+    // clutch" sin saber que no estaba en manual.
+
+    void ShowManualBlockedDialog(UIInputNew.ManualBlockReason reason, InputDevice dev)
+    {
+        _manualBlockedModalActive = true;
+        _manualBlockedReason = reason;
+
+        string deviceName = dev != null ? (dev.displayName ?? "desconocido") : "ninguno";
+        Debug.LogWarning($"[MenuScreenManager] [MANUAL_BLOCKED] reason={reason} device='{deviceName}' — bloqueando Pantalla 2 con modal");
+
+        // Cancelar splash en curso si lo había.
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+
+        // Cortar el loop de Update() que animaría las barras de calibración
+        // mientras el modal está visible. Marcando todas las fases como "done"
+        // hace que la guard `if (rightDone && ... ) return;` short-circuitee.
+        rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
+
+        // Mensaje específico según el motivo. Le decimos al usuario QUÉ hardware
+        // tenemos y QUÉ falta — sin eso el operador no sabe si es bug o config.
+        string msg;
+        switch (reason)
+        {
+            case UIInputNew.ManualBlockReason.NoPhysicalClutch_G923Xbox:
+                msg = "Tu volante <b>Logitech G923 (variante Xbox)</b> no tiene pedal físico de clutch.\n\n" +
+                      "El examen Manual requiere clutch para evaluar correctamente los cambios.\n\n" +
+                      "Puedes <b>continuar en Automático</b> (la prueba se evaluará sin clutch) o " +
+                      "<b>volver atrás</b> para elegir transmisión Automática explícitamente.";
+                break;
+            case UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated:
+                msg = "El volante <b>HORI Truck</b> no tiene el clutch calibrado.\n\n" +
+                      "Para correr en Manual hay que asignar el pedal de clutch via " +
+                      "<b>Reasignar controles</b> (en la pantalla normal de Pantalla 2).\n\n" +
+                      "¿Continuar en Automático o volver a la pantalla de transmisión?";
+                break;
+            case UIInputNew.ManualBlockReason.UnknownDeviceCannotProveClutch:
+                msg = $"El volante conectado (<b>{deviceName}</b>) no se reconoce como compatible con Manual.\n\n" +
+                      "El examen Manual requiere clutch físico calibrado.\n\n" +
+                      "Puedes <b>continuar en Automático</b> o <b>volver atrás</b> para elegir Automático.";
+                break;
+            default:
+                msg = "Manual no es viable en este hardware. Continúa en Automático o vuelve atrás.";
+                break;
+        }
+        if (wheelPrompt != null) wheelPrompt.text = msg;
+
+        // Re-purposar botones: skipButton="Continuar en Automático" (primary),
+        // reassignButton="Volver a transmisión" (secondary). Ambos visibles e
+        // interactuables.
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Continuar en Automático";
+            skipButton.interactable = true;
+            skipButton.gameObject.SetActive(true);
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Volver a transmisión";
+            reassignButton.interactable = true;
+            reassignButton.gameObject.SetActive(true);
+        }
+    }
+
+    void OnManualBlockedContinueAuto()
+    {
+        Debug.Log($"[MenuScreenManager] [MANUAL_BLOCKED] usuario eligió 'Continuar en Automático' (reason={_manualBlockedReason})");
+        // Persistir Auto. UIInputNew.AttachToWheelDevice lee TransmisionManual
+        // en cada call, así que el siguiente flow de PrepareWheelScreen ya
+        // verá Auto y GetManualBlockReason retornará None.
+        PlayerPrefs.SetInt("TransmisionManual", 0);
+        PlayerPrefs.Save();
+        // También actualizar el estado del selector en memoria para que
+        // Pantalla 1 lo refleje si el usuario regresa.
+        selectedTransmisionIndex = 0;
+
+        ClearManualBlockedModalState();
+        // Re-correr la pantalla con TransmisionManual=0 — esta vez los
+        // fast-paths (moto/G923) corren normalmente.
+        PrepareWheelScreen();
+    }
+
+    void OnManualBlockedCancelToOptions()
+    {
+        Debug.Log($"[MenuScreenManager] [MANUAL_BLOCKED] usuario eligió 'Volver a transmisión' (reason={_manualBlockedReason})");
+        ClearManualBlockedModalState();
+        // SCREEN_OPTIONS es la pantalla con el selector Manual/Auto (Pantalla 1).
+        GoToScreen(SCREEN_OPTIONS);
+    }
+
+    void ClearManualBlockedModalState()
+    {
+        _manualBlockedModalActive = false;
+        _manualBlockedReason = UIInputNew.ManualBlockReason.None;
+        // Restaurar texto de los botones. PrepareWheelScreen va a re-asignar
+        // visibilidad según el flujo (Verified/Partial/Discovery), pero los
+        // strings se quedan pegados — restaurarlos explícitamente.
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Iniciar sin volante";
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Reasignar controles";
+        }
     }
 
     // Splash de "Preparando prueba..." en estado Verified. Verifica que los

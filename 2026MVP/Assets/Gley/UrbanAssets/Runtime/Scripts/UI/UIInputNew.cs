@@ -8,6 +8,20 @@ namespace Gley.UrbanSystem
 {
     public class UIInputNew : MonoBehaviour, IUIInput
     {
+        // Razón por la que el modo Manual no es viable en el device actual.
+        // Pantalla 2 consulta GetManualBlockReason() ANTES del fast-path G923
+        // y bloquea el avance con un modal si el resultado es != None — ver
+        // MenuScreenManager.PrepareWheelScreen. La red de seguridad de
+        // AttachToWheelDevice (Debug.LogError + degrade Manual→Auto) usa
+        // el mismo enum para reportar.
+        public enum ManualBlockReason
+        {
+            None,
+            NoPhysicalClutch_G923Xbox,
+            NoPhysicalClutch_HORINotCalibrated,
+            UnknownDeviceCannotProveClutch
+        }
+
 #if (UNITY_ANDROID || UNITY_IOS) && !UNITY_EDITOR
         public delegate void ButtonDown(string button);
         public static event ButtonDown onButtonDown;
@@ -848,6 +862,57 @@ namespace Gley.UrbanSystem
             return false;
         }
 
+        // True si el G923 es la variante Xbox (sin pedal físico de clutch).
+        // EnsureG923PSDefaults usa solo displayName.Contains("Xbox"); este
+        // helper también revisa description.product como red de robustez —
+        // Unity Input System en Windows a veces popula uno y no el otro.
+        // Retorna false si el device NO es G923 family.
+        public static bool IsG923XboxVariant(InputDevice d)
+        {
+            if (d == null || !IsLogitechG923Family(d)) return false;
+            string name = d.displayName ?? string.Empty;
+            string product = d.description.product ?? string.Empty;
+            return name.IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0
+                || product.IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // Decide si el dispositivo + estado de calibración permite correr Manual.
+        // Solo retorna != None cuando TransmisionManual==1 (sin esa pref activa
+        // no hay nada que bloquear). Pantalla 2 consume el resultado para
+        // mostrar un modal explícito antes de cargar la escena, en vez de
+        // confiar solo en el degrade silencioso de AttachToWheelDevice.
+        public static ManualBlockReason GetManualBlockReason(InputDevice d)
+        {
+            if (PlayerPrefs.GetInt("TransmisionManual", 0) != 1)
+                return ManualBlockReason.None;
+            if (d == null)
+                return ManualBlockReason.UnknownDeviceCannotProveClutch;
+
+            if (IsLogitechG923Family(d))
+            {
+                if (IsG923XboxVariant(d))
+                    return ManualBlockReason.NoPhysicalClutch_G923Xbox;
+                // PS variant: EnsureG923PSDefaults hardcodea clutch=stick/y → viable
+                return ManualBlockReason.None;
+            }
+
+            if (IsHORITruck(d))
+            {
+                string clutchPath = PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS, "");
+                if (string.IsNullOrEmpty(clutchPath))
+                    return ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
+                return ManualBlockReason.None;
+            }
+
+            // Moto sim: Pantalla 2 ya tiene fast-path propio (no llega aquí en
+            // flujo normal). Cualquier otro device desconocido en Manual: no
+            // podemos probar que tiene clutch — bloquear es lo conservador.
+            if (IsMotoSimulator(d))
+                return ManualBlockReason.None;
+
+            return ManualBlockReason.UnknownDeviceCannotProveClutch;
+        }
+
         public static bool IsKnownWheelCandidate(InputDevice d)
         {
             if (IsLogitechG923Family(d)) return true;
@@ -1215,9 +1280,16 @@ namespace Gley.UrbanSystem
             // bypass anterior dejaba pasar cambios sin clutch en este caso.
             if (!_isAutomaticMode && _clutchCtrl == null)
             {
-                Debug.LogWarning($"[UIInputNew] Manual solicitado pero _clutchCtrl=null "
-                    + $"(G923_ClutchAxis='{clutchPath}'). Degradando a Auto. "
-                    + $"Device: '{device.displayName}'. "
+                // Red de seguridad: Pantalla 2 (MenuScreenManager.PrepareWheelScreen)
+                // ya debió haber bloqueado esta combinación con un modal usando
+                // GetManualBlockReason. Si llegamos aquí significa que el flujo
+                // saltó esa validación — es un bug que LogUploader debe capturar
+                // a S3 para diagnóstico remoto. LogError (no Warning) para que
+                // destaque y para que no se confunda con el "BLOQUEADO" normal.
+                var reason = GetManualBlockReason(device);
+                Debug.LogError($"[UIInputNew] [MANUAL_DEGRADED_TO_AUTO] reason={reason} "
+                    + $"device='{device.displayName}' clutchPath='{clutchPath}' "
+                    + $"— Pantalla 2 NO bloqueó esta combinación. Degradando a Auto. "
                     + $"Para Manual, calibrar clutch via Pantalla 2 → Reasignar controles.");
                 _isAutomaticMode = true;
             }
