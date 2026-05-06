@@ -1720,21 +1720,34 @@ namespace Gley.UrbanSystem
                 }
 
                 // Aplicar el cambio de gear según el estado del clutch:
-                //  - clutch >= 0.5      → completar engage (cambio físico real)
+                //  - clutch >= 0.65     → completar engage (cambio físico real)
                 //  - desiredGear == 0   → permitir poner Neutral sin clutch
                 //                         (no requiere desacople mecánico)
                 //  - _currentGear == 0  → salir de Neutral SÍ requiere clutch
                 //                         (engage de marcha)
-                //  - sin clutch físico  → modo didáctico (G923 Xbox / Adv sin
-                //                         pedal). Aplicar siempre.
+                //  - G923 Xbox detectado → modo didáctico (no tiene pedal de
+                //                         clutch físico, no podemos exigirlo).
+                //                         IMPORTANTE: NO bypasseamos cuando
+                //                         _clutchCtrl es null por otras razones
+                //                         (HORI sin Phase 6 corrida, G923 PS
+                //                         sin EnsureG923PSDefaults). En esos
+                //                         casos clutchInput=0 forever y el
+                //                         bloqueo aplica — el conductor no
+                //                         puede avanzar hasta calibrar.
+                //                         Bug reportado por Norberto 2026-05-06:
+                //                         con _clutchCtrl=null el bypass dejaba
+                //                         pasar cambios sin clutch.
                 // Si nada aplica, el shifter "rechina" mecánicamente: el palo
                 // está en otra posición pero el motor sigue en la marcha vieja
                 // hasta que el conductor pise el clutch.
                 bool clutchPressed = clutchInput >= CLUTCH_ENGAGE_THRESHOLD;
                 bool toNeutral     = desiredGear == 0;
-                bool noPhysicalClutch = (_clutchCtrl == null);
+                bool isG923XboxNoClutch = _wheelDevice != null
+                    && IsLogitechG923Family(_wheelDevice)
+                    && (_wheelDevice.displayName ?? "")
+                        .IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 bool sameGear      = desiredGear == _currentGear;
-                if (clutchPressed || toNeutral || noPhysicalClutch || sameGear)
+                if (clutchPressed || toNeutral || isG923XboxNoClutch || sameGear)
                 {
                     _currentGear = desiredGear;
                 }
@@ -1752,7 +1765,7 @@ namespace Gley.UrbanSystem
                         && desiredGear != _lastNonNeutralAttempt
                         && _lastNonNeutralAttempt != 0
                         && !clutchPressed
-                        && !noPhysicalClutch)
+                        && !isG923XboxNoClutch)
                     {
                         _pendingGearShiftWithoutClutchCount++;
                     }
