@@ -65,6 +65,27 @@ namespace Gley.UrbanSystem
         // ConsumeGearShiftsWithoutClutch() (latched, no bool).
         private int _pendingGearShiftWithoutClutchCount;
         private int _lastNonNeutralGear = 0;
+        // Última posición física del shifter (lo que el palo PIDE), distinto
+        // de _currentGear (lo que realmente está engaged en el motor). Cuando
+        // el conductor mueve el palo a 2ª sin pisar clutch, desiredGear=2
+        // pero _currentGear queda en 1 — el cambio mecánico se bloquea hasta
+        // que el clutch se pise.
+        private int _lastDesiredGear = 0;
+        // Última marcha NO-neutral que el conductor intentó pedir (no la que
+        // está engaged). Se actualiza con desiredGear cada vez que es != 0,
+        // independiente de si el cambio se aplicó. Sirve para que un bounce
+        // del shifter (1→0→2→0→2 sin clutch) cuente el rechino una sola vez,
+        // no en cada rebote.
+        private int _lastNonNeutralAttempt = 0;
+        // Threshold del clutch para considerar "pisado a fondo" (engage
+        // permitido o desacople mecánico). Debe coincidir con
+        // PlayerCar.clutchDisengageThreshold (0.65) para que el engage
+        // de la marcha nueva en UIInputNew y el corte de motorTorque en
+        // PlayerCar sucedan en el mismo punto. Si mi threshold fuera menor,
+        // habría una banda donde la marcha nueva se aplica pero el motor
+        // sigue acoplado al eje viejo → coche acelera con marcha nueva sin
+        // desacople real (bug encontrado por Codex review 2026-05-06).
+        private const float CLUTCH_ENGAGE_THRESHOLD = 0.65f;
 
         // Curva de respuesta del volante: f(x) = x / (a + (1-a)*x)  para x ∈ [0,1]
         //   f(0) = 0, f(1) = 1 siempre
@@ -602,6 +623,13 @@ namespace Gley.UrbanSystem
             _shifterDevice = null;
             _steerCtrl = null; _gasCtrl = null; _brakeCtrl = null;
             _clutchCtrl = null;
+            // Reset state del shifter al desconectar el wheel para evitar
+            // que la próxima conexión arranque con _lastNonNeutralGear viejo.
+            _currentGear = 0;
+            _lastDesiredGear = 0;
+            _lastNonNeutralGear = 0;
+            _lastNonNeutralAttempt = 0;
+            _pendingGearShiftWithoutClutchCount = 0;
             // ⚠️ HORI bypass detach reset — DO NOT REMOVE (ver HORI_THROTTLE_BUG_RESOLUTION.md)
             // Si no se resetea aquí, al desconectar el HORI el flag persiste y
             // el siguiente wheel adoptado intenta usar HoriThrottleProvider que
@@ -1049,6 +1077,16 @@ namespace Gley.UrbanSystem
 
             _hasWheel = true;
             _wheelDevice = device;
+
+            // Reset state del shifter al cambiar de device. Sin esto, un
+            // _lastNonNeutralGear/_lastNonNeutralAttempt persistido de una
+            // sesión anterior puede dispararse contra el primer input real
+            // del nuevo hardware como un grind fantasma.
+            _currentGear = 0;
+            _lastDesiredGear = 0;
+            _lastNonNeutralGear = 0;
+            _lastNonNeutralAttempt = 0;
+            _pendingGearShiftWithoutClutchCount = 0;
 
             // Si el device es Logitech/G923, asegurar que la calibración
             // guardada calza con el mapeo G923 PS conocido. Si no, sobrescribir
@@ -1650,17 +1688,21 @@ namespace Gley.UrbanSystem
                     brakeInput = kbInput.y < 0 ? -kbInput.y : 0f;
                 }
 
-                // Manual: H-shifter del volante
+                // Manual: H-shifter del volante. Calculamos el "desiredGear"
+                // (lo que el palo pide) por separado de _currentGear (lo que
+                // realmente está engaged): sin clutch, mover el palo NO
+                // completa el cambio mecánico — solo dispara rechino.
+                int desiredGear = _currentGear; // default: mantener engaged
                 if (_hasWheel && _wheelDevice != null)
                 {
-                    _currentGear = 0;
+                    desiredGear = 0;
                     if (_gearControls != null)
                     {
                         for (int i = 0; i < _gearControls.Length; i++)
                         {
                             if (IsPressed(_gearControls[i]))
                             {
-                                _currentGear = (_gearValues != null && i < _gearValues.Length)
+                                desiredGear = (_gearValues != null && i < _gearValues.Length)
                                     ? _gearValues[i] : 0;
                                 break;
                             }
@@ -1671,22 +1713,52 @@ namespace Gley.UrbanSystem
                     // Xbox es button12, que NO está en ese array. Consultar
                     // _crossCtrls — mismo botón que usa el modo automático —
                     // hace que ambas variantes funcionen sin tocar el array.
-                    if (_currentGear == 0 && IsAnyPressed(_crossCtrls))
+                    if (desiredGear == 0 && IsAnyPressed(_crossCtrls))
                     {
-                        _currentGear = -1;
+                        desiredGear = -1;
                     }
                 }
 
-                // Edge-trigger: detectar cambio de gear NO-neutral sin clutch
-                // presionado (rechino). Comparamos contra el último gear NO-neutral
-                // en lugar del gear del frame anterior — si el shifter pasa por
-                // neutral entre frames (1→0→2), no perdemos la transición.
-                // El contador se acumula hasta que ViolationDetector lo consume,
-                // así no importa el orden de Update entre los dos componentes.
-                if (_currentGear != 0 && _currentGear != _lastNonNeutralGear && _lastNonNeutralGear != 0)
+                // Aplicar el cambio de gear según el estado del clutch:
+                //  - clutch >= 0.5      → completar engage (cambio físico real)
+                //  - desiredGear == 0   → permitir poner Neutral sin clutch
+                //                         (no requiere desacople mecánico)
+                //  - _currentGear == 0  → salir de Neutral SÍ requiere clutch
+                //                         (engage de marcha)
+                //  - sin clutch físico  → modo didáctico (G923 Xbox / Adv sin
+                //                         pedal). Aplicar siempre.
+                // Si nada aplica, el shifter "rechina" mecánicamente: el palo
+                // está en otra posición pero el motor sigue en la marcha vieja
+                // hasta que el conductor pise el clutch.
+                bool clutchPressed = clutchInput >= CLUTCH_ENGAGE_THRESHOLD;
+                bool toNeutral     = desiredGear == 0;
+                bool noPhysicalClutch = (_clutchCtrl == null);
+                bool sameGear      = desiredGear == _currentGear;
+                if (clutchPressed || toNeutral || noPhysicalClutch || sameGear)
                 {
-                    if (clutchInput < 0.5f) _pendingGearShiftWithoutClutchCount++;
+                    _currentGear = desiredGear;
                 }
+                // else: bloqueado, _currentGear se mantiene.
+
+                // Edge-trigger del rechino: cuenta UNA VEZ por intento real
+                // de cambio. Compara desiredGear contra _lastNonNeutralAttempt
+                // (último gear no-neutral que el conductor PIDIÓ, no el que
+                // está engaged). Un bounce del shifter (1→0→2→0→2 sin clutch)
+                // cuenta solo el primer 1→2; los rebotes 0→2 ya están "vistos"
+                // porque _lastNonNeutralAttempt=2 y desiredGear=2.
+                if (desiredGear != _lastDesiredGear)
+                {
+                    if (desiredGear != 0
+                        && desiredGear != _lastNonNeutralAttempt
+                        && _lastNonNeutralAttempt != 0
+                        && !clutchPressed
+                        && !noPhysicalClutch)
+                    {
+                        _pendingGearShiftWithoutClutchCount++;
+                    }
+                    _lastDesiredGear = desiredGear;
+                }
+                if (desiredGear != 0) _lastNonNeutralAttempt = desiredGear;
                 if (_currentGear != 0) _lastNonNeutralGear = _currentGear;
             }
 
@@ -1772,7 +1844,7 @@ namespace Gley.UrbanSystem
                     int crossLen = _crossCtrls != null ? _crossCtrls.Length : 0;
                     float reverseAge = Time.realtimeSinceStartup - _reverseLastSeenTime;
                     float clRaw = SafeReadFloatRaw(_clutchCtrl, out var rdc) ? rdc : _clutchRest;
-                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} clutch={clRaw:F3} | V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} clutchR/P={_clutchRest:F2}/{_clutchPress:F2} | auto={_isAutomaticMode} gear={_currentGear} lastNonN={_lastNonNeutralGear} pendingShifts={_pendingGearShiftWithoutClutchCount} | crossCtrls={crossLen} crossNow={crossDbg} revAge={reverseAge:F2}s");
+                    Debug.Log($"[UIInputNew] raw steer={st:F3} gas={gr:F3} brake={br:F3} clutch={clRaw:F3} | V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} | gasR/P={_gasRest:F2}/{_gasPress:F2} brakeR/P={_brakeRest:F2}/{_brakePress:F2} clutchR/P={_clutchRest:F2}/{_clutchPress:F2} | auto={_isAutomaticMode} gear={_currentGear} desired={_lastDesiredGear} lastNonN={_lastNonNeutralGear} pendingShifts={_pendingGearShiftWithoutClutchCount} | crossCtrls={crossLen} crossNow={crossDbg} revAge={reverseAge:F2}s");
                 }
             }
 #endif
@@ -1881,7 +1953,7 @@ namespace Gley.UrbanSystem
                 float br = SafeReadFloatRaw(_brakeCtrl, out var ovb) ? ovb : 1f;
                 float cl = SafeReadFloatRaw(_clutchCtrl, out var ovc) ? ovc : _clutchRest;
                 info += $"RAW  steer={st:F3} gas={gr:F3} brake={br:F3} clutch={cl:F3}\n";
-                info += $"CALC V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} gear={_currentGear}\n";
+                info += $"CALC V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3} gear={_currentGear} desired={_lastDesiredGear}\n";
                 info += $"CAL  gas rest={_gasRest:F2} press={_gasPress:F2}\n";
                 info += $"     brake rest={_brakeRest:F2} press={_brakePress:F2}\n";
                 info += $"     clutch ctrl={_clutchCtrl != null} rest={_clutchRest:F2} press={_clutchPress:F2}\n";
