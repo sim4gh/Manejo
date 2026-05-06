@@ -1286,8 +1286,8 @@ namespace Gley.UrbanSystem
                 // saltó esa validación — es un bug que LogUploader debe capturar
                 // a S3 para diagnóstico remoto. LogError (no Warning) para que
                 // destaque y para que no se confunda con el "BLOQUEADO" normal.
-                var reason = GetManualBlockReason(device);
-                Debug.LogError($"[UIInputNew] [MANUAL_DEGRADED_TO_AUTO] reason={reason} "
+                var blockReason = GetManualBlockReason(device);
+                Debug.LogError($"[UIInputNew] [MANUAL_DEGRADED_TO_AUTO] reason={blockReason} "
                     + $"device='{device.displayName}' clutchPath='{clutchPath}' "
                     + $"— Pantalla 2 NO bloqueó esta combinación. Degradando a Auto. "
                     + $"Para Manual, calibrar clutch via Pantalla 2 → Reasignar controles.");
