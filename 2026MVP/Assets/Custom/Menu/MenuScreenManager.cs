@@ -174,9 +174,9 @@ public class MenuScreenManager : MonoBehaviour
     private bool throttleDone, brakeDone;
     private bool reverseDone;
     // Clutch phase: solo aplica si TransmisionManual==1 && IsHORITruck.
-    // En G923 PS el clutch se hardcodea en EnsureG923PSDefaults; en Xbox
-    // y automático no hay clutch. Por eso clutchDone arranca en true para
-    // todos los demás casos y la fase ni se ejecuta.
+    // En G923 (PS y Xbox v1.5.7+) el clutch lo siembra
+    // SeedG923VariantDefaultsIfMissing; en automático no hay clutch. Por eso
+    // clutchDone arranca en true para esos casos y la fase ni se ejecuta.
     private bool clutchDone = true;
     private int _brakeChosenIdx = -1; // persistido para excluir en Phase 6
     private Button skipButton;
@@ -1934,6 +1934,15 @@ public class MenuScreenManager : MonoBehaviour
         // ── 1) Detectar dispositivo y comparar huella con la calibración guardada ──
         InputDevice dev = TryAttachToDevice();
 
+        // ── 1.4) Sembrar defaults G923 ANTES del check de bloqueo. En primer
+        // arranque post-update, las prefs Xbox podrían estar sin
+        // PREF_G923_CLUTCH_AXIS (versiones <1.5.7 hacían DeleteKey por la
+        // asunción incorrecta "Xbox no tiene clutch"). Sin este seed,
+        // GetManualBlockReason caería en NoViableClutchBinding_G923Xbox aunque
+        // el HW sí tiene clutch. Seed es HasKey-aware: no destruye remaps F8.
+        if (dev != null && UIInputNew.IsLogitechG923Family(dev))
+            UIInputNew.SeedG923VariantDefaultsIfMissing(dev);
+
         // ── 1.5) Bloquear avance si Manual no es viable en este hardware ──
         // Antes de los fast-paths (moto/G923), validar que la combinación de
         // device + TransmisionManual tiene clutch viable. Si no, mostrar modal
@@ -2000,13 +2009,16 @@ public class MenuScreenManager : MonoBehaviour
         // tomó 3 días destrabarlo. El operador puede F9 para tunear curvas.
         if (dev != null && UIInputNew.IsLogitechG923Family(dev))
         {
-            UIInputNew.EnsureG923PSDefaults(dev);
+            // Idempotente con el seed de la sección 1.4: si las prefs ya están
+            // completas, no se altera nada. Si por alguna razón el call de 1.4
+            // se saltó (ej. cambio futuro en este flujo), aquí se garantiza.
+            UIInputNew.SeedG923VariantDefaultsIfMissing(dev);
             string fp = ComputeDeviceFingerprint(dev);
             if (!string.IsNullOrEmpty(fp)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fp);
             PlayerPrefs.Save();
             // Marcar todas las fases como completadas para que la UI muestre verde.
             rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
-            clutchDone = true; // G923 PS: clutch hardcoded en EnsureG923PSDefaults. Xbox: sin clutch.
+            clutchDone = true; // PS: clutch=stick/y. Xbox: clutch=rz (verificado F7 Sedán 1).
             steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
             // UI: indicadores y fills en estado "done".
             rightIndicator.color = leftIndicator.color = gasIndicator.color =
@@ -2050,9 +2062,9 @@ public class MenuScreenManager : MonoBehaviour
         bool reverseCal = fingerprintMatches && PlayerPrefs.GetInt(PREF_CAL_REVERSE_DONE, 0) == 1;
 
         // Clutch phase: solo HORI + Manual + sin clutch axis válido. G923 PS
-        // setea G923_ClutchAxis="stick/y" en EnsureG923PSDefaults (fast-path
-        // arriba); G923 Xbox no tiene clutch físico; HORI en automático no
-        // necesita clutch — para todos esos casos clutchPhaseNeeded=false.
+        // siembra G923_ClutchAxis="stick/y" en SeedG923VariantDefaultsIfMissing;
+        // G923 Xbox siembra "rz" (v1.5.7+, antes hacía DeleteKey). HORI en
+        // automático no necesita clutch — para esos casos clutchPhaseNeeded=false.
         // El axis del clutch HORI no se puede hardcodear porque Unity alias
         // slider/slider1/rz arbitrariamente entre brake y clutch (ver
         // HORI_THROTTLE_BUG_RESOLUTION.md). Por eso lo descubrimos pisando.
@@ -3020,11 +3032,11 @@ public class MenuScreenManager : MonoBehaviour
         string msg;
         switch (reason)
         {
-            case UIInputNew.ManualBlockReason.NoPhysicalClutch_G923Xbox:
-                msg = "Tu volante <b>Logitech G923 (variante Xbox)</b> no tiene pedal físico de clutch.\n\n" +
-                      "El examen Manual requiere clutch para evaluar correctamente los cambios.\n\n" +
-                      "Puedes <b>continuar en Automático</b> (la prueba se evaluará sin clutch) o " +
-                      "<b>volver atrás</b> para elegir transmisión Automática explícitamente.";
+            case UIInputNew.ManualBlockReason.NoViableClutchBinding_G923Xbox:
+                msg = "El <b>Logitech G923 (variante Xbox)</b> no tiene un binding de clutch viable en este momento.\n\n" +
+                      "Si el volante tiene 3 pedales físicos, intenta <b>Reasignar controles</b> en Pantalla 2 " +
+                      "para calibrar el clutch (eje rz por defecto).\n\n" +
+                      "Si el volante solo tiene 2 pedales (sin clutch físico), <b>continuar en Automático</b>.";
                 break;
             case UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated:
                 msg = "El volante <b>HORI Truck</b> no tiene el clutch calibrado.\n\n" +

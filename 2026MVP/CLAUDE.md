@@ -437,24 +437,30 @@ Ver `ARCHITECTURE_G923.md` para documentacion completa.
 | **G923 PS** | 941-000147 | `Logitech G923 Racing Wheel for PlayStation 4 and PC` |
 | **G923 Xbox** | 941-000158 | `Logitech G923 Racing Wheel for Xbox One and PC` |
 
-`UIInputNew.EnsureG923PSDefaults()` detecta variante por `displayName.Contains("Xbox")` y aplica defaults específicos. Llamado al boot desde `AttachToWheelDevice` y desde `MenuScreenManager.PrepareWheelScreen`.
+`UIInputNew.SeedG923VariantDefaultsIfMissing()` detecta variante por `displayName.Contains("Xbox")` y siembra defaults específicos sin pisar lo ya seteado en PlayerPrefs (preserva remaps F8). Llamado al boot desde `AttachToWheelDevice` y desde `MenuScreenManager.PrepareWheelScreen`. Para forzar reset (recovery / "Reasignar controles"), `ForceResetG923VariantDefaults()`.
 
-### Mapping por variante (FIX#26, verificado en F7 en ambos kioskos)
+### Mapping por variante (FIX#26 ext. v1.5.7, verificado en F7 en ambos kioskos)
+
+Las 3 axes están **rotadas** entre PS y Xbox (mismas funciones físicas, distintos paths HID):
 
 | Función | PS variant | Xbox variant |
 |---|---|---|
 | Volante (eje) | `stick/x` | `stick/x` |
 | Acelerador | `z` (idle=1, press=-1) | `stick/y` (idle=-1, press=+1) |
 | Freno | `rz` (idle=1, press=-1) | `z` (idle=1, press=-1) |
+| **Clutch** | `stick/y` (idle=-1, press=+1) | **`rz` (idle=1, press=-1)** ← v1.5.7 |
 | Reversa (palanca H R) | `button19` | `button12` |
 | Paddles G923 PS | button5=R1(der), button6=L1(izq) | (verificar) |
-| H-shifter PS | buttons 13-18 = gears 1-6, button19 = R | (verificar) |
+| H-shifter PS | buttons 13-18 = gears 1-6, button19 = R | (verificar; fallback legacy 13-18 también activo en Xbox) |
 | Combos | L2+R2 (btn7+8) menú · L3+R3 (btn11+12) reset | (verificar) |
+
+⚠️ **Pre-v1.5.7**: la asunción "G923 Xbox no tiene clutch físico" causaba `DeleteKey(PREF_G923_CLUTCH_AXIS)` en el branch Xbox, dejando `_clutchCtrl=null` y forzando silent fallback Manual→Auto. **Falsa asunción**: el SKU 941-000158 trae pedalera 3-pedal idéntica al SKU PS. Verificado por F7 del operador en Sedán 1 (2026-05-06): pisar clutch movió eje `rz` de 1.0 → -1.0.
 
 ### Kioskos identificados
 
 - **Casa Aramis** (pcId `d603a85840752414e264d4dc47ec76db5a511135`): **PS variant**
 - **Demo gobernadora** (2026-04-26): **Xbox variant**
+- **Sedán 1** (Norberto, 2026-05-06): **Xbox variant** — confirmó el bug del silent fallback en v1.5.4/v1.5.5
 
 Mismo binary funciona en ambos gracias al dual-detection.
 

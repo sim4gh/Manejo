@@ -17,7 +17,7 @@ namespace Gley.UrbanSystem
         public enum ManualBlockReason
         {
             None,
-            NoPhysicalClutch_G923Xbox,
+            NoViableClutchBinding_G923Xbox,
             NoPhysicalClutch_HORINotCalibrated,
             UnknownDeviceCannotProveClutch
         }
@@ -890,9 +890,16 @@ namespace Gley.UrbanSystem
 
             if (IsLogitechG923Family(d))
             {
-                if (IsG923XboxVariant(d))
-                    return ManualBlockReason.NoPhysicalClutch_G923Xbox;
-                // PS variant: EnsureG923PSDefaults hardcodea clutch=stick/y → viable
+                // Chequeo dinámico (no por variante). El SKU Xbox 941-000158 sí
+                // trae pedalera 3-pedal con clutch físico igual que el SKU PS;
+                // la asunción anterior "Xbox no tiene clutch" era falsa. Verificado
+                // en F7 en Sedán 1 (2026-05-06): clutch en eje rz, idle 1, press -1.
+                // Ahora bloqueamos solo si la pref del clutch axis está ausente —
+                // mismo patrón que HORI usa abajo.
+                string clutchPath = PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS, "");
+                if (IsG923XboxVariant(d) && string.IsNullOrEmpty(clutchPath))
+                    return ManualBlockReason.NoViableClutchBinding_G923Xbox;
+                // PS variant o Xbox con pref seteado: viable.
                 return ManualBlockReason.None;
             }
 
@@ -1043,69 +1050,122 @@ namespace Gley.UrbanSystem
         public static bool ResolvePathExists(InputDevice wheel, InputDevice shifter, string path)
             => ResolveControlPathFor(wheel, shifter, path) != null;
 
-        // Mapeo G923 conocido por modo. El switch físico del G923 (PS/Xbox)
-        // cambia el HID layout — diferentes axes y buttons exponen las mismas
-        // funciones físicas. Detectamos por displayName y aplicamos defaults
-        // específicos. Verificado en F7 en ambos kiosks (FIX#26).
-        //   PS mode  ("Logitech G923 Racing Wheel for PlayStation 4 and PC"):
-        //     gas=z, brake=rz, reverse=button19
-        //   Xbox mode ("Logitech G923 Racing Wheel for Xbox One and PC"):
-        //     gas=stick/y, brake=z, reverse=button12
-        public static void EnsureG923PSDefaults(InputDevice device)
+        // Seed de defaults G923 que PRESERVA prefs existentes (HasKey-aware).
+        // Llamado al boot desde AttachToWheelDevice y desde la pre-validación
+        // de Pantalla 2 (MenuScreenManager.PrepareWheelScreen) ANTES de
+        // GetManualBlockReason, para que un kiosko que nunca calibró tenga
+        // prefs viables en el primer frame.
+        //
+        // Por qué Seed y no Force: si el operador remappeó vía F8 (BindingsPanel),
+        // queremos respetar esos cambios entre re-attaches. Patrón análogo al
+        // que HORI ya usa (`if (!HasKey) Set`). Para forzar reset explícito
+        // (recovery / "Reasignar controles") usar ForceResetG923VariantDefaults.
+        //
+        // Mappings por variante (rotación de axes — verificado en F7 en ambos kioskos):
+        //   PS  ("...for PlayStation 4 and PC"):  gas=z,        brake=rz, clutch=stick/y, reverse=button19
+        //   Xbox ("...for Xbox One and PC"):      gas=stick/y,  brake=z,  clutch=rz,      reverse=button12
+        public static void SeedG923VariantDefaultsIfMissing(InputDevice device)
         {
             string name = device.displayName ?? "";
             bool isXboxMode = name.IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
             string mode = isXboxMode ? "Xbox" : "PS";
 
-            Debug.Log($"[UIInputNew] Aplicando mapping G923 {mode} mode"
-                + $" (displayName='{name}')");
+            int seeded = 0;
+            void SeedStr(string k, string v) { if (!PlayerPrefs.HasKey(k)) { PlayerPrefs.SetString(k, v); seeded++; } }
+            void SeedF  (string k, float  v) { if (!PlayerPrefs.HasKey(k)) { PlayerPrefs.SetFloat (k, v); seeded++; } }
+            void SeedI  (string k, int    v) { if (!PlayerPrefs.HasKey(k)) { PlayerPrefs.SetInt   (k, v); seeded++; } }
 
-            // Steering: stick/x en ambos modos (verificado).
+            SeedStr(PREF_BIND_STEER_AXIS, "stick/x");
+            SeedF("G923_SteerCenter", 0.0f);
+            SeedF("G923_SteerMax",    1.0f);
+            SeedF("G923_SteerMin",   -1.0f);
+            SeedStr(PREF_BIND_HAZARD, "button24");
+
+            if (isXboxMode)
+            {
+                SeedStr("G923_GasAxis",     "stick/y");
+                SeedStr("G923_BrakeAxis",   "z");
+                SeedStr(PREF_BIND_REVERSE,  "button12");
+                SeedF("G923_GasRest",   -1.0f);
+                SeedF("G923_GasPress",   1.0f);
+                SeedF("G923_BrakeRest",  1.0f);
+                SeedF("G923_BrakePress",-1.0f);
+                // Clutch en Xbox = rz, idle 1, press -1. Verificado por F7 del
+                // operador en Sedán 1 (2026-05-06): pisar clutch movió eje rz
+                // de 1.0 → -1.0. La asunción anterior "Xbox no tiene clutch"
+                // era falsa — el SKU 941-000158 trae pedalera 3-pedal idéntica
+                // al SKU PS, solo con HID layout rotado.
+                SeedStr(PREF_G923_CLUTCH_AXIS, "rz");
+                SeedF(PREF_G923_CLUTCH_REST,  1.0f);
+                SeedF(PREF_G923_CLUTCH_PRESS,-1.0f);
+            }
+            else
+            {
+                SeedStr("G923_GasAxis",     "z");
+                SeedStr("G923_BrakeAxis",   "rz");
+                SeedStr(PREF_BIND_REVERSE,  "button19");
+                SeedF("G923_GasRest",    1.0f);
+                SeedF("G923_GasPress",  -1.0f);
+                SeedF("G923_BrakeRest",  1.0f);
+                SeedF("G923_BrakePress",-1.0f);
+                SeedStr(PREF_G923_CLUTCH_AXIS, "stick/y");
+                SeedF(PREF_G923_CLUTCH_REST,  -1.0f);
+                SeedF(PREF_G923_CLUTCH_PRESS,  1.0f);
+            }
+            SeedI("Cal_ReverseDone", 1);
+
+            if (seeded > 0)
+            {
+                PlayerPrefs.Save();
+                Debug.Log($"[UIInputNew] G923 {mode} seed: {seeded} prefs ausentes seteados"
+                    + $" (displayName='{name}'). Resto preservado.");
+            }
+        }
+
+        // Force-reset incondicional de defaults G923 — comportamiento histórico
+        // de EnsureG923PSDefaults. Sobrescribe TODA pref que el operador haya
+        // remappeado vía F8. Solo usar desde "Reasignar controles" / recovery
+        // explícito. Para boot/menu normal, llamar SeedG923VariantDefaultsIfMissing.
+        public static void ForceResetG923VariantDefaults(InputDevice device)
+        {
+            string name = device.displayName ?? "";
+            bool isXboxMode = name.IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
+            string mode = isXboxMode ? "Xbox" : "PS";
+
+            Debug.Log($"[UIInputNew] FORCE-RESET G923 {mode} (displayName='{name}')");
+
             PlayerPrefs.SetString(PREF_BIND_STEER_AXIS, "stick/x");
             PlayerPrefs.SetFloat("G923_SteerCenter", 0.0f);
             PlayerPrefs.SetFloat("G923_SteerMax",    1.0f);
             PlayerPrefs.SetFloat("G923_SteerMin",   -1.0f);
-
-            // Botón dedicado de intermitentes (luces de emergencia). En Logitech
-            // G923 ambas variantes (PS/Xbox) exponen button24 — alternativa al
-            // combo L1+R1 (paddles) que sigue funcionando como fallback.
             PlayerPrefs.SetString(PREF_BIND_HAZARD, "button24");
 
             if (isXboxMode)
             {
-                // Xbox mode: gas=stick/y (idle=-1, pressed va hacia +1),
-                // brake=z (idle=1, pressed va hacia -1), reverse=button12.
-                PlayerPrefs.SetString("G923_GasAxis", "stick/y");
-                PlayerPrefs.SetString("G923_BrakeAxis", "z");
+                PlayerPrefs.SetString("G923_GasAxis",    "stick/y");
+                PlayerPrefs.SetString("G923_BrakeAxis",  "z");
                 PlayerPrefs.SetString(PREF_BIND_REVERSE, "button12");
                 PlayerPrefs.SetFloat("G923_GasRest",   -1.0f);
                 PlayerPrefs.SetFloat("G923_GasPress",   1.0f);
                 PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
                 PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
-                // Sin clutch físico en Xbox (stick/y ya es gas). Limpiar prefs
-                // viejas si quedaron de una sesión anterior con PS variant.
-                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_AXIS);
-                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_REST);
-                PlayerPrefs.DeleteKey(PREF_G923_CLUTCH_PRESS);
+                PlayerPrefs.SetString(PREF_G923_CLUTCH_AXIS, "rz");
+                PlayerPrefs.SetFloat(PREF_G923_CLUTCH_REST,  1.0f);
+                PlayerPrefs.SetFloat(PREF_G923_CLUTCH_PRESS,-1.0f);
             }
             else
             {
-                // PS mode: gas=z, brake=rz, reverse=button19, clutch=stick/y.
-                // NormalizePedal con rest=1, press=-1 da idéntico a (1-raw)/2.
-                PlayerPrefs.SetString("G923_GasAxis", "z");
-                PlayerPrefs.SetString("G923_BrakeAxis", "rz");
+                PlayerPrefs.SetString("G923_GasAxis",    "z");
+                PlayerPrefs.SetString("G923_BrakeAxis",  "rz");
                 PlayerPrefs.SetString(PREF_BIND_REVERSE, "button19");
                 PlayerPrefs.SetFloat("G923_GasRest",    1.0f);
                 PlayerPrefs.SetFloat("G923_GasPress",  -1.0f);
                 PlayerPrefs.SetFloat("G923_BrakeRest",  1.0f);
                 PlayerPrefs.SetFloat("G923_BrakePress",-1.0f);
-                // Clutch: 3er pedal físico, stick/y idle=-1, press=+1.
-                // Sobreescribimos siempre (consistente con gas/brake/reverse).
                 PlayerPrefs.SetString(PREF_G923_CLUTCH_AXIS, "stick/y");
                 PlayerPrefs.SetFloat(PREF_G923_CLUTCH_REST,  -1.0f);
                 PlayerPrefs.SetFloat(PREF_G923_CLUTCH_PRESS,  1.0f);
             }
-            // Limpiar el flag que hace que Pantalla 2 fuerce Discovery.
             PlayerPrefs.SetInt("Cal_ReverseDone", 1);
             PlayerPrefs.Save();
         }
@@ -1156,13 +1216,11 @@ namespace Gley.UrbanSystem
             _lastNonNeutralAttempt = 0;
             _pendingGearShiftWithoutClutchCount = 0;
 
-            // Si el device es Logitech/G923, asegurar que la calibración
-            // guardada calza con el mapeo G923 PS conocido. Si no, sobrescribir
-            // con defaults. Esto cubre dos casos: primer boot sin calibración,
-            // y calibración corrupta (Pantalla 2 puede elegir paths equivocados
-            // — verificado en logs S3 con G923_BrakeAxis="stick/y" cuando debería
-            // ser "rz"). El operador puede recalibrar via Pantalla 2 si quiere.
-            if (IsLogitechG923Family(device)) EnsureG923PSDefaults(device);
+            // Si el device es Logitech/G923, sembrar los defaults faltantes
+            // sin pisar lo que ya esté en PlayerPrefs (preserva remaps F8).
+            // Para forzar reset de defaults (calibración corrupta, etc.),
+            // llamar ForceResetG923VariantDefaults explícitamente desde la UI.
+            if (IsLogitechG923Family(device)) SeedG923VariantDefaultsIfMissing(device);
 
             #region HORI HPC-044U detection + throttle bypass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
             // ⚠️ CRITICAL — Este bloque setea G923_GasAxis al sentinel HORI_RAW_GAS_PATH
