@@ -86,6 +86,9 @@ namespace Gley.UrbanSystem
         // sigue acoplado al eje viejo → coche acelera con marcha nueva sin
         // desacople real (bug encontrado por Codex review 2026-05-06).
         private const float CLUTCH_ENGAGE_THRESHOLD = 0.65f;
+        // Throttle del log de "Gear shift BLOQUEADO" para no spamear cada
+        // frame mientras el palo está en una posición que no se completa.
+        private float _lastBlockedShiftLogTime = -10f;
 
         // Curva de respuesta del volante: f(x) = x / (a + (1-a)*x)  para x ∈ [0,1]
         //   f(0) = 0, f(1) = 1 siempre
@@ -1203,6 +1206,21 @@ namespace Gley.UrbanSystem
 
             // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
             _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
+            // Si Manual está seleccionado pero no hay clutch axis cacheado
+            // (HORI sin Phase 6 corrida, G923 Xbox sin pedal de clutch
+            // expuesto, prefs huérfanos), degradar a Auto. Sin esto el
+            // conductor quedaría atascado en Neutral con el bloqueo de
+            // cambios sin clutch sin posibilidad de pisar nada para
+            // desbloquearlo. Evita el bug reportado por Norberto donde el
+            // bypass anterior dejaba pasar cambios sin clutch en este caso.
+            if (!_isAutomaticMode && _clutchCtrl == null)
+            {
+                Debug.LogWarning($"[UIInputNew] Manual solicitado pero _clutchCtrl=null "
+                    + $"(G923_ClutchAxis='{clutchPath}'). Degradando a Auto. "
+                    + $"Device: '{device.displayName}'. "
+                    + $"Para Manual, calibrar clutch via Pantalla 2 → Reasignar controles.");
+                _isAutomaticMode = true;
+            }
             if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
             // Cargar calibración de pedales (rest+press) hecha en el menú.
@@ -1723,35 +1741,44 @@ namespace Gley.UrbanSystem
                 //  - clutch >= 0.65     → completar engage (cambio físico real)
                 //  - desiredGear == 0   → permitir poner Neutral sin clutch
                 //                         (no requiere desacople mecánico)
-                //  - _currentGear == 0  → salir de Neutral SÍ requiere clutch
-                //                         (engage de marcha)
-                //  - G923 Xbox detectado → modo didáctico (no tiene pedal de
-                //                         clutch físico, no podemos exigirlo).
-                //                         IMPORTANTE: NO bypasseamos cuando
-                //                         _clutchCtrl es null por otras razones
-                //                         (HORI sin Phase 6 corrida, G923 PS
-                //                         sin EnsureG923PSDefaults). En esos
-                //                         casos clutchInput=0 forever y el
-                //                         bloqueo aplica — el conductor no
-                //                         puede avanzar hasta calibrar.
-                //                         Bug reportado por Norberto 2026-05-06:
-                //                         con _clutchCtrl=null el bypass dejaba
-                //                         pasar cambios sin clutch.
+                //  - sameGear           → idempotente, sin cambio real
+                // SIN BYPASS por hardware: si Manual está activo, todos los
+                // hardware (G923 PS, G923 Xbox, HORI) requieren clutch ≥ 0.65.
+                // Para hardware sin pedal viable (Xbox sin clutch axis,
+                // HORI sin Phase 6), AttachToWheelDevice degrada Manual→Auto
+                // arriba (línea ~1207). Si llegamos aquí en Manual, _clutchCtrl
+                // != null por garantía.
                 // Si nada aplica, el shifter "rechina" mecánicamente: el palo
                 // está en otra posición pero el motor sigue en la marcha vieja
                 // hasta que el conductor pise el clutch.
                 bool clutchPressed = clutchInput >= CLUTCH_ENGAGE_THRESHOLD;
                 bool toNeutral     = desiredGear == 0;
-                bool isG923XboxNoClutch = _wheelDevice != null
-                    && IsLogitechG923Family(_wheelDevice)
-                    && (_wheelDevice.displayName ?? "")
-                        .IndexOf("Xbox", System.StringComparison.OrdinalIgnoreCase) >= 0;
                 bool sameGear      = desiredGear == _currentGear;
-                if (clutchPressed || toNeutral || isG923XboxNoClutch || sameGear)
+                if (clutchPressed || toNeutral || sameGear)
                 {
+                    int prevGear = _currentGear;
                     _currentGear = desiredGear;
+                    if (prevGear != _currentGear)
+                    {
+                        Debug.Log($"[UIInputNew] Gear shift OK: {prevGear}→{_currentGear}"
+                            + $" (clutchInput={clutchInput:F2} threshold={CLUTCH_ENGAGE_THRESHOLD:F2}"
+                            + $" toNeutral={toNeutral} sameGear={sameGear})");
+                    }
                 }
-                // else: bloqueado, _currentGear se mantiene.
+                else
+                {
+                    // Bloqueado: log periódico (cada 1.5s) para diagnóstico
+                    // remoto. Sin throttle, cada frame que el palo está en una
+                    // posición no-engaged spamearía decenas de líneas/seg.
+                    if (Time.realtimeSinceStartup - _lastBlockedShiftLogTime > 1.5f)
+                    {
+                        Debug.LogWarning($"[UIInputNew] Gear shift BLOQUEADO: pidió {desiredGear}"
+                            + $" pero queda en {_currentGear}"
+                            + $" (clutchInput={clutchInput:F2} threshold={CLUTCH_ENGAGE_THRESHOLD:F2}"
+                            + $" _clutchCtrl={(_clutchCtrl != null)})");
+                        _lastBlockedShiftLogTime = Time.realtimeSinceStartup;
+                    }
+                }
 
                 // Edge-trigger del rechino: cuenta UNA VEZ por intento real
                 // de cambio. Compara desiredGear contra _lastNonNeutralAttempt
@@ -1764,8 +1791,7 @@ namespace Gley.UrbanSystem
                     if (desiredGear != 0
                         && desiredGear != _lastNonNeutralAttempt
                         && _lastNonNeutralAttempt != 0
-                        && !clutchPressed
-                        && !isG923XboxNoClutch)
+                        && !clutchPressed)
                     {
                         _pendingGearShiftWithoutClutchCount++;
                     }
