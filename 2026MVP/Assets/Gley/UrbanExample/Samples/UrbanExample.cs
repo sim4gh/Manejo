@@ -20,7 +20,18 @@ namespace Gley.UrbanExample
 
         private void Start()
         {
-            _player = GameObject.Find("Player").transform;
+            // Player puede estar inactivo al cargar la escena: SpawnLocationManager
+            // lo activa después de teletransportarlo al waypoint. GameObject.Find
+            // ignora inactivos → resolver perezoso en Update cuando se necesite.
+            ResolvePlayer();
+        }
+
+        private void ResolvePlayer()
+        {
+            if (_player != null) return;
+            var p = GameObject.Find("Player");
+            if (p == null) p = GameObject.FindWithTag("Player");
+            if (p != null) _player = p.transform;
         }
 
         //every time a destination is reached, a new one is selected
@@ -70,6 +81,7 @@ namespace Gley.UrbanExample
                 }
                 else
                 {
+                    ResolvePlayer();
                     GameObject.Find("Main Camera").GetComponent<CameraFollow>().target = _player;
                     API.SetCamera(_player);
                 }
