@@ -169,6 +169,13 @@ namespace Gley.UrbanSystem
         // evita chatter por ruido del sensor cerca del umbral. Los valores son
         // tuneables por escena en el inspector.
         [Range(0.05f, 0.9f)] public float clutchEngageThreshold = 0.40f;
+        // ⚠️ IMPORTANTE: este valor (0.65) está acoplado con
+        // UIInputNew.CLUTCH_ENGAGE_THRESHOLD para que el bloqueo del cambio
+        // mecánico de marchas en UIInputNew y el corte de motorTorque aquí
+        // sucedan en el mismo punto. Si bajas este threshold, en la banda
+        // [nuevo, 0.65) UIInputNew aún bloqueará el cambio pero el motor ya
+        // estará desacoplado — quedaría una banda donde el conductor no
+        // puede avanzar ni cambiar.
         [Range(0.10f, 0.95f)] public float clutchDisengageThreshold = 0.65f;
         // Estado interno del clutch (sticky). Se evalúa solo en modo manual;
         // en automático queda forzado en false (no hay clutch).
