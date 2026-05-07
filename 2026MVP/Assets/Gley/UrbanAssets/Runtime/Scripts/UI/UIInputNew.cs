@@ -1000,6 +1000,21 @@ namespace Gley.UrbanSystem
                 || product.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // Force-override de un Bind para HORI (rutas hardware-fijas).
+        // Si la PlayerPref existente difiere del canonical, sobrescribe + warning
+        // para diagnosticar en S3 si Pantalla 2 sigue corrompiendo el bind.
+        // Usado solo dentro del bloque IsHORITruck de AttachToWheelDevice.
+        private static void ForceHoriBind(string prefKey, string canonical)
+        {
+            string current = PlayerPrefs.GetString(prefKey, "");
+            if (current == canonical) return;
+            if (!string.IsNullOrEmpty(current))
+            {
+                Debug.LogWarning($"[UIInputNew] HORI override {prefKey}: '{current}' → '{canonical}' (HORI hardware-fijo, no F8-configurable)");
+            }
+            PlayerPrefs.SetString(prefKey, canonical);
+        }
+
         // Detecta el Moto Simulator (ESP32-S3 USB HID custom de SimuladoresTlax).
         // No matchea G923/HORI ni gamepads genéricos. Match defensivo por
         // displayName, product, y manufacturer — Unity Input System en Windows
@@ -1308,29 +1323,31 @@ namespace Gley.UrbanSystem
                     PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
                 if (!PlayerPrefs.HasKey(PREF_BIND_HORN))
                     PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
-                if (!PlayerPrefs.HasKey(PREF_BIND_REVERSE))
-                    PlayerPrefs.SetString(PREF_BIND_REVERSE, "shifter:button7");
+                // Bind_reverse y Bind_gear1..6 son HARDWARE-FIJOS en HORI:
+                // R y las marchas viven SIEMPRE en posiciones específicas del
+                // shifter, no son configurables. Si Pantalla 2 Phase 5 (Discovery
+                // de reversa) o un F8 manual deja Bind_reverse apuntando a otra
+                // ruta — típicamente un eje de pedal por accidente — pisar ese
+                // pedal arma el sticky reverse latch. Caso real reportado por
+                // Norberto SIM-005 en v1.5.10 (2026-05-07): Bind_reverse quedó
+                // en `wheel:slider1` post-Discovery (Phase 5 picked up brake
+                // pedal axis), pisar brake metía R inadvertidamente.
+                //
+                // Fix v1.5.11: override INCONDICIONAL para HORI — el operador
+                // F8 NO puede remapear estas a algo válido distinto, así que
+                // la "preservación de remap" del idempotente no aporta valor.
+                // Log warning si se sobrescribe un valor distinto al canónico
+                // (catch para diagnosticar si Pantalla 2 sigue corrompiendo).
+                ForceHoriBind(PREF_BIND_REVERSE, "shifter:button7");
+                ForceHoriBind(PREF_BIND_GEAR1, "shifter:trigger");
+                ForceHoriBind(PREF_BIND_GEAR2, "shifter:button2");
+                ForceHoriBind(PREF_BIND_GEAR3, "shifter:button3");
+                ForceHoriBind(PREF_BIND_GEAR4, "shifter:button4");
+                ForceHoriBind(PREF_BIND_GEAR5, "shifter:button5");
+                ForceHoriBind(PREF_BIND_GEAR6, "shifter:button6");
+
                 if (!PlayerPrefs.HasKey(PREF_BIND_DOOR))
                     PlayerPrefs.SetString(PREF_BIND_DOOR, "wheel:button21");
-                // H-shifter HORI: 6 marchas físicas en el SHIFTER device.
-                // Mapping verificado en F7 con HORI conectado (2026-05-06):
-                //   1ª = "trigger" (Unity nombra el control así por el HID
-                //        usage del HORI, NO es "button1"),
-                //   2ª..6ª = button2..6,
-                //   R = button7 (ya cubierto en PREF_BIND_REVERSE).
-                // Idempotente: si el operador reasigna en F8, sobrevive.
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR1))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR1, "shifter:trigger");
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR2))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR2, "shifter:button2");
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR3))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR3, "shifter:button3");
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR4))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR4, "shifter:button4");
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR5))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR5, "shifter:button5");
-                if (!PlayerPrefs.HasKey(PREF_BIND_GEAR6))
-                    PlayerPrefs.SetString(PREF_BIND_GEAR6, "shifter:button6");
                 // Throttle: el HID parser de Unity tiene un bug con el descriptor
                 // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
                 // byte del throttle (21-22 del input report) huérfano — ningún
