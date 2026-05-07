@@ -78,6 +78,12 @@ public class MenuScreenManager : MonoBehaviour
     private InputDevice attachedDevice;
     private System.Action<InputDevice, InputDeviceChange> _deviceChangeHandler;
 
+    // v1.5.12 (Cambio 3b): rate-limit del warning de Phase 5 cuando rechaza
+    // un path no-shifter en HORI. Sin throttle, mientras el operador sigue
+    // pisando el pedal mal-detectado el log spamea cada frame.
+    private float _lastHoriRejectLogTime = -999f;
+    private const float HORI_REJECT_LOG_INTERVAL = 5f;
+
     // Detección dinámica del eje de cada pedal — lista unificada de candidatos.
     // En la fase gas gana el que más caiga; en la fase brake se excluye el
     // elegido para gas y gana otro distinto. Cubre mapeos cruzados (ej. en
@@ -1953,8 +1959,40 @@ public class MenuScreenManager : MonoBehaviour
         var manualBlockReason = UIInputNew.GetManualBlockReason(dev);
         if (manualBlockReason != UIInputNew.ManualBlockReason.None)
         {
-            ShowManualBlockedDialog(manualBlockReason, dev);
-            return;
+            // HORI sin clutch axis cal NO bloquea con modal: Phase 6 más abajo
+            // sabe calibrarlo pisando el pedal. El modal era catch-22 — solo
+            // ofrecía "Continuar en Auto" / "Volver a transmisión" sin path al
+            // Phase 6 que ya existe en este mismo flujo. v1.5.12 (2026-05-07).
+            // Si Phase 6 falla / operador no calibra, AttachToWheelDevice
+            // degrada a Auto en :1418 con LogError — red de seguridad existente.
+            // Otros reasons (UnknownDeviceCannotProveClutch, NoViableClutchBinding_G923Xbox)
+            // sí bloquean: NO existe Phase 6 para esos casos.
+            if (manualBlockReason != UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated)
+            {
+                ShowManualBlockedDialog(manualBlockReason, dev);
+                return;
+            }
+            Debug.Log("[MenuScreenManager] HORI sin clutch axis cal — entrando a Pantalla 2 para Phase 6.");
+        }
+
+        // Pre-flight HORI: shifter es REQUERIDO para Manual (gears 1-6 + R viven
+        // en shifter:trigger/button2..button7). Si TransmisionManual=1 + HORI sin
+        // shifter conectado, mostrar mensaje claro al operador antes de bloquear
+        // Phase 5/Phase 6 con prompts indescifrables. v1.5.12 (Cambio 5).
+        if (dev != null && UIInputNew.IsHORITruck(dev)
+            && PlayerPrefs.GetInt("TransmisionManual", 0) == 1)
+        {
+            bool hasShifter = false;
+            foreach (var d in InputSystem.devices)
+            {
+                if (d != dev && UIInputNew.IsShifterDevice(d)) { hasShifter = true; break; }
+            }
+            if (!hasShifter)
+            {
+                Debug.LogWarning("[MenuScreenManager] HORI Truck en Manual sin shifter conectado — mostrando dialog de diagnóstico.");
+                ShowHoriShifterMissingDialog(dev);
+                return;
+            }
         }
 
         // FAST-PATH: Moto Simulator (ESP32-S3 USB HID custom). Las 5 fases del
@@ -2068,11 +2106,34 @@ public class MenuScreenManager : MonoBehaviour
         // El axis del clutch HORI no se puede hardcodear porque Unity alias
         // slider/slider1/rz arbitrariamente entre brake y clutch (ver
         // HORI_THROTTLE_BUG_RESOLUTION.md). Por eso lo descubrimos pisando.
-        bool clutchAlreadyCal = fingerprintMatches
+        bool clutchPathPersisted = fingerprintMatches
             && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS)
             && !string.IsNullOrEmpty(PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, ""))
             && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
             && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+        bool clutchAlreadyCal = clutchPathPersisted;
+        // v1.5.12 (Cambio 1 extendido): si clutchPath persistido pero el control
+        // ya no resuelve en el device actual (e.g., HORI en otro USB con axis
+        // distinto), invalidar prefs y forzar Phase 6 re-calibración. Sin esto,
+        // GetManualBlockReason retorna None (clutchPath != ""), Pantalla 2 "aprueba"
+        // pero gameplay degrada a Auto silencioso en AttachToWheelDevice.
+        if (clutchPathPersisted && PlayerPrefs.GetInt("TransmisionManual", 0) == 1)
+        {
+            string clutchPathPersistedVal = PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, "");
+            InputDevice shifterDev = null;
+            foreach (var d in InputSystem.devices)
+                if (d != dev && UIInputNew.IsShifterDevice(d)) { shifterDev = d; break; }
+            var clutchC = UIInputNew.ResolveControlPathFor(dev, shifterDev, clutchPathPersistedVal);
+            if (clutchC == null)
+            {
+                Debug.LogWarning($"[MenuScreenManager] clutchPath '{clutchPathPersistedVal}' persistido pero NO resuelve en device — invalidando + forzando Phase 6 re-calibración.");
+                PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+                PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_REST);
+                PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+                PlayerPrefs.Save();
+                clutchAlreadyCal = false;
+            }
+        }
         bool clutchPhaseNeeded = PlayerPrefs.GetInt("TransmisionManual", 0) == 1
             && dev != null && UIInputNew.IsHORITruck(dev) && !clutchAlreadyCal;
 
@@ -2537,6 +2598,25 @@ public class MenuScreenManager : MonoBehaviour
             string chosenReverse = TryDetectReverseInput(out bool isAxis);
             if (!string.IsNullOrEmpty(chosenReverse))
             {
+                // v1.5.12 (Cambio 3b): HORI hardware-fijo en shifter:button7.
+                // NO aceptar axis ni paths que no vengan del shifter device.
+                // Sin esto, Phase 5 captaría wheel:slider1 si el operador pisa
+                // clutch (causa raíz del bug v1.5.10/SIM-005). Throttle de log
+                // 5s para evitar spam — la fase puede correr varios frames
+                // mientras el operador mueve la palanca a R.
+                if (attachedDevice != null && UIInputNew.IsHORITruck(attachedDevice))
+                {
+                    if (isAxis || !chosenReverse.StartsWith("shifter:", System.StringComparison.Ordinal))
+                    {
+                        if (Time.unscaledTime - _lastHoriRejectLogTime > HORI_REJECT_LOG_INTERVAL)
+                        {
+                            Debug.LogWarning($"[MenuScreenManager] HORI Discovery captó '{chosenReverse}' (isAxis={isAxis}) como reversa. Rechazado — HORI debe usar shifter:button7. (siguiente log en >{HORI_REJECT_LOG_INTERVAL}s)");
+                            _lastHoriRejectLogTime = Time.unscaledTime;
+                        }
+                        return;
+                    }
+                }
+
                 reverseDone = true;
                 reverseFillRT.anchorMax = new Vector2(1, 1);
                 reverseFill.color = MenuTheme.IndicatorDone;
@@ -2700,16 +2780,39 @@ public class MenuScreenManager : MonoBehaviour
         if (shifter != null)
             SnapshotBaselineForDevice(shifter, "shifter:");
 
-        // No reasignar reversa al volante, gas o freno. Excluir tanto el path
-        // crudo como el path con prefijo "wheel:" — los pedales y steering
-        // solo viven en el wheel, así que no exponemos variantes de shifter.
+        // No reasignar reversa al volante, gas, freno, clutch ni a NINGÚN
+        // Bind_* ya ocupado. v1.5.12 (Cambio 3a): pre-fix solo excluía steer/
+        // gas/brake; clutch + horn/hazard/paddles/drive/door/gears/restart/menu
+        // eran capturables. Bug raíz reportado: SIM-005 v1.5.10 había
+        // capturado wheel:slider1 (clutch HORI) como Bind_reverse durante
+        // Phase 5 porque el operador pisó clutch y nada lo excluía.
+        // Para HORI con gas via raw HID (sentinel __HORI_RAW_HID_THROTTLE__,
+        // no es un Unity InputSystem path real), también excluimos los axes
+        // físicos típicos del HORI (z, rz, slider, slider1, ...) — sin esto
+        // el sentinel no matchea nada y los axes quedan capturables.
         _reverseExcludedPaths = new System.Collections.Generic.HashSet<string>();
-        string steerP = PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, "");
-        string gasP   = PlayerPrefs.GetString("G923_GasAxis", "");
-        string brakeP = PlayerPrefs.GetString("G923_BrakeAxis", "");
-        AddExclusion(_reverseExcludedPaths, steerP);
-        AddExclusion(_reverseExcludedPaths, gasP);
-        AddExclusion(_reverseExcludedPaths, brakeP);
+        AddExclusion(_reverseExcludedPaths, PlayerPrefs.GetString(UIInputNew.PREF_BIND_STEER_AXIS, ""));
+        AddExclusion(_reverseExcludedPaths, PlayerPrefs.GetString("G923_GasAxis", ""));
+        AddExclusion(_reverseExcludedPaths, PlayerPrefs.GetString("G923_BrakeAxis", ""));
+        AddExclusion(_reverseExcludedPaths, PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, ""));
+        foreach (var key in new[] {
+            UIInputNew.PREF_BIND_HORN, UIInputNew.PREF_BIND_HAZARD,
+            UIInputNew.PREF_BIND_PADDLE_LEFT, UIInputNew.PREF_BIND_PADDLE_RIGHT,
+            UIInputNew.PREF_BIND_DRIVE, UIInputNew.PREF_BIND_DOOR,
+            UIInputNew.PREF_BIND_RESTART, UIInputNew.PREF_BIND_MENU_A,
+            UIInputNew.PREF_BIND_MENU_B, UIInputNew.PREF_BIND_RESTART_A,
+            UIInputNew.PREF_BIND_RESTART_B,
+            UIInputNew.PREF_BIND_GEAR1, UIInputNew.PREF_BIND_GEAR2,
+            UIInputNew.PREF_BIND_GEAR3, UIInputNew.PREF_BIND_GEAR4,
+            UIInputNew.PREF_BIND_GEAR5, UIInputNew.PREF_BIND_GEAR6,
+        })
+        {
+            AddExclusion(_reverseExcludedPaths, PlayerPrefs.GetString(key, ""));
+        }
+        if (PlayerPrefs.GetString("G923_GasAxis", "") == UIInputNew.HORI_RAW_GAS_PATH)
+        {
+            foreach (var p in PEDAL_AXIS_CANDIDATES) AddExclusion(_reverseExcludedPaths, p);
+        }
     }
 
     void SnapshotBaselineForDevice(InputDevice dev, string prefix)
@@ -3074,6 +3177,44 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
+    // v1.5.12 (Cambio 5): pre-flight HORI sin shifter conectado. El shifter
+    // del HORI HPC-044U es USB separado. Si está desconectado, los paths
+    // shifter:trigger/button2..button7 (gears 1-6 + R) no resuelven y Phase 5
+    // queda en loop. Antes el operador no sabía qué pasaba — ahora dialog
+    // explícito con dos rutas: "Continuar en Automático" (Manual no viable
+    // sin shifter) o "Volver a transmisión". Reusa el modal blocking state
+    // que ya tienen ShowManualBlockedDialog / ClearManualBlockedModalState.
+    void ShowHoriShifterMissingDialog(InputDevice dev)
+    {
+        _manualBlockedModalActive = true;
+        _manualBlockedReason = UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
+
+        Debug.LogWarning("[MenuScreenManager] [HORI_SHIFTER_MISSING] HORI Truck en Manual sin shifter USB conectado — bloqueando Pantalla 2.");
+
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+        rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
+
+        if (wheelPrompt != null)
+            wheelPrompt.text = "El volante <b>HORI Truck</b> está conectado pero el <b>shifter (palanca) no</b>.\n\n" +
+                "Para correr en Manual hay que conectar el shifter HORI vía USB. Las marchas (1-6 + R) viven en el shifter.\n\n" +
+                "<b>Conecta el shifter</b> y vuelve a transmisión, o continúa en Automático.";
+
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Continuar en Automático";
+            skipButton.interactable = true;
+            skipButton.gameObject.SetActive(true);
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Volver a transmisión";
+            reassignButton.interactable = true;
+            reassignButton.gameObject.SetActive(true);
+        }
+    }
+
     void OnManualBlockedContinueAuto()
     {
         Debug.Log($"[MenuScreenManager] [MANUAL_BLOCKED] usuario eligió 'Continuar en Automático' (reason={_manualBlockedReason})");
@@ -3220,24 +3361,65 @@ public class MenuScreenManager : MonoBehaviour
         float brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
         float clutchRest = PlayerPrefs.GetFloat(UIInputNew.PREF_G923_CLUTCH_REST, -1f);
 
-        bool degraded = false;
-        float t = 0f;
-        while (t < duration)
-        {
-            // Durante el splash, el usuario no debería estar pisando nada.
-            // Un delta grande contra el rest guardado indica hardware
-            // desconectado o axis distinto al que se calibró.
-            if (SafeReadFloatRaw(gasC, out var gv) && Mathf.Abs(gv - gasRest) > 0.5f) { degraded = true; break; }
-            if (SafeReadFloatRaw(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; break; }
-            if (clutchC != null && SafeReadFloatRaw(clutchC, out var cv) && Mathf.Abs(cv - clutchRest) > 0.5f) { degraded = true; break; }
-            t += Time.unscaledDeltaTime;
-            yield return null;
-        }
+        // v1.5.12 (Cambio 2): sanity check NO-destructiva. Antes hacía
+        // ClearWheelCalibration() global con cualquier delta > 0.5, y un pie
+        // apoyado en pedal durante el splash borraba TODA la calibración →
+        // operador caía en modal "clutch no calibrado" sin path para recalibrar
+        // (catch-22). Bug confirmado en SIM-005 v1.5.10 (Pasajeros 1).
+        // Estrategia nueva: prompt "Suelta los pedales" + retry corto. Si
+        // persiste tras retries, invalidar SOLO la pref del axis afectado
+        // (no wipe global, no loop infinito). PrepareWheelScreen re-corre
+        // Phase 3/4/6 dirigida al axis ausente.
+        const int MAX_PROMPT_RETRIES = 1;
+        const float SETTLE_DURATION = 1.5f;
+        int retries = 0;
 
-        if (degraded)
+        while (true)
         {
-            Debug.Log("[MenuScreenManager] Sanity check: pedal con valor anómalo respecto al rest guardado → discovery");
-            ClearWheelCalibration();
+            bool degraded = false;
+            string anomalyAxis = null;
+            float t = 0f;
+            while (t < duration)
+            {
+                if (SafeReadFloatRaw(gasC, out var gv)   && Mathf.Abs(gv - gasRest)   > 0.5f) { degraded = true; anomalyAxis = "gas"; break; }
+                if (SafeReadFloatRaw(brakeC, out var bv) && Mathf.Abs(bv - brakeRest) > 0.5f) { degraded = true; anomalyAxis = "brake"; break; }
+                if (clutchC != null && SafeReadFloatRaw(clutchC, out var cv) && Mathf.Abs(cv - clutchRest) > 0.5f) { degraded = true; anomalyAxis = "clutch"; break; }
+                t += Time.unscaledDeltaTime;
+                yield return null;
+            }
+            if (!degraded) break;
+
+            if (retries < MAX_PROMPT_RETRIES)
+            {
+                Debug.Log($"[MenuScreenManager] Sanity check: pedal '{anomalyAxis}' anómalo — pedimos al operador soltar pedales (retry {retries+1}/{MAX_PROMPT_RETRIES})");
+                if (wheelPrompt != null) wheelPrompt.text = "Suelta los pedales para iniciar...";
+                yield return new WaitForSecondsRealtime(SETTLE_DURATION);
+                retries++;
+                continue;
+            }
+
+            // Persistente: invalidar SOLO el axis afectado (no wipe global).
+            // PrepareWheelScreen re-corre Phase 3/4/6 dirigida al axis ausente.
+            Debug.LogWarning($"[MenuScreenManager] Sanity check: pedal '{anomalyAxis}' sigue anómalo tras {MAX_PROMPT_RETRIES} retries — invalidando axis '{anomalyAxis}' (no wipe global) y volviendo a Pantalla 2.");
+            switch (anomalyAxis)
+            {
+                case "gas":
+                    PlayerPrefs.DeleteKey("G923_GasAxis");
+                    PlayerPrefs.DeleteKey("G923_GasRest");
+                    PlayerPrefs.DeleteKey("G923_GasPress");
+                    break;
+                case "brake":
+                    PlayerPrefs.DeleteKey("G923_BrakeAxis");
+                    PlayerPrefs.DeleteKey("G923_BrakeRest");
+                    PlayerPrefs.DeleteKey("G923_BrakePress");
+                    break;
+                case "clutch":
+                    PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+                    PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_REST);
+                    PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+                    break;
+            }
+            PlayerPrefs.Save();
             PrepareWheelScreen();
             yield break;
         }
