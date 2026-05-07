@@ -68,11 +68,18 @@ public class HoriShifterProbe : MonoBehaviour
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     static void Bootstrap()
     {
+        // v1.5.12 (Cambio 4): gateado por flag PlayerPref. En producción default,
+        // el probe NO arranca — sin GameObject, sin Start, sin Update, sin handles
+        // ni threads. Para activarlo en un kiosko de diagnóstico, setear desde
+        // un debug command o vía PlayerPrefs.SetInt("Diag_HoriShifterProbe", 1).
+        // Cuando v1.6.0 ship con HoriShifterReader continuo, este archivo se
+        // elimina por completo.
+        if (PlayerPrefs.GetInt("Diag_HoriShifterProbe", 0) != 1) return;
         if (_instance != null) return;
         var go = new GameObject("[HoriShifterProbe]");
         DontDestroyOnLoad(go);
         _instance = go.AddComponent<HoriShifterProbe>();
-        Debug.Log("[HoriShifterProbe] Bootstrapped (v1.5.10 diagnostic — busca byte de posición palanca HORI)");
+        Debug.Log("[HoriShifterProbe] Bootstrapped (v1.5.10 diagnostic — busca byte de posición palanca HORI; gateado por Diag_HoriShifterProbe=1)");
     }
 
     void Start()
