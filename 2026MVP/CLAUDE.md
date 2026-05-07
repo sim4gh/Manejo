@@ -526,6 +526,7 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 - **Clutch axis**: Discovery dinámico (Phase 6) en Pantalla 2 condicional a `TransmisionManual==1 && IsHORITruck`. NO hardcoded — Unity alias slider/slider1/rz arbitrariamente entre brake y clutch (ver `HORI_THROTTLE_BUG_RESOLUTION.md:170-171`).
 - Detección de "rechino" funciona igual que G923 PS (mismo edge-trigger en `UIInputNew`, mismo gating con `HasPhysicalClutch()` en `ViolationDetector`).
 - **Cambio HORI→G923 sin recalibrar**: `ReCacheGearControls` cae al fallback legacy 13-19 si los paths `shifter:*` no resuelven; `SanityCheckThenLoad` adicionalmente limpia binds huérfanos.
+- **Reverse (`shifter:button7`) es PULSE** — solo on por 1-2 frames mientras la palanca cruza R, no hold (mecánica del H-shifter). Para Manual mode esto rompía el clutch gate (necesita `IsAnyPressed(_crossCtrls)` y `clutchInput≥0.65` en el mismo frame, casi imposible). Fix v1.5.8: edge-trigger latch de 300 ms (`MANUAL_REVERSE_LATCH_SECONDS`) en `UIInputNew.cs` Manual reverse fallback. Estado separado del Auto mode (`_lastCrossPressedManual`, `_manualReverseLatchUntil`) para evitar cross-mode pollution. Condición combinada `crossNow || latchActive` cubre HORI pulse Y G923 Xbox hold (button12). Cancelación al detectar gear 1-6 evita ambigüedad R↔N tránsito.
 
 ### Pendiente
 - Verificar force feedback (HORI no tiene FFB — `LogitechFFB.cs` no-op)

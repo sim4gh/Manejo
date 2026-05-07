@@ -227,6 +227,19 @@ namespace Gley.UrbanSystem
         // cuando llevemos >REVERSE_HOLD_SECONDS sin ver señal.
         private float _reverseLastSeenTime = -999f;
         private const float REVERSE_HOLD_SECONDS = 0.3f;
+        // Edge-trigger latch para Manual mode reverse via _crossCtrls.
+        // El HORI HPC-044U shifter button7 es PULSE (1-2 frames mientras la
+        // palanca cruza R, no hold), así que el level-detection puro de
+        // Manual mode no alcanzaba para coincidir con el clutch ≥0.65 en el
+        // mismo frame. El latch abre una ventana de 300ms en la que
+        // desiredGear=-1 aunque el botón ya no esté pressed. Estado separado
+        // del Auto mode para no contaminar entre modos al alternar mid-game.
+        // Para hardware con R hold (G923 Xbox button12), la lógica usa
+        // (crossNow || latchActive) — el hold cubre el caso normal y el
+        // latch solo aplica para devices con pulse breve.
+        private bool _lastCrossPressedManual;
+        private float _manualReverseLatchUntil = -1f;
+        private const float MANUAL_REVERSE_LATCH_SECONDS = 0.3f;
         private bool _lastTrianglePressed;
         private bool _lastRestartPressed;
         private float _menuComboTimer;
@@ -1857,11 +1870,40 @@ namespace Gley.UrbanSystem
                         }
                     }
                     // Reversa por Bind_reverse: en G923 PS el R físico es button19
-                    // (cubierto por el array hardcoded de _gearControls), pero en
-                    // Xbox es button12, que NO está en ese array. Consultar
-                    // _crossCtrls — mismo botón que usa el modo automático —
-                    // hace que ambas variantes funcionen sin tocar el array.
-                    if (desiredGear == 0 && IsAnyPressed(_crossCtrls))
+                    // (cubierto por el array hardcoded de _gearControls); en
+                    // G923 Xbox es button12 (HOLD level-detectable mientras la
+                    // palanca está en R); en HORI es shifter:button7 (PULSE,
+                    // 1-2 frames cuando la palanca cruza R y luego OFF). Para
+                    // ambos casos consultamos _crossCtrls como fallback. Para
+                    // tolerar el pulse, abrimos un latch edge-trigger de 300ms
+                    // en el flanco OFF→ON de _crossCtrls. Si el for-loop de
+                    // gears 1-6 detecta otra posición, descartamos el latch
+                    // para evitar la ambigüedad "sigo en R vs ya pasé a N"
+                    // cuando el clutch entra en un frame intermedio.
+                    bool crossNow = IsAnyPressed(_crossCtrls);
+                    bool gearActive = desiredGear != 0;
+
+                    // Cancelación: cualquier gear 1-6 detectado descarta latch.
+                    if (gearActive)
+                        _manualReverseLatchUntil = -1f;
+
+                    // Edge: abrir latch al flanco OFF→ON de _crossCtrls.
+                    // gearActive guard evita armar si ya hay otro gear pressed
+                    // (cross-talk del shifter en algún caso bizarro).
+                    if (crossNow && !_lastCrossPressedManual && !gearActive)
+                    {
+                        _manualReverseLatchUntil = Time.realtimeSinceStartup + MANUAL_REVERSE_LATCH_SECONDS;
+                        Debug.Log($"[UIInputNew] Manual reverse latch armed: {MANUAL_REVERSE_LATCH_SECONDS:F2}s window (HORI pulse-style support)");
+                    }
+                    _lastCrossPressedManual = crossNow;
+
+                    bool latchActive = _manualReverseLatchUntil > 0f
+                        && Time.realtimeSinceStartup < _manualReverseLatchUntil;
+
+                    // Aplicar: button hold (G923 Xbox button12) O latch activo
+                    // (HORI button7 pulse). crossNow cubre devices con hold;
+                    // latch cubre devices con pulse breve.
+                    if (desiredGear == 0 && (crossNow || latchActive))
                     {
                         desiredGear = -1;
                     }
