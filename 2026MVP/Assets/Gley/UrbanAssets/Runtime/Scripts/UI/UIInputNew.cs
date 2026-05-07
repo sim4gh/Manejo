@@ -246,6 +246,18 @@ namespace Gley.UrbanSystem
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
 
+        // Restart por 5 frenazos a fondo seguidos. Edge-detection con histéresis
+        // para evitar doble-conteo por jitter del pedal cerca del threshold.
+        // _brakeTapHigh arranca en true → si entras a la escena con el freno
+        // pisado, hay que liberarlo primero antes de armar el primer tap.
+        private int _brakeTapCount;
+        private bool _brakeTapHigh = true;
+        private float _brakeTapLastTime = -999f;
+        private const float BRAKE_TAP_PRESS = 0.85f;
+        private const float BRAKE_TAP_RELEASE = 0.20f;
+        private const float BRAKE_TAP_WINDOW = 2.5f;
+        private const int BRAKE_TAP_TARGET = 5;
+
         // Bindings configurables via BindingsPanel (F8 hold 1.5s).
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
         // sobreescribir para otros volantes (ej. G923 Xbox usa otros paths).
@@ -2041,6 +2053,38 @@ namespace Gley.UrbanSystem
                 _lastRestartPressed = restartNow;
             }
 
+            // ---- 5 frenazos a fondo seguidos → restart escena ----
+            // Edge-detect con histéresis (cruza ≥0.85 = tap, requiere bajar a ≤0.20
+            // para armar el siguiente). Ventana de 2.5s entre taps reinicia la cuenta.
+            // unscaledTime para que funcione con paneles F7/F8/F9 abiertos.
+            // Lee el pedal pre-curva (NormalizePedal lineal) — brakeInput pasó por
+            // BrakeCurve, y si el usuario tunea la curva en F9 el threshold 0.85
+            // dejaría de significar "pedal a fondo". Gated a wheel real para no
+            // disparar con S/flecha-abajo del teclado.
+            if (_hasWheel && _brakeCtrl != null)
+            {
+                float brakeTapRaw = SafeReadFloatRaw(_brakeCtrl, out var rbt) ? rbt : _brakeRest;
+                float brakeTapPct = NormalizePedal(brakeTapRaw, _brakeRest, _brakePress);
+                float now = Time.unscaledTime;
+                if (!_brakeTapHigh && brakeTapPct >= BRAKE_TAP_PRESS)
+                {
+                    _brakeTapHigh = true;
+                    if (now - _brakeTapLastTime > BRAKE_TAP_WINDOW) _brakeTapCount = 0;
+                    _brakeTapCount++;
+                    _brakeTapLastTime = now;
+                    if (_brakeTapCount >= BRAKE_TAP_TARGET)
+                    {
+                        _brakeTapCount = 0;
+                        Time.timeScale = 1f;
+                        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                    }
+                }
+                else if (_brakeTapHigh && brakeTapPct <= BRAKE_TAP_RELEASE)
+                {
+                    _brakeTapHigh = false;
+                }
+            }
+
             // ---- Log periódico de valores crudos/calculados (diagnóstico kiosko) ----
             if (_hasWheel)
             {
@@ -2126,6 +2170,34 @@ namespace Gley.UrbanSystem
             // Brake / clutch como botones digitales.
             brakeInput  = brakePressed  ? 1f : 0f;
             clutchInput = clutchPressed ? 1f : 0f;
+
+            // ---- 5 frenazos seguidos → restart escena ----
+            // En moto el freno es botón HID (0/1), no eje analógico, así que
+            // edge-detect directo sobre brakePressed (sin histéresis necesaria).
+            // Reusa _brakeTapCount/_brakeTapHigh/_brakeTapLastTime y BRAKE_TAP_*
+            // del path wheel-style. Gateado a _brakeCtrl != null (sin botón
+            // calibrado, no contar).
+            if (_brakeCtrl != null)
+            {
+                float nowMoto = Time.unscaledTime;
+                if (!_brakeTapHigh && brakePressed)
+                {
+                    _brakeTapHigh = true;
+                    if (nowMoto - _brakeTapLastTime > BRAKE_TAP_WINDOW) _brakeTapCount = 0;
+                    _brakeTapCount++;
+                    _brakeTapLastTime = nowMoto;
+                    if (_brakeTapCount >= BRAKE_TAP_TARGET)
+                    {
+                        _brakeTapCount = 0;
+                        Time.timeScale = 1f;
+                        SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+                    }
+                }
+                else if (_brakeTapHigh && !brakePressed)
+                {
+                    _brakeTapHigh = false;
+                }
+            }
 
             // Moto siempre en automático Drive. Sin H-shifter ni reversa explícita.
             _currentGear = 1;
