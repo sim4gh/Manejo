@@ -227,19 +227,40 @@ namespace Gley.UrbanSystem
         // cuando llevemos >REVERSE_HOLD_SECONDS sin ver señal.
         private float _reverseLastSeenTime = -999f;
         private const float REVERSE_HOLD_SECONDS = 0.3f;
-        // Edge-trigger latch para Manual mode reverse via _crossCtrls.
-        // El HORI HPC-044U shifter button7 es PULSE (1-2 frames mientras la
-        // palanca cruza R, no hold), así que el level-detection puro de
-        // Manual mode no alcanzaba para coincidir con el clutch ≥0.65 en el
-        // mismo frame. El latch abre una ventana de 300ms en la que
-        // desiredGear=-1 aunque el botón ya no esté pressed. Estado separado
-        // del Auto mode para no contaminar entre modos al alternar mid-game.
-        // Para hardware con R hold (G923 Xbox button12), la lógica usa
-        // (crossNow || latchActive) — el hold cubre el caso normal y el
-        // latch solo aplica para devices con pulse breve.
+        // Sticky latch para Manual mode reverse — HEURÍSTICA HORI-ONLY.
+        //
+        // El HORI HPC-044U shifter:button7 es PULSE: solo on por 1-2 frames
+        // mientras la palanca cruza R, luego OFF aunque el lever quede
+        // físicamente en R. Como no hay otra señal del shifter para "lever
+        // está en R", el latch queda sticky hasta que detectemos otro gear
+        // (1-6) o hasta detach del wheel/shifter. Cualquier timeout finito
+        // (lo que hacía v1.5.8 con 300 ms) cae a `desiredGear=0` post-expire
+        // y la regla `toNeutral` resetea a Neutral aunque el lever siga en R.
+        //
+        // SOLO se arma cuando _wheelDevice es HORI. G923 Xbox button12 es
+        // HOLD (crossNow lo cubre directamente) y G923 PS button19 va por
+        // _gearControls legacy — armar el sticky en esos hardware dejaría
+        // reversa fantasma al soltar el botón.
+        //
+        // LIMITACIÓN conocida: si HORI button7 también pulsea al SALIR de R
+        // (in/out del gate), el sticky se cancelaría incorrectamente. Sin
+        // telemetría empírica del HID stream no se puede descartar. El log
+        // de armado/cancelación va al LogUploader para diagnóstico remoto.
         private bool _lastCrossPressedManual;
-        private float _manualReverseLatchUntil = -1f;
-        private const float MANUAL_REVERSE_LATCH_SECONDS = 0.3f;
+        private bool _manualReverseLatched;
+        // Band-aid v1.5.10 mientras llega HoriShifterReader (raw HID poller para
+        // posición continua del lever, v1.6.0). El sticky latch v1.5.9 no tiene
+        // forma de saber cuándo el lever salió de R sin pasar por gears 1-6:
+        // button7 del HORI shifter es PULSE, no HOLD, y empíricamente NO pulsea
+        // al salir de R (verificado por F7 de Norberto, 2026-05-07). Eso deja
+        // "R pegada" tras un R→N físico — bug funcional: camión rueda hacia
+        // atrás aunque el operador no lo pidió.
+        //
+        // Mitigación: si el sticky lleva >3s armado Y el operador sostiene
+        // brake+clutch sin gas (patrón "estoy parado intentando entender qué
+        // pasa"), cancelar el sticky. -1 = no en estado stuck-indicator.
+        // Reseteado en cada path donde _manualReverseLatched se limpia.
+        private float _stuckIndicatorStartedAt = -1f;
         private bool _lastTrianglePressed;
         private bool _lastRestartPressed;
         private float _menuComboTimer;
@@ -653,6 +674,12 @@ namespace Gley.UrbanSystem
             {
                 Debug.LogWarning($"[UIInputNew] Shifter device {change}: {device.displayName}. Limpiando shifter cache.");
                 _shifterDevice = null;
+                // Limpiar el sticky latch HORI: button7 vive en el shifter,
+                // si se desconecta el shifter el flag queda colgado mientras
+                // el wheel sigue presente y dejaría reversa fantasma.
+                _manualReverseLatched = false;
+                _lastCrossPressedManual = false;
+                _stuckIndicatorStartedAt = -1f;
                 // Re-cachear: paths "shifter:" caen a null, paths sin prefijo
                 // que vivían en el shifter también dejan de resolver.
                 if (_hasWheel) ReCacheBindings();
@@ -672,6 +699,11 @@ namespace Gley.UrbanSystem
             _lastNonNeutralGear = 0;
             _lastNonNeutralAttempt = 0;
             _pendingGearShiftWithoutClutchCount = 0;
+            // Sticky latch HORI: limpiar al detach para no dejar reversa
+            // fantasma si el siguiente wheel adoptado es G923 (no HORI).
+            _manualReverseLatched = false;
+            _lastCrossPressedManual = false;
+            _stuckIndicatorStartedAt = -1f;
             // ⚠️ HORI bypass detach reset — DO NOT REMOVE (ver HORI_THROTTLE_BUG_RESOLUTION.md)
             // Si no se resetea aquí, al desconectar el HORI el flag persiste y
             // el siguiente wheel adoptado intenta usar HoriThrottleProvider que
@@ -1240,6 +1272,11 @@ namespace Gley.UrbanSystem
             _lastNonNeutralGear = 0;
             _lastNonNeutralAttempt = 0;
             _pendingGearShiftWithoutClutchCount = 0;
+            // Sticky latch HORI: el nuevo device puede ser HORI o G923, así
+            // que partimos de cero. El armado solo ocurre cuando isHori=true.
+            _manualReverseLatched = false;
+            _lastCrossPressedManual = false;
+            _stuckIndicatorStartedAt = -1f;
 
             // Si el device es Logitech/G923, sembrar los defaults faltantes
             // sin pisar lo que ya esté en PlayerPrefs (preserva remaps F8).
@@ -1375,6 +1412,11 @@ namespace Gley.UrbanSystem
                     + $"— Pantalla 2 NO bloqueó esta combinación. Degradando a Auto. "
                     + $"Para Manual, calibrar clutch via Pantalla 2 → Reasignar controles.");
                 _isAutomaticMode = true;
+                // El sticky latch solo aplica en Manual. Limpiarlo al cruzar
+                // a Auto evita que un flag viejo influya en el flujo Auto.
+                _manualReverseLatched = false;
+                _lastCrossPressedManual = false;
+                _stuckIndicatorStartedAt = -1f;
             }
             if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
@@ -1885,37 +1927,88 @@ namespace Gley.UrbanSystem
                     // (cubierto por el array hardcoded de _gearControls); en
                     // G923 Xbox es button12 (HOLD level-detectable mientras la
                     // palanca está en R); en HORI es shifter:button7 (PULSE,
-                    // 1-2 frames cuando la palanca cruza R y luego OFF). Para
-                    // ambos casos consultamos _crossCtrls como fallback. Para
-                    // tolerar el pulse, abrimos un latch edge-trigger de 300ms
-                    // en el flanco OFF→ON de _crossCtrls. Si el for-loop de
-                    // gears 1-6 detecta otra posición, descartamos el latch
-                    // para evitar la ambigüedad "sigo en R vs ya pasé a N"
-                    // cuando el clutch entra en un frame intermedio.
+                    // 1-2 frames cuando la palanca cruza R y luego OFF aunque
+                    // el lever quede físicamente en R).
+                    //
+                    // Estrategia HORI-only: sticky latch que se arma en el
+                    // flanco OFF→ON de _crossCtrls y solo se cancela al
+                    // detectar gear 1-6 o en teardown del wheel/shifter
+                    // (manejado en OnDeviceChange/AttachToWheelDevice). v1.5.8
+                    // usaba timeout finito de 300 ms y caía a Neutral
+                    // post-expire; este sticky persiste mientras no haya
+                    // evidencia de que el lever salió de R. Para G923 Xbox
+                    // (button12 HOLD) NO se arma — crossNow lo cubre directo
+                    // y armar dejaría reversa pegada al soltar el botón.
+                    bool isHori = _wheelDevice != null && IsHORITruck(_wheelDevice);
                     bool crossNow = IsAnyPressed(_crossCtrls);
                     bool gearActive = desiredGear != 0;
 
-                    // Cancelación: cualquier gear 1-6 detectado descarta latch.
-                    if (gearActive)
-                        _manualReverseLatchUntil = -1f;
-
-                    // Edge: abrir latch al flanco OFF→ON de _crossCtrls.
-                    // gearActive guard evita armar si ya hay otro gear pressed
-                    // (cross-talk del shifter en algún caso bizarro).
-                    if (crossNow && !_lastCrossPressedManual && !gearActive)
+                    // Cancelación: detectar gear 1-6 = lever movido fuera de R.
+                    if (gearActive && _manualReverseLatched)
                     {
-                        _manualReverseLatchUntil = Time.realtimeSinceStartup + MANUAL_REVERSE_LATCH_SECONDS;
-                        Debug.Log($"[UIInputNew] Manual reverse latch armed: {MANUAL_REVERSE_LATCH_SECONDS:F2}s window (HORI pulse-style support)");
+                        _manualReverseLatched = false;
+                        _stuckIndicatorStartedAt = -1f;
+                        Debug.Log($"[UIInputNew] Manual reverse latch cancelado: gear {desiredGear} detectado");
+                    }
+
+                    // Edge: armar sticky latch SOLO en HORI al flanco OFF→ON
+                    // de _crossCtrls. Guard !gearActive evita armar durante
+                    // cross-talk del shifter (raro pero posible si el gate
+                    // registra dos posiciones en el mismo frame).
+                    if (isHori && crossNow && !_lastCrossPressedManual && !gearActive)
+                    {
+                        _manualReverseLatched = true;
+                        _stuckIndicatorStartedAt = -1f; // re-firma del lever, reinicia el stuck timer
+                        Debug.Log("[UIInputNew] Manual reverse latched (HORI button7 pulse → sticky hasta gear 1-6 o detach)");
                     }
                     _lastCrossPressedManual = crossNow;
 
-                    bool latchActive = _manualReverseLatchUntil > 0f
-                        && Time.realtimeSinceStartup < _manualReverseLatchUntil;
+                    // Auto-decay band-aid v1.5.10 — workaround para el bug "R pegada":
+                    // si el sticky lleva >3s armado Y el operador sostiene
+                    // brake+clutch sin pisar gas (patrón "estoy parado intentando
+                    // entender qué pasa", no "manioobra de R"), asumimos que el
+                    // lever salió de R sin pasar por gears 1-6 (el gate del HORI
+                    // no genera button7 pulse de salida — verificado vía F7 por
+                    // Norberto 2026-05-07) y cancelamos el sticky.
+                    //
+                    // Trade-off: si un operador legítimo sostiene brake+clutch >3s
+                    // durante el setup de un R engage SIN tocar gas (e.g., pausa
+                    // larga para shoulder-check), el sticky se cancela y tiene
+                    // que volver a meter R. Aceptado vs el bug actual donde el
+                    // camión rueda hacia atrás cuando el operador suelta clutch
+                    // y pisa gas creyendo que va a avanzar.
+                    //
+                    // Reemplazado en v1.6.0 por HoriShifterReader.IsLeverInR()
+                    // (lectura continua del byte de posición del shifter via
+                    // P/Invoke, identificado vía HoriShifterProbe.cs en v1.5.10).
+                    bool brakeHeld = brakeInput >= 0.5f;
+                    bool clutchHeldNow = clutchInput >= CLUTCH_ENGAGE_THRESHOLD;
+                    bool gasIdle = verticalInput < 0.1f;
+                    bool stuckIndicator = isHori && _manualReverseLatched
+                        && _currentGear == -1
+                        && !crossNow && !gearActive
+                        && brakeHeld && clutchHeldNow && gasIdle;
 
-                    // Aplicar: button hold (G923 Xbox button12) O latch activo
+                    if (stuckIndicator)
+                    {
+                        if (_stuckIndicatorStartedAt < 0f)
+                            _stuckIndicatorStartedAt = Time.realtimeSinceStartup;
+                        else if (Time.realtimeSinceStartup - _stuckIndicatorStartedAt > 3f)
+                        {
+                            _manualReverseLatched = false;
+                            _stuckIndicatorStartedAt = -1f;
+                            Debug.Log("[UIInputNew] Manual reverse latch auto-decay v1.5.10 (HORI band-aid: brake+clutch held 3s sin button7/gear/gas)");
+                        }
+                    }
+                    else
+                    {
+                        _stuckIndicatorStartedAt = -1f;
+                    }
+
+                    // Aplicar: button hold (G923 Xbox button12) O sticky activo
                     // (HORI button7 pulse). crossNow cubre devices con hold;
-                    // latch cubre devices con pulse breve.
-                    if (desiredGear == 0 && (crossNow || latchActive))
+                    // sticky cubre devices con pulse breve.
+                    if (desiredGear == 0 && (crossNow || _manualReverseLatched))
                     {
                         desiredGear = -1;
                     }
