@@ -326,6 +326,14 @@ namespace Gley.UrbanSystem
         // sí al revés. HoriThrottleReader se registra aquí en su Bootstrap.
         // Devuelve el throttle 0..1 leído raw del HID byte 21-22.
         public static System.Func<float> HoriThrottleProvider;
+
+        // HoriShifterReader (v1.6.0): raw HID lever position, bypasses Unity's
+        // pulse-only button7. Returns: -1=R, 0=N, 1-6=gears, int.MinValue=not connected.
+        // Asignado por HoriShifterReader.Bootstrap. UIInputNew NO lo consume todavía
+        // — la integración runtime (replace _manualReverseLatched band-aid) está
+        // en stash@{0} (v1.6.2 reverted) y se aplicará en una rama futura. Esta
+        // declaración existe solo para que HoriShifterReader.cs compile.
+        public static System.Func<int> HoriShifterStateProvider;
         #endregion
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
