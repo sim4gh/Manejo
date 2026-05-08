@@ -1002,6 +1002,33 @@ namespace Gley.UrbanSystem
 
         public static bool IsHORITruck(InputDevice d)
         {
+            if (d == null) return false;
+
+            // Path 1: VID + PID + interfaceName HID. Más robusto que match por
+            // strings — Windows puede normalizar/truncar displayName y dejar
+            // un HORI sin "HORI" en el nombre (lección v1.6.4).
+            // HORI HPC-044U wheel: VID=0x0F0D PID=0x017A. Shifter: PID=0x0186.
+            if (d.description.interfaceName == "HID" &&
+                !string.IsNullOrEmpty(d.description.capabilities))
+            {
+                try
+                {
+                    var caps = UnityEngine.InputSystem.HID.HID.HIDDeviceDescriptor.FromJson(
+                        d.description.capabilities);
+                    const int HORI_VID = 0x0F0D;
+                    if (caps.vendorId == HORI_VID &&
+                        (caps.productId == 0x017A || caps.productId == 0x0186))
+                    {
+                        return true;
+                    }
+                }
+                catch (System.Exception)
+                {
+                    // JSON malformed — fallthrough al match por strings.
+                }
+            }
+
+            // Path 2: displayName/product fallback (preserva v1.6.4 si VID falla).
             string name = d.displayName ?? string.Empty;
             string product = d.description.product ?? string.Empty;
             return name.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0
@@ -1508,12 +1535,22 @@ namespace Gley.UrbanSystem
 
         // Normaliza pedal a [0,1] usando rest+press calibrados en pantalla.
         // Funciona sin importar la dirección del eje (rest puede ser > o < press).
+        // v1.6.5: implementación delegada a TlaxSim.Input.InputMath (Assets/Custom/),
+        // que también es testeada en EditMode. El default inline aquí es idéntico,
+        // así que si InputMath no inyecta su impl (build de Editor sin Custom o
+        // similar), el comportamiento runtime no cambia. Cross-asmdef Custom→Gley
+        // está permitido; lo inverso no, por eso usamos delegate injection (mismo
+        // patrón que HoriThrottleProvider).
+        public static System.Func<float, float, float, float> NormalizePedalImpl =
+            (raw, rest, press) =>
+            {
+                float span = press - rest;
+                if (Mathf.Abs(span) < 0.05f) return 0f;
+                return Mathf.Clamp01((raw - rest) / span);
+            };
+
         private float NormalizePedal(float raw, float rest, float press)
-        {
-            float span = press - rest;
-            if (Mathf.Abs(span) < 0.05f) return 0f;
-            return Mathf.Clamp01((raw - rest) / span);
-        }
+            => NormalizePedalImpl(raw, rest, press);
 
         // Adopta un Moto Simulator (ESP32-S3 USB HID) como wheelDevice. Bypassa
         // la heurística axisCount/buttonCount (solo expone 2 botones). Cachea

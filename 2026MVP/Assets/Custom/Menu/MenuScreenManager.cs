@@ -2109,11 +2109,20 @@ public class MenuScreenManager : MonoBehaviour
         // HORI y usa hardcoded -1/+1. Lo que quede en registry no afecta runtime HORI.
 
         // ── 2) Calcular qué fases ya tienen calibración válida ──
+        bool isHoriDevice = dev != null && UIInputNew.IsHORITruck(dev);
+
         bool steeringCal = fingerprintMatches
             && PlayerPrefs.HasKey("G923_SteerMax") && PlayerPrefs.HasKey("G923_SteerMin");
+
+        // Para HORI los pedales son hardware-fijos (rest/press hardcoded en
+        // UIInputNew v1.6.4) — solo el axis path importa para considerar la
+        // calibración válida. Para G923/otros sí necesitamos rest/press persistidos.
         bool pedalsCal = fingerprintMatches
-            && PlayerPrefs.HasKey("G923_GasAxis")   && PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
-            && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress");
+            && PlayerPrefs.HasKey("G923_GasAxis") && PlayerPrefs.HasKey("G923_BrakeAxis")
+            && (isHoriDevice || (
+                PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
+                && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress")
+            ));
         bool reverseCal = fingerprintMatches && PlayerPrefs.GetInt(PREF_CAL_REVERSE_DONE, 0) == 1;
 
         // Clutch phase: solo HORI + Manual + sin clutch axis válido. G923 PS
@@ -2123,11 +2132,15 @@ public class MenuScreenManager : MonoBehaviour
         // El axis del clutch HORI no se puede hardcodear porque Unity alias
         // slider/slider1/rz arbitrariamente entre brake y clutch (ver
         // HORI_THROTTLE_BUG_RESOLUTION.md). Por eso lo descubrimos pisando.
+        // Para HORI, mismo criterio que pedalsCal: solo axis path (rest/press
+        // hardware-fijos hardcoded en UIInputNew).
         bool clutchPathPersisted = fingerprintMatches
             && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS)
             && !string.IsNullOrEmpty(PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, ""))
-            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
-            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+            && (isHoriDevice || (
+                PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
+                && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS)
+            ));
         bool clutchAlreadyCal = clutchPathPersisted;
         // v1.5.12 (Cambio 1 extendido): si clutchPath persistido pero el control
         // ya no resuelve en el device actual (e.g., HORI en otro USB con axis
@@ -2512,11 +2525,21 @@ public class MenuScreenManager : MonoBehaviour
                 brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
-                PlayerPrefs.SetFloat("G923_BrakeRest", rest);
-                PlayerPrefs.SetFloat("G923_BrakePress", press);
+                // Para HORI los pedales son hardware-fijos (rest=-1, press=+1)
+                // y v1.6.4 los hardcodea en UIInputNew → no escribimos basura
+                // del Discovery a las prefs (lección 3 de HORI_CALIBRATION_LESSONS.md).
+                // Solo persistimos el axis path porque Unity puede aliasear
+                // slider/slider1/rz arbitrariamente entre boots.
+                var devForBrakeWrite = TryAttachToDevice();
+                bool isHoriBrake = devForBrakeWrite != null && UIInputNew.IsHORITruck(devForBrakeWrite);
+                if (!isHoriBrake)
+                {
+                    PlayerPrefs.SetFloat("G923_BrakeRest", rest);
+                    PlayerPrefs.SetFloat("G923_BrakePress", press);
+                }
                 // Reescribir la huella aquí también garantiza que un Partial
                 // que solo redescubrió pedales quede asociado al device actual.
-                string fpBrake = ComputeDeviceFingerprint(TryAttachToDevice());
+                string fpBrake = ComputeDeviceFingerprint(devForBrakeWrite);
                 if (!string.IsNullOrEmpty(fpBrake)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpBrake);
                 PlayerPrefs.Save();
                 Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3} fp={fpBrake}");
@@ -2578,9 +2601,16 @@ public class MenuScreenManager : MonoBehaviour
                 brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString(UIInputNew.PREF_G923_CLUTCH_AXIS, clutchAxisPath);
-                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_REST, rest);
-                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_PRESS, press);
-                string fpClutch = ComputeDeviceFingerprint(TryAttachToDevice());
+                // HORI clutch hardware-fijo a rest=-1/press=+1 (UIInputNew v1.6.4
+                // hardcodea). Skip writes de rest/press para evitar basura.
+                var devForClutchWrite = TryAttachToDevice();
+                bool isHoriClutch = devForClutchWrite != null && UIInputNew.IsHORITruck(devForClutchWrite);
+                if (!isHoriClutch)
+                {
+                    PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_REST, rest);
+                    PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_PRESS, press);
+                }
+                string fpClutch = ComputeDeviceFingerprint(devForClutchWrite);
                 if (!string.IsNullOrEmpty(fpClutch)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpClutch);
                 PlayerPrefs.Save();
                 Debug.Log($"[MenuScreenManager] Embrague → eje '{clutchAxisPath}' rest={rest:F3} press={press:F3} fp={fpClutch}");
@@ -3392,6 +3422,50 @@ public class MenuScreenManager : MonoBehaviour
         float gasRest    = isHori ? 0f  : PlayerPrefs.GetFloat("G923_GasRest", 0f);
         float brakeRest  = isHori ? -1f : PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
         float clutchRest = isHori ? -1f : PlayerPrefs.GetFloat(UIInputNew.PREF_G923_CLUTCH_REST, -1f);
+
+        // v1.6.5 (B3): hardware-aware sanity check para HORI brake/clutch. Los
+        // pedales HORI viven en axes con rango [-1, +1] (HID LE16 unsigned →
+        // Unity normalized). Si el axis raw cae consistentemente fuera de
+        // [-1.05, +1.05] durante 3 frames, eso significa "axis path incorrecto"
+        // (Discovery capturó otro axis), no "operador tocando el pedal" — invalidar
+        // SOLO el path para forzar Phase 4/6 dirigida. Window de 3 frames evita
+        // falsos positivos por jitter post-attach.
+        // No aplica a gas (HORI gas es sentinel via HoriThrottleReader, no pasa
+        // por SafeReadFloatRaw). No aplica a G923 (rangos varían por variante).
+        if (isHori)
+        {
+            const float HORI_AXIS_LO = -1.05f, HORI_AXIS_HI = 1.05f;
+            const int OUT_OF_RANGE_FRAMES_REQUIRED = 3;
+            int brakeOutOfRange = 0, clutchOutOfRange = 0;
+            for (int i = 0; i < OUT_OF_RANGE_FRAMES_REQUIRED; i++)
+            {
+                if (SafeReadFloatRaw(brakeC, out var bv))
+                {
+                    if (bv < HORI_AXIS_LO || bv > HORI_AXIS_HI) brakeOutOfRange++;
+                }
+                if (clutchC != null && SafeReadFloatRaw(clutchC, out var cv))
+                {
+                    if (cv < HORI_AXIS_LO || cv > HORI_AXIS_HI) clutchOutOfRange++;
+                }
+                yield return null;
+            }
+            if (brakeOutOfRange >= OUT_OF_RANGE_FRAMES_REQUIRED)
+            {
+                Debug.LogWarning($"[MenuScreenManager] HORI brake axis '{brakePath}' raw consistente fuera de [-1, +1] ({OUT_OF_RANGE_FRAMES_REQUIRED}/{OUT_OF_RANGE_FRAMES_REQUIRED} frames) → axis path probablemente incorrecto, invalidando para forzar re-Discovery de freno");
+                PlayerPrefs.DeleteKey("G923_BrakeAxis");
+                PlayerPrefs.Save();
+                PrepareWheelScreen();
+                yield break;
+            }
+            if (needClutch && clutchOutOfRange >= OUT_OF_RANGE_FRAMES_REQUIRED)
+            {
+                Debug.LogWarning($"[MenuScreenManager] HORI clutch axis '{clutchPath}' raw consistente fuera de [-1, +1] → invalidar para forzar re-Discovery de clutch");
+                PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+                PlayerPrefs.Save();
+                PrepareWheelScreen();
+                yield break;
+            }
+        }
 
         // v1.5.12 (Cambio 2): sanity check NO-destructiva. Antes hacía
         // ClearWheelCalibration() global con cualquier delta > 0.5, y un pie
