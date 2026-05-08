@@ -2104,6 +2104,53 @@ public class MenuScreenManager : MonoBehaviour
             ClearWheelCalibration();
         }
 
+        // v1.6.3 (HORI migration): la calibración guardada en kioskos pre-fix
+        // (Pasajeros 1 + Pasajeros 2 confirmados 2026-05-08) tiene axis válido
+        // (rz/slider/slider1) pero rest/press corruptos:
+        //   Pasajeros 2: rest=1.0, press=0.0 → span=-1, NormalizePedal(raw=-1)=2 → clamp=1 → freno pegado.
+        //   Pasajeros 1: rest=0.0, press=0.0 → span=0 < guard 0.05 → NormalizePedal=0 (freno OK)
+        //                 PERO clutch rest=0.0/press=2.0 → press fuera de rango → bloquea shifts.
+        // HORI sano debería ser rest=-1.0, press=+1.0 → span≈2.0. Detectar tres modos
+        // de calibración rota en boot y forzar re-Discovery del axis afectado.
+        // Solo HORI (G923 mantiene comportamiento — sus axes son estables).
+        if (fingerprintMatches && UIInputNew.IsHORITruck(dev))
+        {
+            void InvalidateIfBad(string axisKey, string restKey, string pressKey, string label)
+            {
+                if (!PlayerPrefs.HasKey(axisKey)) return;
+                string savedAxis = PlayerPrefs.GetString(axisKey, "");
+                float rest = PlayerPrefs.GetFloat(restKey, 0f);
+                float press = PlayerPrefs.GetFloat(pressKey, 0f);
+                bool axisInvalid = !string.IsNullOrEmpty(savedAxis)
+                    && savedAxis != UIInputNew.HORI_RAW_GAS_PATH
+                    && !HORI_PEDAL_AXIS_WHITELIST.Contains(savedAxis);
+                // Threshold 1.5: HORI sano = span≈2.0; rest=1/press=0 = span=1.0 (capturado);
+                // rest=0/press=0 = span=0 (capturado). G923 PS brake (rest=1, press=-1) =
+                // span=2.0 también, pero G923 no entra a este bloque por el if IsHORITruck.
+                bool spanInsufficient = Mathf.Abs(press - rest) < 1.5f;
+                bool restOutOfRange = Mathf.Abs(rest) > 1.1f;
+                bool pressOutOfRange = Mathf.Abs(press) > 1.1f;
+                if (axisInvalid || spanInsufficient || restOutOfRange || pressOutOfRange)
+                {
+                    Debug.LogWarning($"[MenuScreenManager] HORI {label} calibración inválida: "
+                        + $"axis='{savedAxis}' rest={rest:F3} press={press:F3} "
+                        + $"(axisInvalid={axisInvalid} span={Mathf.Abs(press-rest):F3} "
+                        + $"restRange={restOutOfRange} pressRange={pressOutOfRange}) — "
+                        + $"invalidando para re-Discovery en Pantalla 2");
+                    PlayerPrefs.DeleteKey(axisKey);
+                    PlayerPrefs.DeleteKey(restKey);
+                    PlayerPrefs.DeleteKey(pressKey);
+                }
+            }
+            InvalidateIfBad("G923_BrakeAxis", "G923_BrakeRest", "G923_BrakePress", "BRAKE");
+            // Gas: para HORI el axis es siempre el sentinel HORI_RAW_GAS_PATH
+            // (HoriThrottleReader bypassa NormalizePedal vía P/Invoke). rest=0/press=0
+            // del sentinel son cosméticos. NO llamar InvalidateIfBad — el spanInsufficient
+            // dispararía falsamente y forzaría re-Discovery innecesaria (HORI gas se auto-pasa).
+            InvalidateIfBad(UIInputNew.PREF_G923_CLUTCH_AXIS, UIInputNew.PREF_G923_CLUTCH_REST, UIInputNew.PREF_G923_CLUTCH_PRESS, "CLUTCH");
+            PlayerPrefs.Save();
+        }
+
         // ── 2) Calcular qué fases ya tienen calibración válida ──
         bool steeringCal = fingerprintMatches
             && PlayerPrefs.HasKey("G923_SteerMax") && PlayerPrefs.HasKey("G923_SteerMin");
