@@ -120,6 +120,29 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// True si la sesión actual es un examen de vehículo de emergencia (ambulancia).
+    /// Por la Ley de Movilidad y Seguridad Vial del Estado de Tlaxcala (2024), los
+    /// vehículos de emergencia en servicio están exentos de penalizaciones por
+    /// exceso de velocidad, cruce de semáforo en rojo y conducción en sentido
+    /// contrario. Las colisiones (peatón, vehículo, etc.) y errores de control
+    /// vehicular (cambio de marcha peligroso, sin clutch) SIGUEN aplicando — la
+    /// exención no excusa negligencia.
+    /// Cubre tanto el flujo de trámite (LicenseType=="emergencia") como el de
+    /// práctica (PracticeVehicleType=="Ambulancia").
+    /// </summary>
+    public static bool IsEmergencyExam()
+    {
+        if (Instance == null) return false;
+        var lic = (Instance.LicenseType ?? "").Trim();
+        if (string.Equals(lic, "emergencia", StringComparison.OrdinalIgnoreCase))
+            return true;
+        var practice = (Instance.PracticeVehicleType ?? "").Trim();
+        if (string.Equals(practice, "Ambulancia", StringComparison.OrdinalIgnoreCase))
+            return true;
+        return false;
+    }
+
     /// <summary>Limpia datos de sesión para el siguiente ciudadano.</summary>
     public void ClearSession()
     {

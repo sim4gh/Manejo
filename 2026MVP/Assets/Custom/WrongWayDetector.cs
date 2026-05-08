@@ -156,6 +156,10 @@ public class WrongWayDetector : MonoBehaviour
 
     void TriggerWrongWayViolation(float dotProduct)
     {
+        // Vehículo de emergencia (ambulancia) exento de sentido contrario por la
+        // Ley de Movilidad y Seguridad Vial de Tlaxcala (en emergencia justificada).
+        if (GameManager.IsEmergencyExam()) return;
+
         lastViolationTime = Time.time;
         float speed = GetSpeed();
 
