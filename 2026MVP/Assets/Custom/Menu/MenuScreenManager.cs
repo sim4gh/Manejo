@@ -91,6 +91,19 @@ public class MenuScreenManager : MonoBehaviour
     private static readonly string[] PEDAL_AXIS_CANDIDATES = {
         "z", "rz", "stick/y", "stick/z", "ry", "rx", "slider", "slider1"
     };
+    // HORI Truck HPC-044U: la pedalera real está SOLO en rz/slider/slider1.
+    // Los demás candidatos (z/stick/y/stick/z/ry/rx) reportan jitter HID
+    // de axes fantasma y pueden ganar el max-delta de Discovery si el
+    // operador no presiona el pedal exacto en el instante preciso, dejando
+    // G923_BrakeAxis apuntando a un axis no-pedal con polaridad invertida.
+    // Resultado runtime: B=1.0 con raw=0 (freno "pegado") → en Auto el carro
+    // no se mueve aunque el throttle esté al fondo. Confirmado en Pasajeros 2
+    // (logs S3 2026-05-08, sesiones consecutivas con brake bound a 'z' y
+    // 'slider' alternadamente). G923 no aplica este filtro: usa la lista
+    // completa porque sus axes en rest son estables.
+    private static readonly HashSet<string> HORI_PEDAL_AXIS_WHITELIST = new HashSet<string> {
+        "rz", "slider", "slider1"
+    };
     private InputControl<float>[] pedalCandidates;
     // Calibración por delta signado desde el reposo — funciona con ejes
     // cuyo rest sea +1, 0 o -1, y en cualquier dirección de press.
@@ -2665,12 +2678,22 @@ public class MenuScreenManager : MonoBehaviour
         pedalCandidates = new InputControl<float>[PEDAL_AXIS_CANDIDATES.Length];
         pedalCandidateRests = new float[PEDAL_AXIS_CANDIDATES.Length];
         pedalCandidateMaxDeltas = new float[PEDAL_AXIS_CANDIDATES.Length];
+        bool isHori = device != null && UIInputNew.IsHORITruck(device);
+        int horiRejected = 0;
         for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
         {
-            pedalCandidates[i] = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
+            var ctrl = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
+            if (isHori && ctrl != null && !HORI_PEDAL_AXIS_WHITELIST.Contains(PEDAL_AXIS_CANDIDATES[i]))
+            {
+                ctrl = null;
+                horiRejected++;
+            }
+            pedalCandidates[i] = ctrl;
             pedalCandidateRests[i] = 1f; // placeholder hasta snapshot
             pedalCandidateMaxDeltas[i] = 0f;
         }
+        if (isHori && horiRejected > 0)
+            Debug.Log($"[MenuScreenManager] HORI Truck — Discovery limitada a {string.Join(",", HORI_PEDAL_AXIS_WHITELIST)} (rechazados {horiRejected} axes fantasma)");
     }
 
     // Captura el valor de reposo de cada candidato. Llamar justo antes de la
