@@ -1453,6 +1453,36 @@ namespace Gley.UrbanSystem
             _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
             _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
 
+            // v1.6.4: HORI Truck pedales (rz/slider/slider1) son hardware-fijos:
+            // rest=-1.0, press=+1.0 (LE16 byte 0x0000 → -1, 0xFFFF → +1). Discovery
+            // capturando esto a mano es frágil — si el operador tiene un pie en
+            // el pedal durante SnapshotPedalRests, la captura sale invertida o
+            // truncada (ej. rest=1, press=0 → freno pegado al 100% en runtime
+            // porque NormalizePedal(-1,1,0)=2→clamp01=1). Forzar los hardware
+            // constants here resuelve TODOS los modos de captura mala. Discovery
+            // sigue identificando QUÉ axis es brake vs clutch (eso varía); solo
+            // los valores rest/press son inmutables.
+            // G923 NO entra a este bloque — sus pedales tienen polaridad/scale
+            // distintas según variante PS/Xbox y deben respetar Discovery.
+            if (IsHORITruck(device))
+            {
+                if (Mathf.Abs(_brakeRest - (-1f)) > 0.01f || Mathf.Abs(_brakePress - 1f) > 0.01f)
+                {
+                    Debug.Log($"[UIInputNew] HORI Truck — forzando _brakeRest=-1, _brakePress=+1 (eran {_brakeRest:F3}/{_brakePress:F3})");
+                    _brakeRest = -1f; _brakePress = 1f;
+                    PlayerPrefs.SetFloat("G923_BrakeRest", -1f);
+                    PlayerPrefs.SetFloat("G923_BrakePress", 1f);
+                }
+                if (Mathf.Abs(_clutchRest - (-1f)) > 0.01f || Mathf.Abs(_clutchPress - 1f) > 0.01f)
+                {
+                    Debug.Log($"[UIInputNew] HORI Truck — forzando _clutchRest=-1, _clutchPress=+1 (eran {_clutchRest:F3}/{_clutchPress:F3})");
+                    _clutchRest = -1f; _clutchPress = 1f;
+                    PlayerPrefs.SetFloat(PREF_G923_CLUTCH_REST, -1f);
+                    PlayerPrefs.SetFloat(PREF_G923_CLUTCH_PRESS, 1f);
+                }
+                PlayerPrefs.Save();
+            }
+
             // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
             _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
             _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
