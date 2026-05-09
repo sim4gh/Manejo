@@ -262,17 +262,137 @@ S3 vía portal admin.
 - [ ] **Eliminar `_h<hash>` sufijo dependence**: si Unity bumps a una versión
   con CRC32 diferente, los hashes existentes se vuelven huérfanos. Actualmente
   no es problema pero sí frágil.
-- [ ] **Detección HORI por VID/PID en lugar de displayName**: ver lección 11.
-- [ ] **Discovery solo identifica axis para HORI**: actualmente Phase 4 brake
-  guarda axis + rest/press. Para HORI, los rest/press son ignorados. Limpiar
-  el código para que Phase 4/6 no escriba rest/press cuando IsHORITruck.
-- [ ] **Sanity check más inteligente**: en lugar de "si delta > 0.5 invalidar",
-  validar contra los rangos hardware esperados. Si HORI brake espera -1..+1,
-  pero el axis reporta 0..255 raw, esa es la señal real de "axis incorrecto"
-  vs "operator tocó el pedal".
-- [ ] **Test unitario de `NormalizePedal` con casos extremos**: divide-by-zero,
-  span negativo, raw fuera de [rest, press], inversión de polaridad. Hubiera
-  pillado el bug original sin necesidad de un kiosko.
+- [x] **Detección HORI por VID/PID en lugar de displayName** — resuelto en
+  v1.6.5 (Fase B1). `IsHORITruck` usa `HIDDeviceDescriptor.FromJson` con
+  match exacto VID=0x0F0D + PID=0x017A (wheel) o 0x0186 (shifter). Fallback
+  a strings preserva v1.6.4.
+- [x] **Discovery solo identifica axis para HORI** — resuelto en v1.6.5
+  (Fase B2). Phase 4 (brake) y Phase 6 (clutch) checan `IsHORITruck(dev)`
+  antes de escribir `G923_*Rest/Press`. Gates `pedalsCal` y `clutchPathPersisted`
+  en `PrepareWheelScreen` hacen requirement axis-only para HORI. Sin ese
+  ajuste de gates, fast-path se rompe (HORI re-Discovery cada boot).
+- [x] **Sanity check más inteligente** — resuelto en v1.6.5 (Fase B3).
+  `SanityCheckThenLoad` valida que axis raw HORI brake/clutch caiga en
+  `[-1.05, +1.05]` durante 3 frames consecutivos. Fuera de rango → invalida
+  SOLO el path para forzar Phase 4/6 dirigida (no wipe global). Window 3
+  frames evita falsos positivos por jitter post-attach.
+- [x] **Test unitario de `NormalizePedal`** — resuelto en v1.6.5 (Fase B4).
+  Función pura extraída a `Assets/Custom/InputMath/InputMath.cs` con asmdef
+  propio (`TlaxSim.Input`). UIInputNew delega via static `Func<>`, default
+  inline preserva runtime si la inyección no corre. 10 tests EditMode
+  cubren divide-by-zero, span boundary, polaridad invertida, rangos
+  out-of-calibración, y el regression test del bug v1.6.3.
+
+## v1.6.5 — Fase B5: verificación de throttle en Pantalla 2
+
+Hueco real detectado tras v1.6.4: si `HoriThrottleReader` falla al inicializar
+(USB hot-plug, driver conflict, otra app reservó el handle), v1.5.12 auto-pasaba
+la Phase 3 de Pantalla 2 sin verificación → operador llegaba a la escena con
+throttle muerto **silentemente**, sin manera de detectarlo en la calibración.
+
+### Cambio
+
+`MenuScreenManager.cs` Phase 3, branch HORI:
+
+```csharp
+if (devForGas != null && UIInputNew.IsHORITruck(devForGas))
+{
+    if (_horiPhase3StartTime < 0f) _horiPhase3StartTime = Time.unscaledTime;
+    float horiPhase3Elapsed = Time.unscaledTime - _horiPhase3StartTime;
+
+    var thrReader = HoriThrottleReader.Instance;
+    float thrValue = thrReader != null ? thrReader.Value : 0f;
+    bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
+
+    // Progress bar en vivo basada en valor del reader (no candidates discovery).
+    // Progresa visualmente igual que G923 — operador ve que algo está pasando.
+    float gasProgress = Mathf.Clamp01(thrValue);
+    if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f) {
+        gasFillRT.anchorMax = new Vector2(gasProgress, 1);
+        gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+    }
+
+    const float HORI_THROTTLE_VERIFY_THRESHOLD = 0.7f;
+    const float HORI_READER_GRACE_SECONDS = 8f;
+
+    if (thrHandleOpen && thrValue >= HORI_THROTTLE_VERIFY_THRESHOLD)
+    {
+        // Pasa: handle abierto + valor superó threshold → la cadena P/Invoke
+        // (CreateFile → ReadFile → byte 21-22 LE16) funciona end-to-end.
+        throttleDone = true;
+        // ... (escribe sentinel + rest=0 + press=1 a PlayerPrefs)
+    }
+
+    if (!thrHandleOpen && horiPhase3Elapsed > HORI_READER_GRACE_SECONDS) {
+        wheelPrompt.text = "HoriThrottleReader sin handle - verifica USB del HORI Truck";
+        // No bloqueamos — el reader sigue intentando reabrir cada 2s
+        // (HoriThrottleReader.Update retry loop), conectar USB recupera.
+    }
+    return;
+}
+```
+
+### Soporte: `HoriThrottleReader.IsHandleOpen`
+
+Nuevo getter público en `HoriThrottleReader.cs`:
+
+```csharp
+public bool IsHandleOpen => _running && _hidHandle != null && !_hidHandle.IsInvalid;
+```
+
+Permite distinguir "reader vivo y leyendo" vs "reader muerto, retry loop
+intentando". El F7 LogConsolePanel también imprime `handle=open|CLOSED` en la
+sección "CUSTOM HID READERS" (Fase A) para diagnóstico paralelo sin entrar a
+Pantalla 2.
+
+### Comportamiento esperado
+
+| Estado | Pantalla 2 |
+|---|---|
+| HORI conectado, reader handle abierto, no se pisa pedal | "Pisa el ACELERADOR a fondo", barra al 0% |
+| HORI conectado, reader handle abierto, operador pisa | Barra crece hasta 100%, marca Phase 3 done al ≥0.7 |
+| HORI conectado pero reader nunca abrió (USB unplug) | Tras 8s: prompt cambia a "HoriThrottleReader sin handle - verifica USB del HORI Truck". Sigue chequeando — al reconectar, retry loop del reader recupera y la fase pasa al pisar |
+| Cambio de HORI a G923 a mid-flow | Reset del timer (`_horiPhase3StartTime=-1f`), discovery normal G923 corre |
+
+### Por qué 0.7 (no 0.85)
+
+`PEDAL_DELTA_THRESHOLD` para discovery via `SamplePedalCandidates` es 0.85 (delta
+máximo durante una ventana). Para verificación con reader directo (sin captura
+de baseline), usamos un umbral más bajo (0.7) porque:
+
+- El reader retorna 0..1 normalizado, no un delta vs baseline
+- 0.7 ≈ 70% pisado: lo suficientemente alto para no disparar con jitter,
+  lo suficientemente bajo para que el operador no tenga que poner el pedal
+  a fondo total
+
+### Por qué grace 8s (no 2s o 30s)
+
+`HoriThrottleReader.Update` reintenta abrir el handle cada 2s post-bootstrap
+(USB hot-plug). 8s = 4 intentos: cubre casos comunes (driver loading lento,
+USB enumerando) sin ser tan corto que falle por jitter de inicialización.
+
+Codex review v3 sugirió 6-8s; elegí 8s por margen.
+
+## Lecciones operativas adicionales (v1.6.5)
+
+### 16. Auto-pass silencioso esconde fallos de inicialización
+
+El auto-pass de v1.5.12 era una decisión defensiva ("si el operador no puede
+verificar el throttle en Unity, no le pidamos hacerlo"), pero el efecto neto
+era ocultar fallos del reader. La verificación con `IsHandleOpen + Value > 0.7`
+saca esos fallos a la luz **antes** de la escena, donde el operador puede
+actuar (verificar USB, F8 recalibrar).
+
+**Regla general:** validar antes en lugar de degradar silenciosamente. Un
+operador frustrado en Pantalla 2 es mejor que un operador frustrado en gameplay.
+
+### 17. F7 + Pantalla 2 son canales paralelos de diagnóstico
+
+F7 (Fase A) muestra `HoriThrottleReader v=X.XXX handle=open|CLOSED` durante
+TODO el ciclo de vida del juego — útil después de la calibración, en gameplay
+o post-mortem. Pantalla 2 (Fase B5) verifica EN VIVO antes de avanzar a la
+escena. Los dos paths se complementan: si F7 muestra `handle=CLOSED` después
+de gameplay, hubo un disconnect mid-examen.
 
 ## Archivos tocados en v1.6.4
 

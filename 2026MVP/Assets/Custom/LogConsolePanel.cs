@@ -262,7 +262,8 @@ public class LogConsolePanel : MonoBehaviour
             sb.Append("HoriThrottleReader".PadRight(22));
             sb.Append($" v=<color={HEX_VAL}>{thrInst.Value,7:F3}</color>");
             sb.Append($" base=<color={HEX_DIM}>{0f,6:F2}</color>");
-            sb.Append($" rango=<color={HEX_DIM}>[ 0.00,  1.00]</color>\n");
+            sb.Append($" rango=<color={HEX_DIM}>[ 0.00,  1.00]</color>");
+            sb.Append($" handle=<color={HEX_DIM}>{(thrInst.IsHandleOpen ? "open" : "CLOSED")}</color>\n");
         }
         else
         {

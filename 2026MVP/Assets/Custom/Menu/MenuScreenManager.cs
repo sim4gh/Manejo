@@ -192,6 +192,11 @@ public class MenuScreenManager : MonoBehaviour
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
     private bool reverseDone;
+    // v1.6.5 (B5): timer para verificación del HoriThrottleReader en Phase 3 HORI.
+    // Reset a -1 en PrepareWheelScreen; se inicializa al primer frame que entra
+    // a Phase 3 con HORI conectado. Permite mostrar advertencia tras grace period
+    // si el reader no abre el HID handle (USB unplug, conflicto driver, etc.).
+    private float _horiPhase3StartTime = -1f;
     // Clutch phase: solo aplica si TransmisionManual==1 && IsHORITruck.
     // En G923 (PS y Xbox v1.5.7+) el clutch lo siembra
     // SeedG923VariantDefaultsIfMissing; en automático no hay clutch. Por eso
@@ -2172,6 +2177,7 @@ public class MenuScreenManager : MonoBehaviour
         reverseDone = reverseCal;
         clutchDone = !clutchPhaseNeeded;
         _brakeChosenIdx = -1; // se llenará en la phase brake (Update)
+        _horiPhase3StartTime = -1f; // v1.6.5 (B5): timer reseteado al re-prepare
 
         // Reset deltas de candidatos para esta sesión de calibración
         if (pedalCandidateMaxDeltas != null)
@@ -2441,38 +2447,81 @@ public class MenuScreenManager : MonoBehaviour
         // |delta| desde su reposo (capturado al inicio de la fase).
         if (!throttleDone)
         {
-            #region HORI HPC-044U gas phase auto-pass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
-            // ⚠️ CRITICAL — Sin este auto-pass, Pantalla 2 Discovery se atora
-            //   en Phase 3 con el HORI Truck Control System: el throttle del
-            //   HORI vive en un byte huérfano del HID report (Unity HID parser
-            //   bug por sliders duplicados Usage 0x36) y NINGÚN candidate de
-            //   PEDAL_AXIS_CANDIDATES detecta el delta cuando el usuario pisa
-            //   el acelerador. Sin auto-pass el operador queda bloqueado en la
-            //   pantalla de calibración SIN poder avanzar al examen.
+            #region HORI HPC-044U gas phase verify — v1.6.5 (Fase B5)
+            // El throttle del HORI vive en un byte huérfano del HID report
+            // (Unity HID parser bug por sliders duplicados Usage 0x36); ningún
+            // PEDAL_AXIS_CANDIDATES lo detecta. v1.5.12 auto-pasaba esta fase
+            // sin verificación → si HoriThrottleReader fallaba al inicializar
+            // (USB hot-plug, driver conflict), el operador llegaba a la escena
+            // con throttle silente y no había forma de saberlo en Pantalla 2.
+            //
+            // v1.6.5 (B5): NO auto-pasamos. Verificamos en vivo que el reader:
+            //   (a) tenga el HID handle abierto (IsHandleOpen)
+            //   (b) reporte un valor > HORI_THROTTLE_VERIFY_THRESHOLD (0.7)
+            //       cuando el operador pise el pedal.
+            // Si después de HORI_READER_GRACE_SECONDS (8s) el handle no abrió,
+            // mostramos advertencia visible en el prompt — el reader sigue
+            // intentando reabrir cada 2s (HoriThrottleReader.Update retry loop)
+            // así que conectar el USB recupera la fase. F7 también muestra
+            // `handle=open|CLOSED` para diagnóstico paralelo (Fase A).
+            //
             // El throttle se lee en runtime via HoriThrottleReader (P/Invoke
             // directo al HID device). UIInputNew.AttachToWheelDevice setea el
-            // sentinel también — esto es REDUNDANCIA defensiva por si Pantalla 2
-            // corre antes que AttachToWheelDevice (orden de bootstrap).
-            // NO eliminar.
-            //
-            // HORI Truck workaround: el byte del throttle (HID 21-22) quedó
-            // huérfano en el HID parser de Unity (no hay AxisControl que lo
-            // lea — verificado raw HID dump 2026-05-03). Auto-pasamos esta
-            // fase y dejamos que HoriThrottleReader.cs lea el byte directo
-            // via InputSystem.onEvent intercept. Sentinel HORI_RAW_GAS_PATH.
+            // sentinel; aquí escribimos las prefs solo cuando la verificación
+            // pasa (no antes — evita marcar Phase 3 done con reader muerto).
             var devForGas = TryAttachToDevice();
             if (devForGas != null && UIInputNew.IsHORITruck(devForGas))
             {
-                throttleDone = true;
-                gasFillRT.anchorMax = new Vector2(1, 1);
-                gasFill.color = MenuTheme.IndicatorDone;
-                gasIndicator.color = MenuTheme.IndicatorDone;
-                PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
-                PlayerPrefs.SetFloat("G923_GasRest", 0f);
-                PlayerPrefs.SetFloat("G923_GasPress", 1f);
-                Debug.Log($"[MenuScreenManager] HORI Truck — gas phase auto-pasada, throttle vía HoriThrottleReader (sentinel '{UIInputNew.HORI_RAW_GAS_PATH}')");
-                wheelPrompt.text = "Pisa el FRENO a fondo";
+                if (_horiPhase3StartTime < 0f) _horiPhase3StartTime = Time.unscaledTime;
+                float horiPhase3Elapsed = Time.unscaledTime - _horiPhase3StartTime;
+
+                var thrReader = HoriThrottleReader.Instance;
+                float thrValue = thrReader != null ? thrReader.Value : 0f;
+                bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
+
+                // Progress bar en vivo basada en el valor del reader.
+                float gasProgress = Mathf.Clamp01(thrValue);
+                if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f)
+                {
+                    gasFillRT.anchorMax = new Vector2(gasProgress, 1);
+                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+                }
+
+                const float HORI_THROTTLE_VERIFY_THRESHOLD = 0.7f;
+                const float HORI_READER_GRACE_SECONDS = 8f;
+
+                if (thrHandleOpen && thrValue >= HORI_THROTTLE_VERIFY_THRESHOLD)
+                {
+                    throttleDone = true;
+                    gasFillRT.anchorMax = new Vector2(1, 1);
+                    gasFill.color = MenuTheme.IndicatorDone;
+                    gasIndicator.color = MenuTheme.IndicatorDone;
+                    PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
+                    PlayerPrefs.SetFloat("G923_GasRest", 0f);
+                    PlayerPrefs.SetFloat("G923_GasPress", 1f);
+                    PlayerPrefs.Save();
+                    Debug.Log($"[MenuScreenManager] HORI Truck — gas phase VERIFICADA via HoriThrottleReader (value={thrValue:F3}, handle=open, elapsed={horiPhase3Elapsed:F1}s)");
+                    wheelPrompt.text = "Pisa el FRENO a fondo";
+                    _horiPhase3StartTime = -1f;
+                    return;
+                }
+
+                // Reader muerto tras grace period — advertencia visible. El
+                // reader sigue reintentando cada 2s; conectar USB recupera.
+                if (!thrHandleOpen && horiPhase3Elapsed > HORI_READER_GRACE_SECONDS)
+                {
+                    if (wheelPrompt.text != "HoriThrottleReader sin handle - verifica USB del HORI Truck")
+                    {
+                        Debug.LogWarning($"[MenuScreenManager] HORI Truck — HoriThrottleReader sin handle abierto tras {HORI_READER_GRACE_SECONDS}s. El reader sigue intentando reabrir cada 2s.");
+                        wheelPrompt.text = "HoriThrottleReader sin handle - verifica USB del HORI Truck";
+                    }
+                }
                 return;
+            }
+            else
+            {
+                // Reset al salir del path HORI (cambio de hardware mid-flow).
+                _horiPhase3StartTime = -1f;
             }
             #endregion
             int bestIdx = SamplePedalCandidates(-1, out float bestAbsDelta);

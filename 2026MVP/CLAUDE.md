@@ -497,7 +497,7 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 
 - **Plataforma:** Windows only (NO macOS)
 - **USB:** 2 devices separados — `HORI TRUCK CONTROL SYSTEM WHEEL` + `HORI TRUCK CONTROL SYSTEM SHIFTER`
-- **Deteccion:** `UIInputNew.IsHORITruck()` por displayName/product que contenga "HORI"
+- **Deteccion (v1.6.5+):** `UIInputNew.IsHORITruck()` matchea por VID + PID + interfaceName="HID" usando `HIDDeviceDescriptor.FromJson` (VID=0x0F0D + PID=0x017A wheel / 0x0186 shifter). Fallback a displayName/product.Contains("HORI") preserva v1.6.4.
 - **Defaults automaticos** en `AttachToWheelDevice()` al detectar HORI (no usa `EnsureG923PSDefaults`)
 
 ### Mapping verificado (F7, 2026-05-06)
@@ -537,6 +537,37 @@ Ver `PLAN_HORI_TRUCK.md` para documentacion completa.
 
 ### Pendiente
 - Verificar force feedback (HORI no tiene FFB — `LogitechFFB.cs` no-op)
+
+### v1.6.4 — pedales hardware-fijos (NO leer rest/press de PlayerPrefs)
+
+Tras 4 builds de debug (v1.6.1→v1.6.4) y 4h de root cause analysis (ver
+`HORI_CALIBRATION_LESSONS.md`), `UIInputNew.AttachToWheelDevice` hardcodea
+los rest/press de los pedales HORI cuando detecta el wheel:
+
+```csharp
+if (IsHORITruck(device)) {
+    _gasRest = 0f; _gasPress = 1f;        // Throttle: sentinel via reader
+    _brakeRest = -1f; _brakePress = 1f;   // rz HID byte 23-24 LE16 → -1..+1
+    _clutchRest = -1f; _clutchPress = 1f; // slider/slider1 HID byte 19-20
+}
+```
+
+Razón: Phase 4/6 Discovery captura los rest/press dinámicamente, pero si el
+operador tiene un pie en el pedal durante `SnapshotPedalRests`, captura
+`rest=+1` (pedal pisado) → `press = rest + delta = 0` → `NormalizePedal(raw=-1, 1, 0) = 1.0`
+→ **freno stuck pisado al 100% sin pedal físico** → carro inmóvil. Bug real
+en Pasajeros 2 documentado.
+
+### v1.6.5 — hardening adicional
+
+- **F7 muestra readers HORI** (`LogConsolePanel.cs`): nueva sección "CUSTOM HID READERS" lee `HoriThrottleReader.Instance.Value` y `HoriShifterReader.Instance` directo. Antes el throttle no aparecía en F7 porque Unity nunca crea `AxisControl` para el byte huérfano.
+- **`IsHandleOpen` en HoriThrottleReader**: nuevo getter expone si el handle HID está abierto. F7 imprime `handle=open|CLOSED`.
+- **VID/PID detection** en `IsHORITruck` (ver línea arriba).
+- **Phase 4/6 NO escribe `*Rest/Press` para HORI** + gates `pedalsCal`/`clutchPathPersisted` axis-only para HORI en `PrepareWheelScreen`. Combinado con v1.6.4 elimina contaminación del registry.
+- **Sanity check hardware-aware** (`SanityCheckThenLoad`): si HORI brake/clutch raw cae fuera de `[-1.05, +1.05]` durante 3 frames consecutivos → invalida solo el axis path para forzar re-Discovery dirigida.
+- **`SimulatorApiClient.BuildCalibrationPayload`** reporta canónico (-1/+1) al backend cuando detecta HORI sentinel.
+- **Phase 3 ya no auto-pasa para HORI** (Fase B5). Verifica en vivo que `HoriThrottleReader.Value > 0.7` con handle abierto antes de marcar throttleDone. Si el reader no inicializa tras 8s, prompt cambia a "HoriThrottleReader sin handle - verifica USB". Cierra el hueco silencioso de v1.5.12 donde un reader muerto pasaba de calibración a gameplay sin diagnóstico.
+- **`InputMath.NormalizePedal` extraído** a `Assets/Custom/InputMath/` con tests EditMode (10 casos) que cubren divide-by-zero, polaridad invertida, span boundary, y el regression test del bug v1.6.3.
 
 ## Build
 
