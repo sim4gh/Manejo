@@ -1070,12 +1070,17 @@ namespace Gley.UrbanSystem
         }
 
         // v1.7.0: HORI activo en runtime — PlayerCar lo usa para aplicar ghost-torque
-        // durante tránsitos por Neutral (preserva inercia entre cambios de marcha en
+        // durante clutch-press (preserva inercia entre cambios de marcha en
         // el shifter HPC-044U mecánico). G923/Moto NO entran en esta rama.
         public bool IsHORITruckActive()
         {
             return _wheelDevice != null && IsHORITruck(_wheelDevice);
         }
+
+        // Última marcha engaged != 0 (1-6 o -1). Usado por PlayerCar para
+        // direccionar el ghost-torque según intent (no según velocity sign,
+        // que asistiría un rollback en pendiente).
+        public int LastNonNeutralGear => _lastNonNeutralGear;
 
         // v1.7.0: ForceHoriBind ya no se usa — los binds vienen de HoriControlMapping.Active
         // (JSON immutable en persistentDataPath/hori_mapping.json). Comentado para
@@ -2370,7 +2375,10 @@ namespace Gley.UrbanSystem
                 float gasRaw = NormalizePedal(gasReading, _gasRest, _gasPress);
                 bool gasPressed = gasRaw >= RESET_COMBO_GAS_THRESHOLD;
                 bool brakePressed = brakeInput >= 0.5f;
-                if (gasPressed && brakePressed)
+                // Codex fix: hill-start manual = clutch + brake + gas. Excluir cuando
+                // clutch pressed para no disparar reset legítimo durante punto de mordida.
+                bool clutchPressedForReset = clutchInput >= CLUTCH_ENGAGE_THRESHOLD;
+                if (gasPressed && brakePressed && !clutchPressedForReset)
                 {
                     if (_resetComboHoldStart < 0f) _resetComboHoldStart = Time.unscaledTime;
                     if (Time.unscaledTime - _resetComboHoldStart >= RESET_COMBO_HOLD_SECONDS)
@@ -2395,7 +2403,11 @@ namespace Gley.UrbanSystem
                 {
                     _debugLogTimer = 0f;
                     float st = SafeReadFloatRaw(_steerCtrl, out var rds) ? rds : 0f;
-                    float gr = SafeReadFloatRaw(_gasCtrl, out var rdg) ? rdg : 1f;
+                    // Codex fix: usar ReadGasRawValue() en lugar de _gasCtrl directo.
+                    // Para HORI, _gasCtrl=null (bypass via HoriThrottleReader) y el log
+                    // diagnóstico estaba reportando 1.0 (default) en kioskos HORI,
+                    // mintiendo en F7/LogUploader durante soporte remoto.
+                    float gr = ReadGasRawValue();
                     float br = SafeReadFloatRaw(_brakeCtrl, out var rdb) ? rdb : 1f;
                     bool crossDbg = IsAnyPressed(_crossCtrls);
                     int crossLen = _crossCtrls != null ? _crossCtrls.Length : 0;

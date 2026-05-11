@@ -238,22 +238,11 @@ namespace Gley.UrbanSystem
                 motorTorque = -maxMotorTorque * gasInput;
             else if (currentGear == 0) // Neutral
             {
+                // Codex fix: NO aplicar ghost-torque en Neutral plain. La asistencia
+                // pertenece al shift transit (clutch press), no a Neutral sostenido
+                // — donde el operador deliberadamente desengaged y deberíamos respetar
+                // el coast natural.
                 motorTorque = 0f;
-                // v1.7.0 HORI-only: ghost-torque proporcional a velocidad para preservar
-                // inercia durante tránsitos por N (HPC-044U mecánicamente pasa por N
-                // ~50-500ms entre marchas, y sin asistencia el drag baja 10-15 km/h por
-                // shift). G923/Moto NO entran — coast físico estándar para ellos.
-                // Calibrado a ~1% per sec drop a velocidades crucero (vs ~30% sin asistencia).
-                var uiNew = inputScript as UIInputNew;
-                if (uiNew != null && uiNew.IsHORITruckActive())
-                {
-                    float speedKmh = Mathf.Abs(localVelocity) * 3.6f;
-                    if (speedKmh > 1f)
-                    {
-                        float sign = Mathf.Sign(localVelocity);
-                        motorTorque = sign * maxMotorTorque * 0.08f * Mathf.Clamp01(speedKmh / 30f);
-                    }
-                }
             }
             else // 1-6
             {
@@ -294,19 +283,26 @@ namespace Gley.UrbanSystem
             // motriz. El motor sigue revolucionando (ver UpdateEngineSound) pero
             // el coche no avanza.
             // v1.7.0 HORI-only: durante clutch-press del shift, aplicar ghost-torque
-            // para preservar inercia (la mecánica del HPC-044U requiere clutch sostenido
-            // ~500ms-1s para cambiar marcha; sin asistencia el drag mata 10-15 km/h por shift).
+            // para preservar inercia.
+            //
+            // Guards (codex fix):
+            //   - !brake: si el operador frena durante shift, respetar (hill stop intencional)
+            //   - sign from _lastNonNeutralGear (intent), no velocity (evita asistir rollback)
+            //   - speedKmh > 1: solo si ya tenía inercia
+            //
             // G923/Moto NO entran — physics estándar para ellos.
             if (_clutchDisengaged)
             {
                 motorTorque = 0f;
                 var uiNewClutch = inputScript as UIInputNew;
-                if (uiNewClutch != null && uiNewClutch.IsHORITruckActive())
+                if (uiNewClutch != null && uiNewClutch.IsHORITruckActive()
+                    && brakeInputValue < 0.3f)
                 {
                     float speedKmhClutch = Mathf.Abs(localVelocity) * 3.6f;
-                    if (speedKmhClutch > 1f)
+                    int intentGear = uiNewClutch.LastNonNeutralGear;
+                    if (speedKmhClutch > 1f && intentGear != 0)
                     {
-                        float signClutch = Mathf.Sign(localVelocity);
+                        float signClutch = Mathf.Sign(intentGear);
                         motorTorque = signClutch * maxMotorTorque * 0.08f * Mathf.Clamp01(speedKmhClutch / 30f);
                     }
                 }
