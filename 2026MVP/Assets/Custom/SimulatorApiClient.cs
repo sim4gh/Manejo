@@ -569,6 +569,9 @@ public static class SimulatorApiClient
         // ReportUpdateStatus("INSTALLED").
         public string appVersion;
         public CalibrationPayload calibration;
+        // v1.7.0: JSON-stringified HoriMapping (sólo cuando HoriControlMapping.Active != null).
+        // Backend lo guarda tal cual; portal admin lo parsea para mostrar.
+        public string controlMapping;
     }
 
     // Subset de PlayerPrefs que el portal admin necesita para visualizar la
@@ -702,11 +705,14 @@ public static class SimulatorApiClient
         if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
 
         string url = $"{BaseUrl}/simulator/heartbeat";
+        var hm = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+        string controlMappingJson = (hm != null) ? UnityEngine.JsonUtility.ToJson(hm) : null;
         string json = JsonUtility.ToJson(new HeartbeatRequest
         {
             pcId = config.pcId,
             appVersion = UnityEngine.Application.version,
             calibration = BuildCalibrationPayload(),
+            controlMapping = controlMappingJson,
         });
 
         using (var request = new UnityWebRequest(url, "POST"))
