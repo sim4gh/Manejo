@@ -394,6 +394,88 @@ o post-mortem. Pantalla 2 (Fase B5) verifica EN VIVO antes de avanzar a la
 escena. Los dos paths se complementan: si F7 muestra `handle=CLOSED` después
 de gameplay, hubo un disconnect mid-examen.
 
+## Estado actual tras v1.6.5
+
+| Pieza | Estado |
+|---|---|
+| HORI throttle visible en F7 | ✅ Fase A — sección "CUSTOM HID READERS" |
+| HORI throttle visible en gameplay | ✅ HoriThrottleReader P/Invoke (v1.5.x+) |
+| HORI throttle verificado antes de gameplay | ✅ Fase B5 — Phase 3 valida `IsHandleOpen + Value≥0.7` |
+| HORI pedales hardware-fijos (rest/press) | ✅ v1.6.4 hardcodea, v1.6.5 deja de escribir basura del Discovery |
+| HORI brake/clutch path detection | ✅ Phase 4/6 Discovery + sanity hardware-aware (Fase B3) |
+| G923 sin cambios | ✅ todas las modificaciones gateadas por `IsHORITruck` |
+| Moto sin cambios | ✅ AttachAsMotoSimulator branch intacta |
+| Calibración persistente entre sesiones | ⚠️ **persiste, pero se re-valida cada arranque** en Pantalla 2 |
+| Recalibración silenciosa por sanity check destructivo | ✅ v1.5.12+ fix; v1.6.5 hardware-aware no toca rest/press HORI |
+
+## v1.7.0 — la cosa más importante que viene (calibración immutable + Pantalla 2 muerta)
+
+**Diagnóstico del usuario (2026-05-11)**: *"la pantalla donde se visualizan los
+sliders no es realmente necesaria. O se reconocen todos los controles para lo
+que se escogió y se carga la escena, o en caso de que algo no se reconozca,
+se debe de poner 'necesita calibración'."*
+
+Hoy Pantalla 2 hace DOS cosas mezcladas:
+1. **Calibración**: descubre paths de axes y los persiste en PlayerPrefs.
+2. **Verificación**: chequea que los controles respondan antes de cargar
+   la escena (Fase B5 v1.6.5 añadió esto para HORI throttle).
+
+Cada arranque corre ambas, mostrando los sliders incluso cuando todo ya
+está calibrado. Esto:
+- Confunde al operador con UI innecesaria
+- Re-corre Discovery cuando algo está "calibrado pero no perfecto" (ej. fingerprint match parcial)
+- Permite que un splash destructivo wipe-ee la calibración válida (caso v1.5.10 sanity check)
+
+### Visión v1.7.0
+
+**Separar definitivamente** calibración de verificación:
+
+1. **Calibración** se hace UNA SOLA VEZ por kiosko, en una **ventana dedicada
+   F8/F9** (sostén 1.5s). Operador. No usuario. Escribe a un archivo immutable:
+   ```
+   <persistentDataPath>/control_mapping.json
+   ```
+   con el mapping completo (axes paths + canónicos + bindings + tuning).
+   Read-only en runtime; nadie escribe excepto F8 explícito.
+
+2. **Verificación al arranque** (donde hoy vive Pantalla 2):
+   - Lee `control_mapping.json` y resuelve cada control en el device actual.
+   - Si TODOS responden a su prompt esperado → carga escena. **Sin UI de sliders.**
+   - Si ALGUNO no responde → modal *"Control X no responde, F8 sostén 1.5s para recalibrar (operador)."*
+   - Verificación semántica por control (codex review v3): pedir "Pisa el FRENO" y validar SOLO que la lectura del brake mapping suba >0.7, no que "algo se movió" genérico.
+
+3. **Migración v1.6.x → v1.7.0** atómica (codex review v3):
+   - Boot detecta JSON ausente + `Cal_DeviceFingerprint` en PlayerPrefs → migra a JSON.
+   - Detección canon-aware: para HORI, si `BrakeAxis="z"` (canon es `rz`) → flag `unverified=["brake"]`. No esperar al splash a descubrirlo.
+   - Write atómico: `.tmp` → fsync → rename + flag `Mig_v17_Done=1`.
+
+4. **Profiles como spec providers** (codex review v3): los profiles `G923PsProfile`, `G923XboxProfile`, `HoriTruckProfile`, `MotoProfile` aíslan canonicals/detección. **NO ejecutan el runtime** — `UIInputNew` sigue siendo host (no refactor de runtime mientras G923/Moto funcionen perfectamente).
+
+5. **Path degradado sin F8 obligatorio post-OTA**: para G923/Moto/HORI-Auto se genera JSON con defaults canónicos sin marcar nada → no exige F8 al primer arranque post-v1.7.0. Solo HORI-Manual sin clutch viable exige F8.
+
+### Por qué v1.7.0 mata la clase completa de bug
+
+| Bug pasado | Por qué no puede volver en v1.7.0 |
+|---|---|
+| `BrakeAxis="z"` heredado de G923 Xbox sembrado en HORI | Profile fija canónicos al instalar JSON; nadie sobrescribe en runtime |
+| `BrakeRest=1, BrakePress=0` capturados con pedal pisado | Calibración explícita F8 (no automática silenciosa), prompts claros + verificación inmediata |
+| Sanity check destructivo wipea calibración válida | Splash solo VERIFICA — no escribe a JSON jamás |
+| Auto-pass HORI con throttle reader muerto | Verificación semántica por control (B5 ya prefigura esto, v1.7.0 lo generaliza) |
+| Discovery captura el "pedal equivocado" cuando el operador pisa otro | UI deja de pedir Discovery; el JSON tiene los paths canónicos |
+
+### Pasos concretos para v1.7.0 (próximo sprint, 2-3 días)
+
+- `Assets/Custom/Input/ControlMapping.cs` — clase de datos JSON + load/save atómico
+- `Assets/Custom/Input/Profiles/{IDeviceProfile, G923Ps, G923Xbox, HoriTruck, Moto, Unknown}.cs` — spec providers
+- `Assets/Custom/CalibrationPanel.cs` — reemplaza/extiende F8 con flujo paso-a-paso para escribir JSON
+- `MenuScreenManager.cs` — Pantalla 2 reescrita a "verify-only" o eliminada (cargar escena directo si JSON válido)
+- `UIInputNew.cs` — leer de `ControlMapping.Active` en lugar de PlayerPrefs (~68 reads identificados)
+- Migración: detectar PlayerPrefs existente → migrar → marcar `unverified`/`needsRecalibrate` con canon-aware
+- Tests EditMode para ControlMapping (load/save round-trip, migración, schema validation)
+- Regression tests en sedan + motocicleta antes de merge (verificar input idéntico bit-a-bit)
+
+Ver plan completo en `/Users/sim4r4/.claude/plans/necesito-de-todo-tu-woolly-lightning.md`.
+
 ## Archivos tocados en v1.6.4
 
 - `2026MVP/Assets/Gley/UrbanAssets/Runtime/Scripts/UI/UIInputNew.cs:1448-1471`
