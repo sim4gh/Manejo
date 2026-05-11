@@ -67,9 +67,10 @@ namespace TlaxSim.Tests
         [Test]
         public void LoadFromDisk_UnknownSchemaVersion_ActiveIsNull()
         {
-            var m = new HoriMapping { schemaVersion = 99 };
-            HoriControlMapping.Save(m);
-            HoriControlMapping.ResetForTests();
+            // Bypass Save() porque escribe siempre schemaVersion=CURRENT_SCHEMA.
+            // Aquí queremos verificar que el LOADER rechaza schemas desconocidos.
+            string path = Path.Combine(_tempDir, "hori_mapping.json");
+            File.WriteAllText(path, "{\"schemaVersion\":99,\"deviceFingerprint\":\"\"}");
             HoriControlMapping.LoadFromDisk();
             Assert.IsNull(HoriControlMapping.Active);
         }
