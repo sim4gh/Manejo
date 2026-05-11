@@ -259,8 +259,9 @@ public class HoriCalibrationPanel : MonoBehaviour
 
     private void BuildPageTabs(Transform parent)
     {
-        // Tabs centrados horizontalmente justo debajo del header
-        const float TABS_Y = 195f;
+        // Tabs centrados horizontalmente justo debajo del header.
+        // y=240 deja gap claro con la section header de la página (que está en y=180).
+        const float TABS_Y = 240f;
         string[] tabLabels = { "Conducción", "Luces y Reversa", "Marchas (Manual)" };
         float[] tabXOffsets = { -260f, 0f, 260f };
         for (int i = 0; i < tabLabels.Length; i++)
