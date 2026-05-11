@@ -2480,11 +2480,11 @@ public class MenuScreenManager : MonoBehaviour
                 bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
 
                 // Progress bar en vivo basada en el valor del reader.
-                float gasProgress = Mathf.Clamp01(thrValue);
-                if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f)
+                float gasProgreess = Mathf.Clamp01(thrValue);
+                if (Mathf.Abs(gasProgreess - gasFillRT.anchorMax.x) > 0.005f)
                 {
-                    gasFillRT.anchorMax = new Vector2(gasProgress, 1);
-                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+                    gasFillRT.anchorMax = new Vector2(gasProgreess, 1);
+                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgreess);
                 }
 
                 const float HORI_THROTTLE_VERIFY_THRESHOLD = 0.7f;
