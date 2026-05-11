@@ -237,7 +237,24 @@ namespace Gley.UrbanSystem
             if (currentGear == -1) // Reversa
                 motorTorque = -maxMotorTorque * gasInput;
             else if (currentGear == 0) // Neutral
+            {
                 motorTorque = 0f;
+                // v1.7.0 HORI-only: ghost-torque proporcional a velocidad para preservar
+                // inercia durante tránsitos por N (HPC-044U mecánicamente pasa por N
+                // ~50-500ms entre marchas, y sin asistencia el drag baja 10-15 km/h por
+                // shift). G923/Moto NO entran — coast físico estándar para ellos.
+                // Calibrado a ~1% per sec drop a velocidades crucero (vs ~30% sin asistencia).
+                var uiNew = inputScript as UIInputNew;
+                if (uiNew != null && uiNew.IsHORITruckActive())
+                {
+                    float speedKmh = Mathf.Abs(localVelocity) * 3.6f;
+                    if (speedKmh > 1f)
+                    {
+                        float sign = Mathf.Sign(localVelocity);
+                        motorTorque = sign * maxMotorTorque * 0.08f * Mathf.Clamp01(speedKmh / 30f);
+                    }
+                }
+            }
             else // 1-6
             {
                 // En manual aplicamos gear ratios: torque y velocidad tope

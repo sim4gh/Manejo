@@ -1069,6 +1069,14 @@ namespace Gley.UrbanSystem
             return name.Contains("SHIFTER");
         }
 
+        // v1.7.0: HORI activo en runtime — PlayerCar lo usa para aplicar ghost-torque
+        // durante tránsitos por Neutral (preserva inercia entre cambios de marcha en
+        // el shifter HPC-044U mecánico). G923/Moto NO entran en esta rama.
+        public bool IsHORITruckActive()
+        {
+            return _wheelDevice != null && IsHORITruck(_wheelDevice);
+        }
+
         // v1.7.0: ForceHoriBind ya no se usa — los binds vienen de HoriControlMapping.Active
         // (JSON immutable en persistentDataPath/hori_mapping.json). Comentado para
         // preservar referencia histórica del fix v1.5.11 (override PlayerPrefs incondicional
