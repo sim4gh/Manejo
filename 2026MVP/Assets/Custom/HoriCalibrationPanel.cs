@@ -24,7 +24,11 @@ public class HoriCalibrationPanel : MonoBehaviour
     private int _currentPage; // 0=Conducción, 1=Luces y Reversa, 2=Marchas
 
     private bool _capturing;
-    private string _captureTargetField;
+    private string _captureTargetField; // internal field name (e.g. "horn", "brake", "steer", "gas")
+    // Fix A (UX): rastrear última captura exitosa para mostrar "✓ Guardado" 0.7s en esa fila.
+    private string _lastSavedKey;
+    private float _lastSavedAt = -999f;
+    private const float SAVED_FEEDBACK_SECONDS = 0.7f;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void AutoCreate()
@@ -115,6 +119,17 @@ public class HoriCalibrationPanel : MonoBehaviour
             if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
             {
                 Close(save: _hasChanges);
+                return;
+            }
+
+            // Fix A (UX): auto-revertir "✓ Guardado" → "Detectar" tras ventana SAVED_FEEDBACK_SECONDS.
+            // Solo si NO hay captura activa (no queremos rebuildar mid-capture).
+            if (!_capturing && _lastSavedKey != null
+                && Time.unscaledTime - _lastSavedAt > SAVED_FEEDBACK_SECONDS)
+            {
+                _lastSavedKey = null;
+                if (_panelRoot != null) Destroy(_panelRoot);
+                BuildUI();
             }
         }
     }
@@ -162,14 +177,27 @@ public class HoriCalibrationPanel : MonoBehaviour
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
 
-        // Defensa: si por alguna razón no existe EventSystem (e.g. escena sin UI legacy),
-        // crear uno. Sin EventSystem, ningún button responde a clicks.
+        // Fix E (codex MED): EventSystem dedup. Buscar incluso inactivos antes de crear
+        // — evita duplicados si la escena tiene uno disabled. Sin DontDestroyOnLoad para
+        // no contaminar future scenes con un EventSystem extra que las propias escenas
+        // ya traen.
         if (UnityEngine.EventSystems.EventSystem.current == null)
         {
-            var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem),
-                typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
-            DontDestroyOnLoad(esGo);
-            Debug.Log("[HoriCalibrationPanel] EventSystem ausente — creé uno defensivo");
+            var existing = FindObjectsByType<UnityEngine.EventSystems.EventSystem>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            if (existing != null && existing.Length > 0)
+            {
+                var es = existing[0];
+                if (!es.gameObject.activeSelf) es.gameObject.SetActive(true);
+                if (!es.enabled) es.enabled = true;
+                Debug.Log("[HoriCalibrationPanel] EventSystem existente reutilizado (estaba inactive/disabled)");
+            }
+            else
+            {
+                var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem),
+                    typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
+                Debug.Log("[HoriCalibrationPanel] EventSystem ausente — creé uno (sin DontDestroyOnLoad)");
+            }
         }
         go.AddComponent<GraphicRaycaster>();
     }
@@ -240,31 +268,31 @@ public class HoriCalibrationPanel : MonoBehaviour
         if (_currentPage == 0)
         {
             CreateSectionHeader(parent, "CONDUCCIÓN", ROW_START_Y + 30f);
-            BuildRow(parent, ROW_START_Y,                  "Volante",    () => _draft.axes.steer.path,                () => true,        () => DetectSteer());
-            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Acelerador", () => "reader: " + _draft.axes.gas.source,   () => true,        () => VerifyThrottle());
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Freno",      () => _draft.axes.brake.path,                () => true,        () => DetectPedalAxis("brake"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Clutch",     () => _draft.axes.clutch.path,               () => _manualMode, () => DetectPedalAxis("clutch"));
+            BuildRow(parent, ROW_START_Y,                  "Volante",    "steer", () => _draft.axes.steer.path,              () => true,        () => DetectSteer());
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Acelerador", "gas",   () => "reader: " + _draft.axes.gas.source, () => true,        () => VerifyThrottle());
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Freno",      "brake", () => _draft.axes.brake.path,              () => true,        () => DetectPedalAxis("brake"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Clutch",     "clutch",() => _draft.axes.clutch.path,             () => _manualMode, () => DetectPedalAxis("clutch"));
         }
         else if (_currentPage == 1)
         {
             CreateSectionHeader(parent, "LUCES Y SEÑALES", ROW_START_Y + 30f);
-            BuildRow(parent, ROW_START_Y,                  "Claxon",        () => _draft.buttons.horn.path,      () => true, () => DetectButton("horn"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Intermitentes", () => _draft.buttons.hazards.path,   () => true, () => DetectButton("hazards"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Flecha izq",    () => _draft.buttons.turnLeft.path,  () => true, () => DetectButton("turnLeft"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Flecha der",    () => _draft.buttons.turnRight.path, () => true, () => DetectButton("turnRight"));
+            BuildRow(parent, ROW_START_Y,                  "Claxon",        "horn",      () => _draft.buttons.horn.path,      () => true, () => DetectButton("horn"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Intermitentes", "hazards",   () => _draft.buttons.hazards.path,   () => true, () => DetectButton("hazards"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Flecha izq",    "turnLeft",  () => _draft.buttons.turnLeft.path,  () => true, () => DetectButton("turnLeft"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Flecha der",    "turnRight", () => _draft.buttons.turnRight.path, () => true, () => DetectButton("turnRight"));
 
             CreateSectionHeader(parent, "REVERSA", ROW_START_Y - ROW_SPACING*4);
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "Reversa (palanca)", () => _draft.buttons.reverse.path + " (pulse)", () => true, () => DetectButton("reverse"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "Reversa (palanca)", "reverse", () => _draft.buttons.reverse.path + " (pulse)", () => true, () => DetectButton("reverse"));
         }
         else if (_currentPage == 2)
         {
             CreateSectionHeader(parent, "MARCHAS MANUAL", ROW_START_Y + 30f);
-            BuildRow(parent, ROW_START_Y,                  "1ª", () => _draft.buttons.gear1.path, () => _manualMode, () => DetectButton("gear1"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "2ª", () => _draft.buttons.gear2.path, () => _manualMode, () => DetectButton("gear2"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "3ª", () => _draft.buttons.gear3.path, () => _manualMode, () => DetectButton("gear3"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "4ª", () => _draft.buttons.gear4.path, () => _manualMode, () => DetectButton("gear4"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*4,  "5ª", () => _draft.buttons.gear5.path, () => _manualMode, () => DetectButton("gear5"));
-            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "6ª", () => _draft.buttons.gear6.path, () => _manualMode, () => DetectButton("gear6"));
+            BuildRow(parent, ROW_START_Y,                  "1ª", "gear1", () => _draft.buttons.gear1.path, () => _manualMode, () => DetectButton("gear1"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "2ª", "gear2", () => _draft.buttons.gear2.path, () => _manualMode, () => DetectButton("gear2"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "3ª", "gear3", () => _draft.buttons.gear3.path, () => _manualMode, () => DetectButton("gear3"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "4ª", "gear4", () => _draft.buttons.gear4.path, () => _manualMode, () => DetectButton("gear4"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*4,  "5ª", "gear5", () => _draft.buttons.gear5.path, () => _manualMode, () => DetectButton("gear5"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "6ª", "gear6", () => _draft.buttons.gear6.path, () => _manualMode, () => DetectButton("gear6"));
         }
     }
 
@@ -293,6 +321,13 @@ public class HoriCalibrationPanel : MonoBehaviour
     private void SwitchPage(int page)
     {
         if (page < 0 || page > 2) return;
+        // Fix D (codex LOW): bloquear cambio de página mid-capture para no dejar
+        // coroutine fantasma corriendo cuando el UI ya no muestra la fila relevante.
+        if (_capturing)
+        {
+            Debug.LogWarning("[HoriCalibrationPanel] SwitchPage ignorado: termina la detección primero (o presiona Esc para cancelar).");
+            return;
+        }
         _currentPage = page;
         if (_panelRoot != null) Destroy(_panelRoot);
         BuildUI();
@@ -311,7 +346,11 @@ public class HoriCalibrationPanel : MonoBehaviour
         titleTxt.alignment = TextAlignmentOptions.Center;
     }
 
-    private void BuildRow(Transform parent, float y, string label, System.Func<string> getValue, System.Func<bool> required, System.Action onDetect)
+    // Fix A (UX): captureKey identifica internamente la fila (e.g., "horn", "brake").
+    // Permite que el botón cambie de "Detectar" → "Detectando..." (active) →
+    // "✓ Guardado" (just saved) → "Esperando..." (otra row active).
+    private void BuildRow(Transform parent, float y, string label, string captureKey,
+        System.Func<string> getValue, System.Func<bool> required, System.Action onDetect)
     {
         var row = new GameObject("Row_" + label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
@@ -330,9 +369,35 @@ public class HoriCalibrationPanel : MonoBehaviour
         valTxt.rectTransform.sizeDelta = new Vector2(440f, 28f);
         valTxt.rectTransform.anchoredPosition = new Vector2(60f, 0f);
 
-        var btn = CreateButton(row.transform, "Detectar", 14f, onDetect);
+        // Determinar estado del botón.
+        string btnLabel = "Detectar";
+        Color btnColor = new Color(0.2f, 0.4f, 0.6f, 1f); // azul idle
+        bool btnInteractable = true;
+        if (_capturing && _captureTargetField == captureKey)
+        {
+            btnLabel = "Detectando...";
+            btnColor = new Color(0.82f, 0.5f, 0.13f, 1f); // naranja active
+            btnInteractable = false;
+        }
+        else if (_capturing)
+        {
+            btnLabel = "Esperando...";
+            btnColor = new Color(0.32f, 0.32f, 0.36f, 1f); // gris disabled
+            btnInteractable = false;
+        }
+        else if (_lastSavedKey == captureKey
+                 && Time.unscaledTime - _lastSavedAt <= SAVED_FEEDBACK_SECONDS)
+        {
+            btnLabel = "✓ Guardado";
+            btnColor = new Color(0.36f, 0.72f, 0.34f, 1f); // verde saved
+            btnInteractable = false;
+        }
+
+        var btn = CreateButton(row.transform, btnLabel, 14f, onDetect);
         btn.GetComponent<RectTransform>().anchoredPosition = new Vector2(420f, 0f);
-        btn.GetComponent<RectTransform>().sizeDelta = new Vector2(120f, 32f);
+        btn.GetComponent<RectTransform>().sizeDelta = new Vector2(160f, 32f);
+        btn.GetComponent<Image>().color = btnColor;
+        btn.interactable = btnInteractable;
     }
 
     private Color RowStateColor(bool required, string value)
@@ -354,20 +419,55 @@ public class HoriCalibrationPanel : MonoBehaviour
         }
         _capturing = true;
         _captureTargetField = targetField;
+        // Fix A (UX): rebuildar para mostrar "Detectando..." en esta fila inmediatamente.
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
         StartCoroutine(CoCaptureButton());
     }
 
-    // Captura un button TRANSITION (off→on) en CUALQUIER device HORI conectado.
-    // Sin filtros wheelOnly/shifterOnly — el sistema escucha todo y captura el
-    // primer flanco de subida. Snapshot inicial de buttons ya pressed para
-    // ignorar botones "siempre encendidos" (switches auxiliares stuck/on).
+    // Fix C (codex MED): per-frame edge detect en CUALQUIER device HORI.
+    // Mantiene `prevPressed` actualizado cada frame; captura un path solo cuando
+    // transiciona OFF→ON. Botones inicialmente held se marcan como prev=true para
+    // ignorarlos pero SI el operator los suelta y vuelve a presionar, se capturan
+    // correctamente (a diferencia del snapshot fijo anterior).
     private System.Collections.IEnumerator CoCaptureButton()
     {
-        Debug.Log($"[HoriCalibrationPanel] Capturing button for '{_captureTargetField}' (any HORI device, edge-detect)");
+        Debug.Log($"[HoriCalibrationPanel] Capturing button for '{_captureTargetField}' (per-frame edge detect)");
         float timeout = Time.unscaledTime + 10f;
+        var prevPressed = new System.Collections.Generic.HashSet<string>();
+        // Seed inicial: paths actualmente pressed se ignoran este frame, pero al
+        // actualizar prevPressed cada iteración, un release+repress sí dispara.
+        ScanPressed(prevPressed);
 
-        // Snapshot initial pressed state across all HORI devices.
-        var alreadyPressed = new System.Collections.Generic.HashSet<string>();
+        while (Time.unscaledTime < timeout && _capturing)
+        {
+            var nowPressed = new System.Collections.Generic.HashSet<string>();
+            ScanPressed(nowPressed);
+            foreach (var path in nowPressed)
+            {
+                if (!prevPressed.Contains(path))
+                {
+                    // EDGE off→on real → captura.
+                    ApplyCapturedButton(path);
+                    _capturing = false;
+                    yield break;
+                }
+            }
+            prevPressed = nowPressed;
+            yield return null;
+        }
+
+        if (_capturing)
+        {
+            Debug.LogWarning($"[HoriCalibrationPanel] Captura timeout para '{_captureTargetField}' (10s sin transición)");
+            _capturing = false;
+            if (_panelRoot != null) Destroy(_panelRoot);
+            BuildUI();
+        }
+    }
+
+    private static void ScanPressed(System.Collections.Generic.HashSet<string> output)
+    {
         foreach (var dev in InputSystem.devices)
         {
             string prefix = null;
@@ -377,38 +477,8 @@ public class HoriCalibrationPanel : MonoBehaviour
             foreach (var c in dev.allControls)
             {
                 if (c is UnityEngine.InputSystem.Controls.ButtonControl bc && bc.isPressed)
-                    alreadyPressed.Add(prefix + c.name);
+                    output.Add(prefix + c.name);
             }
-        }
-        Debug.Log($"[HoriCalibrationPanel] Snapshot initial-pressed: {alreadyPressed.Count} button(s)");
-
-        while (Time.unscaledTime < timeout && _capturing)
-        {
-            foreach (var dev in InputSystem.devices)
-            {
-                string prefix = null;
-                if (Gley.UrbanSystem.UIInputNew.IsHORITruckWheel(dev)) prefix = "wheel:";
-                else if (Gley.UrbanSystem.UIInputNew.IsHORITruckShifter(dev)) prefix = "shifter:";
-                else continue;
-                foreach (var c in dev.allControls)
-                {
-                    if (c is UnityEngine.InputSystem.Controls.ButtonControl bc && bc.isPressed)
-                    {
-                        string path = prefix + c.name;
-                        if (alreadyPressed.Contains(path)) continue; // skip always-on
-                        ApplyCapturedButton(path);
-                        _capturing = false;
-                        yield break;
-                    }
-                }
-            }
-            yield return null;
-        }
-
-        if (_capturing)
-        {
-            Debug.LogWarning($"[HoriCalibrationPanel] Captura timeout para '{_captureTargetField}' (10s sin transición)");
-            _capturing = false;
         }
     }
 
@@ -430,6 +500,9 @@ public class HoriCalibrationPanel : MonoBehaviour
             case "gear6": _draft.buttons.gear6.path = path; break;
         }
         _hasChanges = true;
+        // Fix A (UX): marca "✓ Guardado" en esta fila durante SAVED_FEEDBACK_SECONDS.
+        _lastSavedKey = _captureTargetField;
+        _lastSavedAt = Time.unscaledTime;
         if (_panelRoot != null) Destroy(_panelRoot);
         BuildUI();
     }
@@ -440,6 +513,9 @@ public class HoriCalibrationPanel : MonoBehaviour
     {
         if (_capturing) return;
         _capturing = true;
+        _captureTargetField = which; // Fix A (UX): row state matching
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
         StartCoroutine(CoCapturePedalAxis(which));
     }
 
@@ -448,7 +524,7 @@ public class HoriCalibrationPanel : MonoBehaviour
         Debug.Log($"[HoriCalibrationPanel] Capturing pedal axis for '{which}' — sample 3s");
         InputDevice wheel = null;
         foreach (var d in InputSystem.devices) if (Gley.UrbanSystem.UIInputNew.IsHORITruckWheel(d)) wheel = d;
-        if (wheel == null) { Debug.LogWarning("[HoriCalibrationPanel] HORI wheel not found"); _capturing = false; yield break; }
+        if (wheel == null) { Debug.LogWarning("[HoriCalibrationPanel] HORI wheel not found"); _capturing = false; if (_panelRoot != null) Destroy(_panelRoot); BuildUI(); yield break; }
 
         var initial = new Dictionary<string, float>();
         var maxAbs = new Dictionary<string, float>();
@@ -487,6 +563,8 @@ public class HoriCalibrationPanel : MonoBehaviour
         {
             Debug.LogWarning("[HoriCalibrationPanel] Ningún pedal axis superó threshold 0.6 en 3s");
             _capturing = false;
+            if (_panelRoot != null) Destroy(_panelRoot);
+            BuildUI();
             yield break;
         }
 
@@ -495,6 +573,7 @@ public class HoriCalibrationPanel : MonoBehaviour
         else if (which == "clutch") { _draft.axes.clutch.path = chosen; _draft.axes.clutch.rest = -1f; _draft.axes.clutch.press = 1f; }
 
         _hasChanges = true;
+        _lastSavedKey = which; _lastSavedAt = Time.unscaledTime; // Fix A
         _capturing = false;
         if (_panelRoot != null) Destroy(_panelRoot);
         BuildUI();
@@ -506,6 +585,9 @@ public class HoriCalibrationPanel : MonoBehaviour
     {
         if (_capturing) return;
         _capturing = true;
+        _captureTargetField = "steer"; // Fix A (UX): row state matching
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
         StartCoroutine(CoCaptureSteer());
     }
 
@@ -513,9 +595,9 @@ public class HoriCalibrationPanel : MonoBehaviour
     {
         InputDevice wheel = null;
         foreach (var d in InputSystem.devices) if (Gley.UrbanSystem.UIInputNew.IsHORITruckWheel(d)) wheel = d;
-        if (wheel == null) { _capturing = false; yield break; }
+        if (wheel == null) { _capturing = false; if (_panelRoot != null) Destroy(_panelRoot); BuildUI(); yield break; }
         var ctrl = wheel.TryGetChildControl("stick/x") as UnityEngine.InputSystem.Controls.AxisControl;
-        if (ctrl == null) { _capturing = false; yield break; }
+        if (ctrl == null) { _capturing = false; if (_panelRoot != null) Destroy(_panelRoot); BuildUI(); yield break; }
 
         Debug.Log("[HoriCalibrationPanel] Steer: gira IZQ a tope (3s)");
         yield return new WaitForSecondsRealtime(3f);
@@ -534,6 +616,7 @@ public class HoriCalibrationPanel : MonoBehaviour
         _draft.axes.steer.rightMax = right;
         _draft.axes.steer.center = center;
         _hasChanges = true;
+        _lastSavedKey = "steer"; _lastSavedAt = Time.unscaledTime; // Fix A
         Debug.Log($"[HoriCalibrationPanel] Steer captured: left={left:F2} right={right:F2} center={center:F2}");
 
         _capturing = false;
@@ -545,6 +628,10 @@ public class HoriCalibrationPanel : MonoBehaviour
     {
         if (_capturing) return;
         _capturing = true;
+        _captureTargetField = "gas"; // Fix A (UX): row state matching
+        // Rebuildar para mostrar "Detectando..." en la fila Acelerador inmediatamente.
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
         StartCoroutine(CoVerifyThrottle());
     }
 
@@ -557,6 +644,8 @@ public class HoriCalibrationPanel : MonoBehaviour
         {
             Debug.LogWarning("[HoriCalibrationPanel] HoriThrottleReader sin handle abierto");
             _capturing = false;
+            if (_panelRoot != null) Destroy(_panelRoot);
+            BuildUI();
             yield break;
         }
 
@@ -566,13 +655,18 @@ public class HoriCalibrationPanel : MonoBehaviour
             {
                 Debug.Log($"[HoriCalibrationPanel] Throttle verificado: value={reader.Value:F2}");
                 _hasChanges = true;
+                _lastSavedKey = "gas"; _lastSavedAt = Time.unscaledTime; // Fix A
                 _capturing = false;
+                if (_panelRoot != null) Destroy(_panelRoot);
+                BuildUI();
                 yield break;
             }
             yield return null;
         }
         Debug.LogWarning("[HoriCalibrationPanel] Throttle verify timeout — operador no pisó");
         _capturing = false;
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
     }
 
     // ─── Task 5.7: Footer + RestoreCanonical ───────────────────────

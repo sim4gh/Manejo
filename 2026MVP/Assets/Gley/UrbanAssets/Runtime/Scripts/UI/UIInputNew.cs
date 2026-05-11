@@ -2349,16 +2349,23 @@ namespace Gley.UrbanSystem
             // si el operador trababa el pedal contra el sensor). Combo unnatural:
             // mantener botón de reversa + acelerador a fondo simultáneamente por 1.5s.
             // unscaledTime para que funcione con paneles F7/F8/F9 abiertos.
+            // Fix B (codex HIGH): reverse REAL (no sticky latch — _manualReverseLatched
+            // queda armado tras meter R, lo que haría disparar reset en maniobra legítima
+            // de reversa con gas). Gas RAW (no post-curve) para consistencia entre kioskos
+            // con F9 curve N tuneada. Brake adicional: combo imposible en operación normal
+            // (no manejas con brake + gas + reverse simultáneos).
             if (_hasWheel)
             {
-                bool reversePressed = IsAnyPressed(_crossCtrls) || _manualReverseLatched;
-                bool gasPressed = verticalInput >= RESET_COMBO_GAS_THRESHOLD;
-                if (reversePressed && gasPressed)
+                bool reversePressed = IsAnyPressed(_crossCtrls);
+                float gasRaw = SafeReadFloatRaw(_gasCtrl, out var gr) ? NormalizePedal(gr, _gasRest, _gasPress) : 0f;
+                bool gasPressed = gasRaw >= RESET_COMBO_GAS_THRESHOLD;
+                bool brakePressed = brakeInput >= 0.5f;
+                if (reversePressed && gasPressed && brakePressed)
                 {
                     if (_resetComboHoldStart < 0f) _resetComboHoldStart = Time.unscaledTime;
                     if (Time.unscaledTime - _resetComboHoldStart >= RESET_COMBO_HOLD_SECONDS)
                     {
-                        Debug.Log("[UIInputNew] Reset combo (Reversa+Acelerador 1.5s) → recargando escena");
+                        Debug.Log("[UIInputNew] Reset combo (Reversa+Gas+Freno 1.5s) → recargando escena");
                         _resetComboHoldStart = -1f;
                         Time.timeScale = 1f;
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
