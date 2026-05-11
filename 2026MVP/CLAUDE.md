@@ -583,6 +583,20 @@ Fix: `UIInputNew.cs:2046+` agrega debounce HORI-only de 300ms — si reader repo
 
 Ver `HORI_CALIBRATION_LESSONS.md` sección "v1.6.7 — Fase B7" para detalle completo, edge cases y limitaciones conocidas.
 
+### v1.7.0 — Calibración immutable + Pantalla 2 verify-only
+
+Reescritura del flujo de calibración HORI. JSON file en `<persistentDataPath>/hori_mapping.json` es source of truth (no PlayerPrefs para HORI). F8 panel `HoriCalibrationPanel` es el único writer. Pantalla 2 rama HORI ahora es verify-only.
+
+- **Archivos nuevos**: `Assets/Custom/HoriCalibration/{HoriMapping,HoriControlMapping,HoriMappingMigration,HoriPreflightCheck}.cs` + `Assets/Custom/HoriCalibrationPanel.cs`.
+- **Migración**: al primer boot post-OTA, lee PlayerPrefs HORI legacy → produce JSON → flag `auto-migrated`. PlayerPrefs siguen intactos como backup.
+- **Modal pre-flight**: si JSON ausente o preflight falla, modal bloqueante con lista de faltantes + "F8 sostén 1.5s para calibrar".
+- **Heartbeat**: `controlMapping` field JSON-stringified — portal admin muestra read-only en `/admin/simuladores/pcs/[pcId]/calibracion`.
+- **Folder**: install canónico `C:\Tlax2026-RC\` (script `scripts/consolidate-install-path.ps1`).
+- **Path canónico claxon HORI**: `wheel:button7` (verificado por SSH a Aramis Phase 0).
+- **Scope**: HORI Truck only. G923 PS/Xbox/Moto sin cambios.
+
+Ver `HORI_CALIBRATION_LESSONS.md` sección v1.7.0 y `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md`.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)
