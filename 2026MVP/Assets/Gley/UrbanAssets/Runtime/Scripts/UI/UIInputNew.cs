@@ -1055,6 +1055,24 @@ namespace Gley.UrbanSystem
                 || product.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
+        // Disambiguación HORI wheel vs shifter — usados por HoriCalibrationPanel para
+        // dirigir capturas de botones al device correcto (wheel:* vs shifter:*).
+        public static bool IsHORITruckWheel(InputDevice dev)
+        {
+            if (!IsHORITruck(dev)) return false;
+            string name = ((dev.displayName ?? string.Empty) + (dev.description.product ?? string.Empty))
+                .ToUpperInvariant();
+            return name.Contains("WHEEL") || !name.Contains("SHIFTER");
+        }
+
+        public static bool IsHORITruckShifter(InputDevice dev)
+        {
+            if (!IsHORITruck(dev)) return false;
+            string name = ((dev.displayName ?? string.Empty) + (dev.description.product ?? string.Empty))
+                .ToUpperInvariant();
+            return name.Contains("SHIFTER");
+        }
+
         // Force-override de un Bind para HORI (rutas hardware-fijas).
         // Si la PlayerPref existente difiere del canonical, sobrescribe + warning
         // para diagnosticar en S3 si Pantalla 2 sigue corrompiendo el bind.
