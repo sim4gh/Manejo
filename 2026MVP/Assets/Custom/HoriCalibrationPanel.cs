@@ -82,13 +82,24 @@ public class HoriCalibrationPanel : MonoBehaviour
             _draft.calibratedBy = "F8-panel";
             HoriControlMapping.Save(_draft);
 
-            // Forzar a UIInputNew a re-attach (relee los binds del nuevo Active)
+            // v1.7.0 Task 6.5: refresh defensivo de UIInputNew. AttachToWheelDevice
+            // lee HoriControlMapping.Active al momento de attach (boot, device-change,
+            // Pantalla 2 TryAttachToDevice). Save() acaba de actualizar Active en
+            // memoria; los próximos attach lo verán. Para el frame actual no
+            // hay garantía sin un re-attach. ReloadBindings() vuelve a leer
+            // PlayerPrefs PREF_BIND_* (no Active) — no refresca binds HORI desde
+            // Active. La solución confiable es volver al MainMenu (recarga de
+            // escena re-attachea con Active fresco) o reconectar USB.
+            // Si en una iteración futura se necesita refresh in-place, exponer
+            // un método público UIInputNew.ReattachWheelDevice() que llame al
+            // private AttachToWheelDevice(currentDevice, "post-F8-save").
+            // TODO(v1.7.x): exponer UIInputNew.ReattachWheelDevice() y llamar aquí.
             var uiInput = FindFirstObjectByType<Gley.UrbanSystem.UIInputNew>();
             if (uiInput != null)
             {
-                // ReloadBindings/ReloadTuning existen si el UIInputNew los expone; si no,
-                // un reattach completo via OnDeviceChange manual sería ideal pero costoso.
-                // Por ahora confiamos en que se refresque al volver al MainMenu.
+                uiInput.ReloadBindings(); // best-effort — refresca G923 sin tocar HORI
+                uiInput.ReloadTuning();
+                Debug.Log("[HoriCalibrationPanel] Save → ReloadBindings/ReloadTuning (refresh in-place de HORI Active completo requiere reattach: volver a MainMenu).");
             }
         }
         if (_panelRoot != null) Destroy(_panelRoot);
