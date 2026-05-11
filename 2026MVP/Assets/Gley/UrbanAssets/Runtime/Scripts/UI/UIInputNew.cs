@@ -1462,10 +1462,26 @@ namespace Gley.UrbanSystem
             _useHoriRawGas = (gasPath == HORI_RAW_GAS_PATH);
             _gasCtrl   = _useHoriRawGas ? null : CacheControl(gasPath);
             #endregion
-            _brakeCtrl = CacheControl(brakePath);
-            // Clutch (opcional — solo G923 PS). Si no hay path en PlayerPrefs,
-            // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
+            // v1.7.0 ROOT CAUSE FIX (r13 diag findings): para HORI, brake y clutch axis
+            // paths vienen del JSON immutable HoriControlMapping.Active, NO de PlayerPrefs.
+            // Sin este override, ambos quedaban apuntando a "rz" (legacy G923_BrakeAxis
+            // y G923_ClutchAxis sembrados por Discovery antiguo) → al pisar clutch,
+            // brake leía el mismo axis → freno fantasma de ~2000 Nm durante TODO shift.
+            // (Bug confirmado por logs SHIFT_DIAG: brake=clutch=0.65 con clutch press.)
             string clutchPath = PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS, "");
+            if (IsHORITruck(device))
+            {
+                var horiMap = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+                if (horiMap != null)
+                {
+                    if (!string.IsNullOrEmpty(horiMap.axes.brake.path))  brakePath  = horiMap.axes.brake.path;
+                    if (!string.IsNullOrEmpty(horiMap.axes.clutch.path)) clutchPath = horiMap.axes.clutch.path;
+                    Debug.Log($"[UIInputNew] HORI brake/clutch paths from JSON: brake={brakePath} clutch={clutchPath}");
+                }
+            }
+            _brakeCtrl = CacheControl(brakePath);
+            // Clutch (opcional — solo G923 PS / HORI manual). Si no hay path,
+            // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
             _clutchCtrl = string.IsNullOrEmpty(clutchPath) ? null : CacheControl(clutchPath);
 
             // Bindings configurables (reversa, paddles, combos, restart, gears).
