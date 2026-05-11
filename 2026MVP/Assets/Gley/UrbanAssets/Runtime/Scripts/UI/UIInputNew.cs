@@ -986,8 +986,13 @@ namespace Gley.UrbanSystem
 
             if (IsHORITruck(d))
             {
-                string clutchPath = PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS, "");
-                if (string.IsNullOrEmpty(clutchPath))
+                // v1.7.0 single-source-of-truth: para HORI, "está calibrado para manual?"
+                // se decide por el JSON (HoriControlMapping.Active.axes.clutch.path),
+                // NO por PlayerPrefs legacy. Sin esta unificación, el block gate podía
+                // permitir manual aunque el JSON estuviera vacío (PlayerPrefs stale
+                // del Discovery viejo), o bloquearlo aunque el JSON tuviera path válido.
+                var horiMapBlock = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+                if (horiMapBlock == null || string.IsNullOrEmpty(horiMapBlock.axes.clutch.path))
                     return ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
                 return ManualBlockReason.None;
             }
@@ -1588,10 +1593,22 @@ namespace Gley.UrbanSystem
                 _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
             }
 
-            // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
-            _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
-            _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
-            _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+            // Calibración del steering (si no existe, rango ideal -1..1 sin offset).
+            // v1.7.0 single-source-of-truth: para HORI viene de JSON, no de PlayerPrefs.
+            if (IsHORITruck(device) && TlaxSim.HoriCalibration.HoriControlMapping.Active != null)
+            {
+                var hmSteer = TlaxSim.HoriCalibration.HoriControlMapping.Active.axes.steer;
+                _steerCenter = hmSteer.center;
+                _steerMax    = hmSteer.rightMax;
+                _steerMin    = hmSteer.leftMax;
+                Debug.Log($"[UIInputNew] HORI steer range desde JSON: center={_steerCenter:F2} min={_steerMin:F2} max={_steerMax:F2}");
+            }
+            else
+            {
+                _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
+                _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
+                _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+            }
 
             // Parámetros tuneable (panel F9)
             ReloadTuning();
