@@ -21,6 +21,7 @@ public class HoriCalibrationPanel : MonoBehaviour
     private bool _hasChanges;
     private bool _manualMode;
     private TMP_Text _headerCalibratedAt;
+    private int _currentPage; // 0=Conducción, 1=Luces y Reversa, 2=Marchas
 
     private bool _capturing;
     private string _captureTargetField;
@@ -131,14 +132,15 @@ public class HoriCalibrationPanel : MonoBehaviour
         bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one;
         bgRt.offsetMin = Vector2.zero; bgRt.offsetMax = Vector2.zero;
 
-        // Card central
+        // Card central — full screen card con padding interno
         var card = new GameObject("Card", typeof(Image));
         card.transform.SetParent(_panelRoot.transform, false);
         card.GetComponent<Image>().color = new Color(0.1f, 0.1f, 0.14f, 1f);
         var cardRt = card.GetComponent<RectTransform>();
         cardRt.anchorMin = new Vector2(0.5f, 0.5f);
         cardRt.anchorMax = new Vector2(0.5f, 0.5f);
-        cardRt.sizeDelta = new Vector2(900f, 720f);
+        cardRt.pivot = new Vector2(0.5f, 0.5f);
+        cardRt.sizeDelta = new Vector2(1100f, 1020f);
 
         BuildHeader(card.transform);
         BuildControlRows(card.transform);
@@ -153,7 +155,11 @@ public class HoriCalibrationPanel : MonoBehaviour
         _canvas = go.AddComponent<Canvas>();
         _canvas.renderMode = RenderMode.ScreenSpaceOverlay;
         _canvas.sortingOrder = 9999;
-        go.AddComponent<CanvasScaler>().uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        var scaler = go.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920f, 1080f);
+        scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+        scaler.matchWidthOrHeight = 0.5f;
         go.AddComponent<GraphicRaycaster>();
     }
 
@@ -161,24 +167,31 @@ public class HoriCalibrationPanel : MonoBehaviour
 
     private void BuildHeader(Transform parent)
     {
-        var title = CreateText(parent, "CALIBRACIÓN HORI TRUCK", 22f, FontStyles.Bold, Color.white, 340f);
+        var title = CreateText(parent, "CALIBRACIÓN HORI TRUCK", 32f, FontStyles.Bold, Color.white, 420f);
         title.alignment = TextAlignmentOptions.Center;
 
         _manualMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 1;
-        var transmissionRow = CreateRow(parent, 300f, 40f);
-        var label = CreateText(transmissionRow, "Transmisión: ", 14f, FontStyles.Normal, Color.white, 0f);
-        label.rectTransform.anchoredPosition = new Vector2(-200f, 0f);
+        var transmissionRow = CreateRow(parent, 370f, 40f);
+        var label = CreateText(transmissionRow, "Transmisión:", 18f, FontStyles.Normal, Color.white, 0f);
+        label.rectTransform.anchoredPosition = new Vector2(-180f, 0f);
+        label.alignment = TextAlignmentOptions.Right;
 
-        var autoBtn = CreateButton(transmissionRow, "Automática", 14f, () => SetManual(false));
-        autoBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(-50f, 0f);
+        var autoBtn = CreateButton(transmissionRow, "Automática", 16f, () => SetManual(false));
+        autoBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(-30f, 0f);
+        autoBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(140f, 36f);
+        autoBtn.GetComponent<Image>().color = _manualMode ? new Color(0.18f, 0.22f, 0.32f, 1f) : new Color(0.35f, 0.55f, 0.85f, 1f);
 
-        var manBtn = CreateButton(transmissionRow, "Manual", 14f, () => SetManual(true));
-        manBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(80f, 0f);
+        var manBtn = CreateButton(transmissionRow, "Manual", 16f, () => SetManual(true));
+        manBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(130f, 0f);
+        manBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(140f, 36f);
+        manBtn.GetComponent<Image>().color = _manualMode ? new Color(0.35f, 0.55f, 0.85f, 1f) : new Color(0.18f, 0.22f, 0.32f, 1f);
 
         string fp = string.IsNullOrEmpty(_draft.deviceFingerprint) ? "(sin huella)" : _draft.deviceFingerprint;
-        CreateText(parent, $"Fingerprint: {fp}", 11f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.75f), 260f);
+        var fpTxt = CreateText(parent, $"Fingerprint: {fp}", 13f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.75f), 320f);
+        fpTxt.alignment = TextAlignmentOptions.Center;
 
-        _headerCalibratedAt = CreateText(parent, FormatCalibratedAt(), 11f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.75f), 240f);
+        _headerCalibratedAt = CreateText(parent, FormatCalibratedAt(), 13f, FontStyles.Italic, new Color(0.7f, 0.7f, 0.75f), 295f);
+        _headerCalibratedAt.alignment = TextAlignmentOptions.Center;
     }
 
     private void SetManual(bool manual)
@@ -206,28 +219,71 @@ public class HoriCalibrationPanel : MonoBehaviour
 
     private void BuildControlRows(Transform parent)
     {
-        CreateSectionHeader(parent, "CONDUCCIÓN", 195f);
-        BuildRow(parent, 170f, "Volante",     () => _draft.axes.steer.path, () => true, () => DetectSteer());
-        BuildRow(parent, 140f, "Acelerador",  () => "reader: " + _draft.axes.gas.source, () => true, () => VerifyThrottle());
-        BuildRow(parent, 110f, "Freno",       () => _draft.axes.brake.path, () => true, () => DetectPedalAxis("brake"));
-        BuildRow(parent,  80f, "Clutch",      () => _draft.axes.clutch.path, () => _manualMode, () => DetectPedalAxis("clutch"));
+        // Tabs (botones de paginación) en posición superior, debajo del header
+        BuildPageTabs(parent);
 
-        CreateSectionHeader(parent, "LUCES Y SEÑALES", 35f);
-        BuildRow(parent,   10f, "Claxon",        () => _draft.buttons.horn.path,      () => true, () => DetectButton("horn"));
-        BuildRow(parent,  -20f, "Intermitentes", () => _draft.buttons.hazards.path,   () => true, () => DetectButton("hazards", shifterOnly: true));
-        BuildRow(parent,  -50f, "Flecha izq",    () => _draft.buttons.turnLeft.path,  () => true, () => DetectButton("turnLeft", wheelOnly: true));
-        BuildRow(parent,  -80f, "Flecha der",    () => _draft.buttons.turnRight.path, () => true, () => DetectButton("turnRight", wheelOnly: true));
+        // Cada página ocupa el mismo espacio Y (200 a -300), con espaciado generoso entre rows.
+        const float ROW_START_Y = 150f;
+        const float ROW_SPACING = 55f;
 
-        CreateSectionHeader(parent, "REVERSA", -130f);
-        BuildRow(parent, -160f, "Reversa (palanca)", () => _draft.buttons.reverse.path + " (pulse)", () => true, () => DetectButton("reverse", shifterOnly: true));
+        if (_currentPage == 0)
+        {
+            CreateSectionHeader(parent, "CONDUCCIÓN", ROW_START_Y + 30f);
+            BuildRow(parent, ROW_START_Y,                  "Volante",    () => _draft.axes.steer.path,                () => true,        () => DetectSteer());
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Acelerador", () => "reader: " + _draft.axes.gas.source,   () => true,        () => VerifyThrottle());
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Freno",      () => _draft.axes.brake.path,                () => true,        () => DetectPedalAxis("brake"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Clutch",     () => _draft.axes.clutch.path,               () => _manualMode, () => DetectPedalAxis("clutch"));
+        }
+        else if (_currentPage == 1)
+        {
+            CreateSectionHeader(parent, "LUCES Y SEÑALES", ROW_START_Y + 30f);
+            BuildRow(parent, ROW_START_Y,                  "Claxon",        () => _draft.buttons.horn.path,      () => true, () => DetectButton("horn"));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "Intermitentes", () => _draft.buttons.hazards.path,   () => true, () => DetectButton("hazards", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "Flecha izq",    () => _draft.buttons.turnLeft.path,  () => true, () => DetectButton("turnLeft", wheelOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "Flecha der",    () => _draft.buttons.turnRight.path, () => true, () => DetectButton("turnRight", wheelOnly: true));
 
-        CreateSectionHeader(parent, "MARCHAS MANUAL", -210f);
-        BuildRow(parent, -240f, "1ª",  () => _draft.buttons.gear1.path, () => _manualMode, () => DetectButton("gear1", shifterOnly: true));
-        BuildRow(parent, -270f, "2ª",  () => _draft.buttons.gear2.path, () => _manualMode, () => DetectButton("gear2", shifterOnly: true));
-        BuildRow(parent, -300f, "3ª",  () => _draft.buttons.gear3.path, () => _manualMode, () => DetectButton("gear3", shifterOnly: true));
-        BuildRow(parent, -330f, "4ª",  () => _draft.buttons.gear4.path, () => _manualMode, () => DetectButton("gear4", shifterOnly: true));
-        BuildRow(parent, -360f, "5ª",  () => _draft.buttons.gear5.path, () => _manualMode, () => DetectButton("gear5", shifterOnly: true));
-        BuildRow(parent, -390f, "6ª",  () => _draft.buttons.gear6.path, () => _manualMode, () => DetectButton("gear6", shifterOnly: true));
+            CreateSectionHeader(parent, "REVERSA", ROW_START_Y - ROW_SPACING*4);
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "Reversa (palanca)", () => _draft.buttons.reverse.path + " (pulse)", () => true, () => DetectButton("reverse", shifterOnly: true));
+        }
+        else if (_currentPage == 2)
+        {
+            CreateSectionHeader(parent, "MARCHAS MANUAL", ROW_START_Y + 30f);
+            BuildRow(parent, ROW_START_Y,                  "1ª", () => _draft.buttons.gear1.path, () => _manualMode, () => DetectButton("gear1", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING,    "2ª", () => _draft.buttons.gear2.path, () => _manualMode, () => DetectButton("gear2", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*2,  "3ª", () => _draft.buttons.gear3.path, () => _manualMode, () => DetectButton("gear3", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*3,  "4ª", () => _draft.buttons.gear4.path, () => _manualMode, () => DetectButton("gear4", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*4,  "5ª", () => _draft.buttons.gear5.path, () => _manualMode, () => DetectButton("gear5", shifterOnly: true));
+            BuildRow(parent, ROW_START_Y - ROW_SPACING*5,  "6ª", () => _draft.buttons.gear6.path, () => _manualMode, () => DetectButton("gear6", shifterOnly: true));
+        }
+    }
+
+    private void BuildPageTabs(Transform parent)
+    {
+        // Tabs centrados horizontalmente justo debajo del header
+        const float TABS_Y = 195f;
+        string[] tabLabels = { "Conducción", "Luces y Reversa", "Marchas (Manual)" };
+        float[] tabXOffsets = { -260f, 0f, 260f };
+        for (int i = 0; i < tabLabels.Length; i++)
+        {
+            int pageIdx = i; // capture para closure
+            var btn = CreateButton(parent, tabLabels[i], 13f, () => SwitchPage(pageIdx));
+            var rt = btn.GetComponent<RectTransform>();
+            rt.sizeDelta = new Vector2(220f, 34f);
+            rt.anchoredPosition = new Vector2(tabXOffsets[i], TABS_Y);
+            // Highlight current tab
+            var img = btn.GetComponent<Image>();
+            img.color = (i == _currentPage)
+                ? new Color(0.35f, 0.55f, 0.85f, 1f)   // activo
+                : new Color(0.18f, 0.22f, 0.32f, 1f); // inactivo
+        }
+    }
+
+    private void SwitchPage(int page)
+    {
+        if (page < 0 || page > 2) return;
+        _currentPage = page;
+        if (_panelRoot != null) Destroy(_panelRoot);
+        BuildUI();
     }
 
     private void CreateSectionHeader(Transform parent, string title, float y)
@@ -236,9 +292,11 @@ public class HoriCalibrationPanel : MonoBehaviour
         bg.transform.SetParent(parent, false);
         bg.GetComponent<Image>().color = new Color(0.15f, 0.15f, 0.2f, 1f);
         var rt = bg.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(820f, 22f);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(1020f, 32f);
         rt.anchoredPosition = new Vector2(0f, y);
-        CreateText(bg.transform, title, 12f, FontStyles.Bold, new Color(0.85f, 0.85f, 0.95f), 0f);
+        var titleTxt = CreateText(bg.transform, title, 16f, FontStyles.Bold, new Color(0.85f, 0.85f, 0.95f), 0f);
+        titleTxt.alignment = TextAlignmentOptions.Center;
     }
 
     private void BuildRow(Transform parent, float y, string label, System.Func<string> getValue, System.Func<bool> required, System.Action onDetect)
@@ -246,21 +304,23 @@ public class HoriCalibrationPanel : MonoBehaviour
         var row = new GameObject("Row_" + label, typeof(RectTransform));
         row.transform.SetParent(parent, false);
         var rt = row.GetComponent<RectTransform>();
-        rt.sizeDelta = new Vector2(820f, 26f);
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(1000f, 40f);
         rt.anchoredPosition = new Vector2(0f, y);
 
-        var lbl = CreateText(row.transform, label, 12f, FontStyles.Normal, Color.white, 0f);
-        lbl.rectTransform.sizeDelta = new Vector2(150f, 20f);
-        lbl.rectTransform.anchoredPosition = new Vector2(-340f, 0f);
+        var lbl = CreateText(row.transform, label, 18f, FontStyles.Bold, Color.white, 0f);
+        lbl.rectTransform.sizeDelta = new Vector2(260f, 30f);
+        lbl.rectTransform.anchoredPosition = new Vector2(-360f, 0f);
+        lbl.alignment = TextAlignmentOptions.Left;
 
         string val = getValue();
-        var valTxt = CreateText(row.transform, string.IsNullOrEmpty(val) ? "(vacío)" : val, 12f, FontStyles.Italic, RowStateColor(required(), val), 0f);
-        valTxt.rectTransform.sizeDelta = new Vector2(380f, 20f);
+        var valTxt = CreateText(row.transform, string.IsNullOrEmpty(val) ? "(vacío)" : val, 16f, FontStyles.Italic, RowStateColor(required(), val), 0f);
+        valTxt.rectTransform.sizeDelta = new Vector2(440f, 28f);
         valTxt.rectTransform.anchoredPosition = new Vector2(60f, 0f);
 
-        var btn = CreateButton(row.transform, "Detectar", 11f, onDetect);
-        btn.GetComponent<RectTransform>().anchoredPosition = new Vector2(330f, 0f);
-        btn.GetComponent<RectTransform>().sizeDelta = new Vector2(80f, 22f);
+        var btn = CreateButton(row.transform, "Detectar", 14f, onDetect);
+        btn.GetComponent<RectTransform>().anchoredPosition = new Vector2(420f, 0f);
+        btn.GetComponent<RectTransform>().sizeDelta = new Vector2(120f, 32f);
     }
 
     private Color RowStateColor(bool required, string value)
@@ -502,14 +562,14 @@ public class HoriCalibrationPanel : MonoBehaviour
     private void BuildFooter(Transform parent)
     {
         var saveBtn = CreateButton(parent, "Guardar y salir", 13f, () => Close(save: true));
-        saveBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180f, -330f);
-        saveBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(180f, 32f);
+        saveBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(-180f, -440f);
+        saveBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(180f, 36f);
 
         var resetBtn = CreateButton(parent, "Restaurar defaults canónicos", 12f, () => RestoreCanonicalDefaults());
-        resetBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(80f, -330f);
-        resetBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(240f, 32f);
+        resetBtn.GetComponent<RectTransform>().anchoredPosition = new Vector2(80f, -440f);
+        resetBtn.GetComponent<RectTransform>().sizeDelta = new Vector2(260f, 36f);
 
-        var hint = CreateText(parent, "Esc cancela sin guardar · F8 sostén cierra con guardar", 11f, FontStyles.Italic, new Color(0.6f, 0.6f, 0.7f), -360f);
+        var hint = CreateText(parent, "Esc cancela sin guardar · F8 sostén cierra con guardar", 11f, FontStyles.Italic, new Color(0.6f, 0.6f, 0.7f), -470f);
         hint.alignment = TextAlignmentOptions.Center;
     }
 
@@ -570,7 +630,10 @@ public class HoriCalibrationPanel : MonoBehaviour
         t.fontStyle = style;
         t.color = color;
         t.alignment = TextAlignmentOptions.Left;
+        t.textWrappingMode = TextWrappingModes.NoWrap;
+        t.overflowMode = TextOverflowModes.Overflow;
         var rt = t.rectTransform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.sizeDelta = new Vector2(800f, 30f);
         rt.anchoredPosition = new Vector2(0f, y);
         return t;
@@ -581,6 +644,7 @@ public class HoriCalibrationPanel : MonoBehaviour
         var go = new GameObject("Row", typeof(RectTransform));
         go.transform.SetParent(parent, false);
         var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.sizeDelta = new Vector2(800f, height);
         rt.anchoredPosition = new Vector2(0f, y);
         return go.transform;
@@ -593,6 +657,7 @@ public class HoriCalibrationPanel : MonoBehaviour
         var img = go.GetComponent<Image>();
         img.color = new Color(0.2f, 0.4f, 0.6f, 1f);
         var rt = go.GetComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.sizeDelta = new Vector2(100f, 30f);
         var txt = CreateText(go.transform, label, fontSize, FontStyles.Normal, Color.white, 0f);
         txt.alignment = TextAlignmentOptions.Center;
