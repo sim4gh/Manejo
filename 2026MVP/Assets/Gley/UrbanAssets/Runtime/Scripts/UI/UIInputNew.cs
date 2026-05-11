@@ -276,17 +276,13 @@ namespace Gley.UrbanSystem
         private float _restartComboTimer;
         private const float COMBO_HOLD_TIME = 1.5f;
 
-        // Restart por 5 frenazos a fondo seguidos. Edge-detection con histéresis
-        // para evitar doble-conteo por jitter del pedal cerca del threshold.
-        // _brakeTapHigh arranca en true → si entras a la escena con el freno
-        // pisado, hay que liberarlo primero antes de armar el primer tap.
-        private int _brakeTapCount;
-        private bool _brakeTapHigh = true;
-        private float _brakeTapLastTime = -999f;
-        private const float BRAKE_TAP_PRESS = 0.85f;
-        private const float BRAKE_TAP_RELEASE = 0.20f;
-        private const float BRAKE_TAP_WINDOW = 2.5f;
-        private const int BRAKE_TAP_TARGET = 5;
+        // v1.7.0: Restart escena por combo "Reversa + Acelerador" sostenido 1.5s.
+        // Combo unnatural (no se mantiene reversa con acelerador a fondo en driving normal)
+        // → muy bajo riesgo de falsos positivos. Reemplaza el legacy "5 frenazos".
+        // -1f = no armado.
+        private float _resetComboHoldStart = -1f;
+        private const float RESET_COMBO_HOLD_SECONDS = 1.5f;
+        private const float RESET_COMBO_GAS_THRESHOLD = 0.7f;
 
         // Bindings configurables via BindingsPanel (F8 hold 1.5s).
         // Defaults = mapeo G923 PS (tenía hardcoded). El usuario puede
@@ -2348,35 +2344,29 @@ namespace Gley.UrbanSystem
                 _lastRestartPressed = restartNow;
             }
 
-            // ---- 5 frenazos a fondo seguidos → restart escena ----
-            // Edge-detect con histéresis (cruza ≥0.85 = tap, requiere bajar a ≤0.20
-            // para armar el siguiente). Ventana de 2.5s entre taps reinicia la cuenta.
+            // ---- v1.7.0: Reset escena con combo "Reversa + Acelerador" 1.5s ----
+            // Reemplaza el legacy "5 frenazos a fondo" (que se disparaba accidentalmente
+            // si el operador trababa el pedal contra el sensor). Combo unnatural:
+            // mantener botón de reversa + acelerador a fondo simultáneamente por 1.5s.
             // unscaledTime para que funcione con paneles F7/F8/F9 abiertos.
-            // Lee el pedal pre-curva (NormalizePedal lineal) — brakeInput pasó por
-            // BrakeCurve, y si el usuario tunea la curva en F9 el threshold 0.85
-            // dejaría de significar "pedal a fondo". Gated a wheel real para no
-            // disparar con S/flecha-abajo del teclado.
-            if (_hasWheel && _brakeCtrl != null)
+            if (_hasWheel)
             {
-                float brakeTapRaw = SafeReadFloatRaw(_brakeCtrl, out var rbt) ? rbt : _brakeRest;
-                float brakeTapPct = NormalizePedal(brakeTapRaw, _brakeRest, _brakePress);
-                float now = Time.unscaledTime;
-                if (!_brakeTapHigh && brakeTapPct >= BRAKE_TAP_PRESS)
+                bool reversePressed = IsAnyPressed(_crossCtrls) || _manualReverseLatched;
+                bool gasPressed = verticalInput >= RESET_COMBO_GAS_THRESHOLD;
+                if (reversePressed && gasPressed)
                 {
-                    _brakeTapHigh = true;
-                    if (now - _brakeTapLastTime > BRAKE_TAP_WINDOW) _brakeTapCount = 0;
-                    _brakeTapCount++;
-                    _brakeTapLastTime = now;
-                    if (_brakeTapCount >= BRAKE_TAP_TARGET)
+                    if (_resetComboHoldStart < 0f) _resetComboHoldStart = Time.unscaledTime;
+                    if (Time.unscaledTime - _resetComboHoldStart >= RESET_COMBO_HOLD_SECONDS)
                     {
-                        _brakeTapCount = 0;
+                        Debug.Log("[UIInputNew] Reset combo (Reversa+Acelerador 1.5s) → recargando escena");
+                        _resetComboHoldStart = -1f;
                         Time.timeScale = 1f;
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
                     }
                 }
-                else if (_brakeTapHigh && brakeTapPct <= BRAKE_TAP_RELEASE)
+                else
                 {
-                    _brakeTapHigh = false;
+                    _resetComboHoldStart = -1f;
                 }
             }
 
@@ -2466,31 +2456,26 @@ namespace Gley.UrbanSystem
             brakeInput  = brakePressed  ? 1f : 0f;
             clutchInput = clutchPressed ? 1f : 0f;
 
-            // ---- 5 frenazos seguidos → restart escena ----
-            // En moto el freno es botón HID (0/1), no eje analógico, así que
-            // edge-detect directo sobre brakePressed (sin histéresis necesaria).
-            // Reusa _brakeTapCount/_brakeTapHigh/_brakeTapLastTime y BRAKE_TAP_*
-            // del path wheel-style. Gateado a _brakeCtrl != null (sin botón
-            // calibrado, no contar).
-            if (_brakeCtrl != null)
+            // ---- v1.7.0: Reset escena moto (brake + clutch HID buttons 1.5s) ----
+            // En moto no hay "reversa", así que el combo wheel-style no aplica.
+            // Combo unnatural moto: brake + clutch HID buttons sostenidos 1.5s.
+            if (_brakeCtrl != null && _clutchCtrl != null)
             {
-                float nowMoto = Time.unscaledTime;
-                if (!_brakeTapHigh && brakePressed)
+                bool comboPressed = brakePressed && clutchPressed;
+                if (comboPressed)
                 {
-                    _brakeTapHigh = true;
-                    if (nowMoto - _brakeTapLastTime > BRAKE_TAP_WINDOW) _brakeTapCount = 0;
-                    _brakeTapCount++;
-                    _brakeTapLastTime = nowMoto;
-                    if (_brakeTapCount >= BRAKE_TAP_TARGET)
+                    if (_resetComboHoldStart < 0f) _resetComboHoldStart = Time.unscaledTime;
+                    if (Time.unscaledTime - _resetComboHoldStart >= RESET_COMBO_HOLD_SECONDS)
                     {
-                        _brakeTapCount = 0;
+                        Debug.Log("[UIInputNew/Moto] Reset combo (Brake+Clutch 1.5s) → recargando escena");
+                        _resetComboHoldStart = -1f;
                         Time.timeScale = 1f;
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
                     }
                 }
-                else if (_brakeTapHigh && !brakePressed)
+                else
                 {
-                    _brakeTapHigh = false;
+                    _resetComboHoldStart = -1f;
                 }
             }
 
