@@ -128,6 +128,9 @@ public class HoriCalibrationPanel : MonoBehaviour
         _panelRoot.transform.SetParent(_canvas.transform, false);
         var bg = _panelRoot.AddComponent<Image>();
         bg.color = new Color(0, 0, 0, 0.95f);
+        // El bg SÍ debe interceptar clicks (para bloquear el fondo de Pantalla 2)
+        // pero NO debe consumirlos: como el card y sus children están más arriba en
+        // la jerarquía, los buttons capturan primero. raycastTarget=true es OK.
         var bgRt = bg.GetComponent<RectTransform>();
         bgRt.anchorMin = Vector2.zero; bgRt.anchorMax = Vector2.one;
         bgRt.offsetMin = Vector2.zero; bgRt.offsetMax = Vector2.zero;
@@ -160,6 +163,16 @@ public class HoriCalibrationPanel : MonoBehaviour
         scaler.referenceResolution = new Vector2(1920f, 1080f);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
         scaler.matchWidthOrHeight = 0.5f;
+
+        // Defensa: si por alguna razón no existe EventSystem (e.g. escena sin UI legacy),
+        // crear uno. Sin EventSystem, ningún button responde a clicks.
+        if (UnityEngine.EventSystems.EventSystem.current == null)
+        {
+            var esGo = new GameObject("EventSystem", typeof(UnityEngine.EventSystems.EventSystem),
+                typeof(UnityEngine.InputSystem.UI.InputSystemUIInputModule));
+            DontDestroyOnLoad(esGo);
+            Debug.Log("[HoriCalibrationPanel] EventSystem ausente — creé uno defensivo");
+        }
         go.AddComponent<GraphicRaycaster>();
     }
 
@@ -633,6 +646,9 @@ public class HoriCalibrationPanel : MonoBehaviour
         t.alignment = TextAlignmentOptions.Left;
         t.textWrappingMode = TextWrappingModes.NoWrap;
         t.overflowMode = TextOverflowModes.Overflow;
+        // CRITICAL: text NO debe interceptar clicks; si hereda raycastTarget=true,
+        // bloquea clicks a los buttons que lo contienen (label text dentro del button).
+        t.raycastTarget = false;
         var rt = t.rectTransform;
         rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f);
         rt.sizeDelta = new Vector2(800f, 30f);
