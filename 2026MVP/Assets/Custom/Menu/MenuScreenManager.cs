@@ -3358,6 +3358,11 @@ public class MenuScreenManager : MonoBehaviour
         if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
         rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
 
+        // v1.7.0 hotfix: ocultar el scaffolding Pantalla 2 (5 barras Discovery) —
+        // el operador HORI no las necesita, son Discovery legacy para G923/Moto.
+        // Solo mostrar wheelPrompt + skip/reassign buttons.
+        SetWheelDiscoveryScaffoldingVisible(false);
+
         string msg = "El volante <b>HORI Truck</b> necesita calibración.\n\n";
         if (missing != null && missing.Count > 0)
         {
@@ -3383,6 +3388,22 @@ public class MenuScreenManager : MonoBehaviour
             if (t != null) t.text = "Volver a transmisión";
             reassignButton.interactable = true;
             reassignButton.gameObject.SetActive(true);
+        }
+    }
+
+    // v1.7.0: oculta/muestra las 5 barras Discovery (DERECHA/IZQUIERDA/ACELERADOR/FRENO/REVERSA)
+    // que se construyen en BuildScreen2_Wheel. Llamado con false desde
+    // ShowHoriPreflightModal para limpiar el UI cuando el modal está activo.
+    // Llamado con true desde ClearManualBlockedModalState para restaurar.
+    void SetWheelDiscoveryScaffoldingVisible(bool visible)
+    {
+        var area = wheelPrompt != null ? wheelPrompt.transform.parent : null;
+        if (area == null) return;
+        foreach (Transform child in area)
+        {
+            string n = child.name;
+            if (n.EndsWith("_Label") || n.EndsWith("_Bar"))
+                child.gameObject.SetActive(visible);
         }
     }
 
@@ -3516,6 +3537,8 @@ public class MenuScreenManager : MonoBehaviour
             var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
             if (t != null) t.text = "Reasignar controles";
         }
+        // v1.7.0: restaurar scaffolding Pantalla 2 que ShowHoriPreflightModal ocultó.
+        SetWheelDiscoveryScaffoldingVisible(true);
     }
 
     // Splash de "Preparando prueba..." en estado Verified. Verifica que los
