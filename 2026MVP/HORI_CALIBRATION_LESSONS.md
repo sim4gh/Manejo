@@ -659,3 +659,55 @@ Cuando el operador deliberadamente quiere Neutral:
 - `calibrate-hori-pedals.ps1` — helper de read/write de PlayerPrefs G923_*
   con phases (read latest axes, kill game, write float, list prefs). No
   necesario tras v1.6.4 pero útil para diagnóstico futuro.
+
+## v1.7.0 — Calibración immutable + verify-only Pantalla 2 (2026-05-11)
+
+Shipped: ver `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md` para el design completo y `docs/superpowers/plans/2026-05-11-hori-v170-immutable-calibration.md` para el plan de implementación.
+
+### Cambios clave
+- **JSON file** `<persistentDataPath>/hori_mapping.json` reemplaza PlayerPrefs para HORI.
+- **F8 panel** `HoriCalibrationPanel` (`Assets/Custom/HoriCalibrationPanel.cs`) es el ÚNICO writer del JSON.
+- **Pantalla 2** para HORI ahora es verify-only — si JSON existe y preflight pasa, carga escena directo (sin sliders, sin Phase 4/6 Discovery).
+- **Modal "necesita calibración"** lista controles faltantes y guía al F8 sostén 1.5s.
+- **Heartbeat sync** `controlMapping` field — portal admin muestra el mapping en `/admin/simuladores/pcs/[pcId]/calibracion`.
+- **Folder consolidation**: install path canónico `C:\Tlax2026-RC\` (script `scripts/consolidate-install-path.ps1`).
+
+### Archivos nuevos (Manejo/)
+- `Assets/Custom/HoriCalibration/TlaxSim.HoriCalibration.asmdef`
+- `Assets/Custom/HoriCalibration/HoriMapping.cs` — struct serializable
+- `Assets/Custom/HoriCalibration/HoriControlMapping.cs` — singleton load/save atómico (.tmp→rename)
+- `Assets/Custom/HoriCalibration/HoriMappingMigration.cs` — PlayerPrefs→JSON con validación estricta
+- `Assets/Custom/HoriCalibration/HoriPreflightCheck.cs` — Validate(mapping, resolver, manual)
+- `Assets/Custom/HoriCalibrationPanel.cs` — F8 UI (header + rows + Detect flows + footer + bootstrap)
+- `Assets/Tests/EditMode/HoriControlMappingTests.cs` — 5 tests
+- `Assets/Tests/EditMode/HoriMappingMigrationTests.cs` — 6 tests
+- `Assets/Tests/EditMode/HoriPreflightCheckTests.cs` — 7 tests
+- `scripts/consolidate-install-path.ps1` — one-time per kiosko folder rename
+
+### Archivos modificados (Manejo/)
+- `Assets/Gley/UrbanAssets/Runtime/Scripts/UI/UIInputNew.cs` — HORI branch lee rest/press y binds desde `HoriControlMapping.Active`; agregados helpers `IsHORITruckWheel/Shifter`; throttle bypass preservado; `ForceHoriBind` deprecated (comentado).
+- `Assets/Custom/Menu/MenuScreenManager.cs` — `PrepareWheelScreen` HORI rama verify-only + `ShowHoriPreflightModal` + `RuntimeHoriResolver`; Phase 4/6 skipped for HORI; sanity check guarded.
+- `Assets/Custom/BindingsPanel.cs` — F8 hold gateado por HORI detection.
+- `Assets/Custom/SimulatorApiClient.cs` — heartbeat agrega `controlMapping` JSON string blob.
+- `scripts/bootstrap-install.ps1` — default `InstallDir` es ahora `C:\Tlax2026-RC`.
+
+### Cross-repo
+- `portal-backend/lib/lambdas/simulator-api/simulator-heartbeat.ts` — whitelist `controlMapping` + escribe a DynamoDB.
+- `portal/src/lib/simulator-api.ts` — types `controlMapping`, `controlMappingUpdatedAt`, `HoriMappingV1`.
+- `portal/src/components/admin/HoriMappingTable.tsx` — display component.
+- `portal/src/app/admin/simuladores/pcs/[pcId]/calibracion/page.tsx` — integración.
+
+### Bugs cerrados
+- "presiono acelerador, los 3 son reconocidos" — Discovery HORI removida.
+- "no persiste entre sesiones" — JSON atómico + único writer.
+- "sanity check borra calibración" — sanity check HORI eliminado.
+- "Pantalla 2 cada arranque" — verify-only.
+
+### Scope
+HORI Truck only. G923 PS/Xbox y Moto sin cambios.
+
+### Path canónico del claxon (verified Phase 0 SSH Aramis)
+`wheel:button7` (verificado por hex decode del registry HKCU\Software\Tlaxcala\Tlax2026-RC, valor `776865656C3A627574746F6E37` = `wheel:button7`).
+
+### Productivos
+NO se desplegó OTA a productivos en v1.7.0. Aramis only. Productivos pendientes en sesión futura con autorización explícita.

@@ -237,7 +237,13 @@ namespace Gley.UrbanSystem
             if (currentGear == -1) // Reversa
                 motorTorque = -maxMotorTorque * gasInput;
             else if (currentGear == 0) // Neutral
+            {
+                // Codex fix: NO aplicar ghost-torque en Neutral plain. La asistencia
+                // pertenece al shift transit (clutch press), no a Neutral sostenido
+                // — donde el operador deliberadamente desengaged y deberíamos respetar
+                // el coast natural.
                 motorTorque = 0f;
+            }
             else // 1-6
             {
                 // En manual aplicamos gear ratios: torque y velocidad tope
@@ -276,10 +282,72 @@ namespace Gley.UrbanSystem
             // Manual con clutch desacoplado: cortar transmisión de torque al eje
             // motriz. El motor sigue revolucionando (ver UpdateEngineSound) pero
             // el coche no avanza.
-            if (_clutchDisengaged) motorTorque = 0f;
+            // v1.7.0 HORI-only: durante clutch-press del shift, aplicar ghost-torque
+            // para preservar inercia.
+            //
+            // Guards (codex fix):
+            //   - !brake: si el operador frena durante shift, respetar (hill stop intencional)
+            //   - sign from _lastNonNeutralGear (intent), no velocity (evita asistir rollback)
+            //   - speedKmh > 1: solo si ya tenía inercia
+            //
+            // G923/Moto NO entran — physics estándar para ellos.
+            if (_clutchDisengaged)
+            {
+                motorTorque = 0f;
+                var uiNewClutch = inputScript as UIInputNew;
+                // DIAG r13: snapshot ANTES del ghost-torque para entender por qué
+                // el operador HORI pierde 60 km/h en 2s durante shift transit.
+                // Logueamos cada 15 frames (~0.25s a 60fps) — suficiente granularidad
+                // para reconstruir la curva de deceleración sin spam.
+                if (Time.frameCount % 15 == 0)
+                {
+                    bool isHoriDiag = uiNewClutch != null && uiNewClutch.IsHORITruckActive();
+                    float speedKmhDiag = Mathf.Abs(localVelocity) * 3.6f;
+                    int lastNNDiag = uiNewClutch != null ? uiNewClutch.LastNonNeutralGear : 0;
+                    Debug.Log($"[PlayerCar/SHIFT_DIAG] hori={isHoriDiag} speedKmh={speedKmhDiag:F1} "
+                        + $"vel.z={velocity.z:F2} vel.mag={velocity.magnitude:F2} "
+                        + $"gas={gasInput:F2} brake={brakeInputValue:F2} clutch={clutchValue:F2} "
+                        + $"_clutchDisengaged={_clutchDisengaged} currentGear={currentGear} "
+                        + $"lastNonNeutral={lastNNDiag} "
+                        + $"rb.drag={rb.drag:F3} rb.angularDrag={rb.angularDrag:F3} "
+                        + $"mass={rb.mass:F0} motorTorqueBeforeGhost={motorTorque:F0}");
+                }
+
+                if (uiNewClutch != null && uiNewClutch.IsHORITruckActive()
+                    && brakeInputValue < 0.3f)
+                {
+                    float speedKmhClutch = Mathf.Abs(localVelocity) * 3.6f;
+                    int intentGear = uiNewClutch.LastNonNeutralGear;
+                    if (speedKmhClutch > 1f && intentGear != 0)
+                    {
+                        float signClutch = Mathf.Sign(intentGear);
+                        motorTorque = signClutch * maxMotorTorque * 0.08f * Mathf.Clamp01(speedKmhClutch / 30f);
+                    }
+                }
+            }
 
             // Freno: usa brakeTorque real del WheelCollider
             float brakeTorque = maxBrakeTorque * brakeInputValue;
+
+            // DIAG r13: snapshot DESPUÉS de calcular motorTorque + brakeTorque finales,
+            // incluyendo wheel RPM (para detectar wheel slip vs chassis decel).
+            if (_clutchDisengaged && Time.frameCount % 15 == 0)
+            {
+                float wheelRpmAvg = 0f; int wheelsMotor = 0;
+                foreach (AxleInfo axDiag in axleInfos)
+                {
+                    if (axDiag.motor)
+                    {
+                        wheelRpmAvg += axDiag.leftWheel.rpm + axDiag.rightWheel.rpm;
+                        wheelsMotor += 2;
+                    }
+                }
+                if (wheelsMotor > 0) wheelRpmAvg /= wheelsMotor;
+                Debug.Log($"[PlayerCar/SHIFT_APPLY] motorTorqueFinal={motorTorque:F0} "
+                    + $"brakeTorqueApplied={brakeTorque:F0} "
+                    + $"wheelRpmAvg={wheelRpmAvg:F0} "
+                    + $"maxMotorTorque={maxMotorTorque:F0} maxBrakeTorque={maxBrakeTorque:F0}");
+            }
 
             // Luces
             reverse = (currentGear == -1);
