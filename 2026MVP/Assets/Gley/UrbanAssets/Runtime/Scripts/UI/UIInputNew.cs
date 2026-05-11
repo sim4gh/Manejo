@@ -327,12 +327,23 @@ namespace Gley.UrbanSystem
         // Devuelve el throttle 0..1 leído raw del HID byte 21-22.
         public static System.Func<float> HoriThrottleProvider;
 
-        // HoriShifterReader (v1.6.0): raw HID lever position, bypasses Unity's
-        // pulse-only button7. Returns: -1=R, 0=N, 1-6=gears, int.MinValue=not connected.
-        // Asignado por HoriShifterReader.Bootstrap. UIInputNew NO lo consume todavía
-        // — la integración runtime (replace _manualReverseLatched band-aid) está
-        // en stash@{0} (v1.6.2 reverted) y se aplicará en una rama futura. Esta
-        // declaración existe solo para que HoriShifterReader.cs compile.
+        // HoriShifterReader (v1.6.0 plan, integrado en v1.6.6): raw HID lever
+        // position, bypasses Unity's PULSE-only button2..6 + button7. Returns:
+        // -1=R, 0=N, 1-6=gears, int.MinValue=not connected/uncalibrated.
+        //
+        // Asignado por HoriShifterReader.Bootstrap. UIInputNew lo consume en el
+        // bloque Manual de Update() para sobrescribir desiredGear cuando el
+        // device es HORI y el reader reporta valor válido (≠ int.MinValue).
+        // El loop pulse-based de _gearControls queda como fallback (G923, o
+        // HORI con reader dead/handle cerrado).
+        //
+        // Por qué este fix existe (bug v1.6.5 reportado por Aramis 2026-05-11):
+        // shifter:button3 (3ra) y arriba parecen ser PULSE en HPC-044U, no HOLD.
+        // Unity InputSystem ve el botón 1-2 frames y después desiredGear→0=Neutral
+        // → carro pierde tracción y coasts a 20-30 km/h hasta meter otra marcha.
+        // 1ra (shifter:trigger) y 2da (shifter:button2) parecen ser HOLD por
+        // diferencias del firmware HORI. Reader lee byte[1] bits 0-5 directo
+        // del HID, continuo y persistente.
         public static System.Func<int> HoriShifterStateProvider;
         #endregion
         public const string PREF_BIND_DRIVE = "Bind_drive";
@@ -1990,8 +2001,28 @@ namespace Gley.UrbanSystem
                 if (_hasWheel && _wheelDevice != null)
                 {
                     desiredGear = 0;
-                    if (_gearControls != null)
+
+                    // v1.6.6 (Fase B6): para HORI usamos HoriShifterReader que
+                    // lee byte[1] bits 0-5+6 directo del HID (persistente,
+                    // bypassa Unity PULSE-only). Bug v1.6.5: 3ra/4ta/5ta/6ta
+                    // perdían la marcha tras 1-2 frames porque button2..6 son
+                    // PULSE en HPC-044U y _gearControls los leía via IsPressed.
+                    // 1ra (trigger) y reverse (sticky latch v1.5.9) tenían
+                    // workarounds; el reader unifica todo.
+                    bool isHoriShift = _wheelDevice != null && IsHORITruck(_wheelDevice);
+                    int readerGear = (isHoriShift && HoriShifterStateProvider != null)
+                        ? HoriShifterStateProvider() : int.MinValue;
+                    if (isHoriShift && readerGear != int.MinValue)
                     {
+                        // Reader vivo. -1=R, 0=N, 1-6=gear. Asigna directo;
+                        // el sticky latch debajo queda dormant (gearActive=true
+                        // cancela el latch al detectar gear válido).
+                        desiredGear = readerGear;
+                    }
+                    else if (_gearControls != null)
+                    {
+                        // Fallback pulse-based: G923, o HORI con reader dead
+                        // (handle cerrado / device desconectado / uncalibrated).
                         for (int i = 0; i < _gearControls.Length; i++)
                         {
                             if (IsPressed(_gearControls[i]))

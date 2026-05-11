@@ -476,6 +476,78 @@ está calibrado. Esto:
 
 Ver plan completo en `/Users/sim4r4/.claude/plans/necesito-de-todo-tu-woolly-lightning.md`.
 
+## v1.6.6 — Fase B6: bug 3ª gear PULSE intermitente
+
+**Reportado por Aramis 2026-05-11**: tras OTA exitoso a v1.6.5, el operador en
+HORI metía 1ra → bien, 2da → bien, 3ra → a veces funciona, a veces se queda
+"clavado a 20-30 km/h" sin avanzar.
+
+### Causa raíz
+
+`UIInputNew.cs:336` declaraba `HoriShifterStateProvider` para futura integración
+runtime (v1.6.0 plan), con comentario literal en el código:
+
+> "Asignado por HoriShifterReader.Bootstrap. UIInputNew NO lo consume todavía"
+
+Por tanto la lógica de gear en `Update()` (línea 1995-2003) seguía iterando
+sobre `_gearControls[i].IsPressed(...)` via Unity InputSystem. En HPC-044U:
+- `shifter:trigger` (1ra) — HOLD (persistente mientras lever en gear)
+- `shifter:button2` (2da) — HOLD aparentemente
+- `shifter:button3..6` (3ra-6ta) — **PULSE** 1-2 frames al cruzar la posición
+- `shifter:button7` (R) — PULSE (ya conocido v1.5.8+)
+
+Para 3ra: Unity ve `button3` presionado 1-2 frames → `desiredGear=3` → en el
+siguiente frame `IsPressed(button3)=false` → for-loop encuentra ningún
+gear pressed → `desiredGear=0=Neutral` → vehículo en Neutral pierde tracción
+del motor → coasts a la velocidad que tenía (~20-30 km/h después de 2da).
+
+**Intermitencia explicada**: si el operador presiona button3 y otro frame
+Unity tiene encolado el event → puede tomarse hasta 2-3 frames detectarlo
+→ a veces el polling de gear lo agarra "dentro" del pulse, a veces "después".
+
+### Fix v1.6.6
+
+Conectar `HoriShifterStateProvider` al cálculo de `desiredGear`. El reader
+ya lee `byte[1] bits 0-5+6` directo del HID con calibración HPC-044U
+hardcoded por default (ver `HoriShifterReader.ApplyHPC044UDefaults`), retorna
+`-1=R, 0=N, 1-6=gear, int.MinValue=not connected`.
+
+`UIInputNew.cs` (Update Manual block):
+
+```csharp
+bool isHoriShift = _wheelDevice != null && IsHORITruck(_wheelDevice);
+int readerGear = (isHoriShift && HoriShifterStateProvider != null)
+    ? HoriShifterStateProvider() : int.MinValue;
+if (isHoriShift && readerGear != int.MinValue)
+{
+    desiredGear = readerGear;  // reader vivo: directo
+}
+else if (_gearControls != null)
+{
+    // fallback pulse-based (G923, o HORI con reader dead)
+    for (int i = 0; i < _gearControls.Length; i++) { ... }
+}
+```
+
+### Defensivo
+
+- Si `HoriShifterReader` no inicializó (USB hot-plug, handle CLOSED,
+  uncalibrated), `HoriShifterStateProvider()` retorna `int.MinValue`
+  → cae al pulse-based legacy. Comportamiento igual a v1.6.5.
+- El sticky latch v1.5.9 de reverse (`_manualReverseLatched`) queda dormant
+  cuando reader está vivo (gearActive=true cancela el latch al detectar
+  gear válido). NO se removió por seguridad — sigue siendo fallback si el
+  reader muere mid-gameplay.
+- G923 y Moto NO cambian — `isHoriShift` gatea todo el cambio.
+
+### Validación
+
+Aramis tiene HoriShifterReader vivo en v1.6.5 (logs confirmaron
+`Started poller on \\?\hid#vid_0f0d&pid_0186&col01...`). En v1.6.6
+después del deploy, meter 3ra debe quedar engranada **persistente**.
+Confirmar con F7 sostén 1.5s — `HoriShifterReader gear=3 conn=True`
+mientras la palanca esté en posición.
+
 ## Archivos tocados en v1.6.4
 
 - `2026MVP/Assets/Gley/UrbanAssets/Runtime/Scripts/UI/UIInputNew.cs:1448-1471`

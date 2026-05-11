@@ -569,6 +569,12 @@ en Pasajeros 2 documentado.
 - **Phase 3 ya no auto-pasa para HORI** (Fase B5). Verifica en vivo que `HoriThrottleReader.Value > 0.7` con handle abierto antes de marcar throttleDone. Si el reader no inicializa tras 8s, prompt cambia a "HoriThrottleReader sin handle - verifica USB". Cierra el hueco silencioso de v1.5.12 donde un reader muerto pasaba de calibración a gameplay sin diagnóstico.
 - **`InputMath.NormalizePedal` extraído** a `Assets/Custom/InputMath/` con tests EditMode (10 casos) que cubren divide-by-zero, polaridad invertida, span boundary, y el regression test del bug v1.6.3.
 
+### v1.6.6 — Fase B6: HoriShifterStateProvider integrado en desiredGear
+
+Bug Aramis 2026-05-11: 3ra/4ta/5ta/6ta intermitentes con HORI — el carro se quedaba "clavado a 20-30 km/h" sin avanzar tras 2da. Causa: `shifter:button2..6` son PULSE 1-2 frames en HPC-044U (no HOLD como `shifter:trigger`), `_gearControls[i].IsPressed()` los perdía y `desiredGear→0=Neutral`.
+
+Fix: `UIInputNew.cs:1989+` ahora consume `HoriShifterStateProvider` (asignado por `HoriShifterReader.Bootstrap`) cuando el device es HORI y el reader retorna valor válido (`≠ int.MinValue`). El reader lee `byte[1] bits 0-5+6` directo del HID — persistente mientras la palanca está en gear. Pulse-based queda como fallback si el reader muere.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)
