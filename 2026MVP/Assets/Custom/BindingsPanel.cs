@@ -99,8 +99,8 @@ public class BindingsPanel : MonoBehaviour
         var kb = Keyboard.current;
         bool panelOpen = panelRoot != null;
 
-        // Hold F8 para abrir
-        if (!panelOpen)
+        // Hold F8 para abrir. Si HORI conectado → HoriCalibrationPanel. Si no → BindingsPanel.
+        if (!panelOpen && !(HoriCalibrationPanel.Instance?.IsOpen ?? false))
         {
             if (kb != null && kb.f8Key.isPressed)
             {
@@ -110,7 +110,20 @@ public class BindingsPanel : MonoBehaviour
                 // confirmar en LogConsolePanel (F7) que el sistema sí está leyendo F8.
                 if (Mathf.FloorToInt(holdTimer * 2) != Mathf.FloorToInt(prev * 2))
                     Debug.Log($"[BindingsPanel] F8 held {holdTimer:F1}s / {HOLD_TIME}s");
-                if (holdTimer >= HOLD_TIME) { Debug.Log("[BindingsPanel] Abriendo panel"); Open(); holdTimer = 0f; }
+                if (holdTimer >= HOLD_TIME)
+                {
+                    if (HoriCalibrationPanel.IsHoriConnected())
+                    {
+                        Debug.Log("[BindingsPanel] HORI detectado — abriendo HoriCalibrationPanel");
+                        HoriCalibrationPanel.Instance?.Open();
+                    }
+                    else
+                    {
+                        Debug.Log("[BindingsPanel] Abriendo panel");
+                        Open();
+                    }
+                    holdTimer = 0f;
+                }
             }
             else holdTimer = 0f;
             return;
