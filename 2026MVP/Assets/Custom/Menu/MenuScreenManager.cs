@@ -2013,6 +2013,58 @@ public class MenuScreenManager : MonoBehaviour
             }
         }
 
+        // ── v1.7.0: HORI VERIFY-ONLY ─────────────────────────────────────
+        // Si hay HORI conectado + JSON activo + preflight pasa → saltar Pantalla 2
+        // y cargar escena directo (operador no calibra Discovery, el JSON immutable
+        // es la fuente de verdad). Si no hay JSON o preflight falla, modal
+        // bloqueante "Calibración requerida — F8 sostén 1.5s".
+        // Phase 4 (brake) y Phase 6 (clutch) Discovery se saltan implícitamente:
+        // si llegamos aquí significa preflight OK y todo está en Active.
+        bool isHoriConnected = false;
+        foreach (var hd in InputSystem.devices)
+        {
+            if (UIInputNew.IsHORITruck(hd)) { isHoriConnected = true; break; }
+        }
+        if (isHoriConnected)
+        {
+            bool manual = PlayerPrefs.GetInt("TransmisionManual", 0) == 1;
+            var horiActive = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+            if (horiActive == null)
+            {
+                Debug.LogWarning("[MenuScreenManager] HORI conectado sin HoriControlMapping.Active — modal de calibración requerida.");
+                ShowHoriPreflightModal(new List<string> { "Calibración HORI ausente." });
+                return;
+            }
+            var resolver = new RuntimeHoriResolver();
+            var preflight = TlaxSim.HoriCalibration.HoriPreflightCheck.Validate(horiActive, resolver, manual);
+            if (!preflight.IsOk)
+            {
+                Debug.LogWarning($"[MenuScreenManager] HORI preflight FAILED — missing: {string.Join(", ", preflight.Missing)}");
+                ShowHoriPreflightModal(preflight.Missing);
+                return;
+            }
+            Debug.Log("[MenuScreenManager] HORI preflight OK — skip Pantalla 2, cargando escena directo.");
+            // Marcar UI como completed por si la pantalla se rendereó parcialmente.
+            rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
+            clutchDone = true;
+            steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
+            if (rightIndicator != null) rightIndicator.color = MenuTheme.IndicatorDone;
+            if (leftIndicator != null) leftIndicator.color = MenuTheme.IndicatorDone;
+            if (gasIndicator != null) gasIndicator.color = MenuTheme.IndicatorDone;
+            if (brakeIndicator != null) brakeIndicator.color = MenuTheme.IndicatorDone;
+            if (reverseIndicator != null) reverseIndicator.color = MenuTheme.IndicatorDone;
+            if (rightFillRT != null) { rightFillRT.anchorMax = new Vector2(1, 1); rightFill.color = MenuTheme.IndicatorDone; }
+            if (leftFillRT != null)  { leftFillRT.anchorMin  = new Vector2(0, 0); leftFill.color  = MenuTheme.IndicatorDone; }
+            if (gasFillRT != null)   { gasFillRT.anchorMax   = new Vector2(1, 1); gasFill.color   = MenuTheme.IndicatorDone; }
+            if (brakeFillRT != null) { brakeFillRT.anchorMax = new Vector2(1, 1); brakeFill.color = MenuTheme.IndicatorDone; }
+            if (reverseFillRT != null) { reverseFillRT.anchorMax = new Vector2(1, 1); reverseFill.color = MenuTheme.IndicatorDone; }
+            if (wheelPrompt != null) wheelPrompt.text = "Volante HORI Truck verificado. Cargando prueba...";
+            if (skipButton != null) skipButton.gameObject.SetActive(false);
+            if (reassignButton != null) reassignButton.gameObject.SetActive(false);
+            StartCoroutine(LoadSceneDelayed(1.0f));
+            return;
+        }
+
         // FAST-PATH: Moto Simulator (ESP32-S3 USB HID custom). Las 5 fases del
         // Discovery wheel-style no aplican a la moto: lean/handlebar son ejes
         // distintos, brake/clutch son botones (no ejes con rest/press), y la
@@ -2480,11 +2532,13 @@ public class MenuScreenManager : MonoBehaviour
                 bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
 
                 // Progress bar en vivo basada en el valor del reader.
-                float gasProgress = Mathf.Clamp01(thrValue);
-                if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f)
+                // (variable distinta de 'gasProgress' del bloque non-HORI de abajo
+                // para evitar CS0136 — ese vive en el mismo scope sintáctico).
+                float horiGasProgress = Mathf.Clamp01(thrValue);
+                if (Mathf.Abs(horiGasProgress - gasFillRT.anchorMax.x) > 0.005f)
                 {
-                    gasFillRT.anchorMax = new Vector2(gasProgress, 1);
-                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+                    gasFillRT.anchorMax = new Vector2(horiGasProgress, 1);
+                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, horiGasProgress);
                 }
 
                 const float HORI_THROTTLE_VERIFY_THRESHOLD = 0.7f;
@@ -3283,6 +3337,104 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
+    // ════════════════════════════════════════════════════════════════════
+    // v1.7.0 HORI Preflight modal — Pantalla 2 verify-only path
+    // ════════════════════════════════════════════════════════════════════
+    //
+    // Si HORI está conectado pero (a) no hay HoriControlMapping.Active o
+    // (b) HoriPreflightCheck.Validate retorna missing items, mostramos
+    // un modal bloqueante que indica al operador presionar F8 sostén 1.5s
+    // para abrir HoriCalibrationPanel y calibrar/regenerar el JSON. Reusa
+    // el estado bloqueante de _manualBlockedModalActive para que
+    // skipButton/reassignButton tengan handlers consistentes.
+
+    void ShowHoriPreflightModal(List<string> missing)
+    {
+        _manualBlockedModalActive = true;
+        // Reusamos NoPhysicalClutch_HORINotCalibrated solo para gatear ClearManualBlockedModalState;
+        // el motivo real lo comunicamos en el texto del prompt.
+        _manualBlockedReason = UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
+
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+        rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
+
+        string msg = "El volante <b>HORI Truck</b> necesita calibración.\n\n";
+        if (missing != null && missing.Count > 0)
+        {
+            msg += "Faltan:\n";
+            for (int i = 0; i < missing.Count; i++) msg += "  • " + missing[i] + "\n";
+            msg += "\n";
+        }
+        msg += "Presiona <b>F8 (sostén 1.5s)</b> para abrir el panel de calibración HORI y configurar los controles.\n\n";
+        msg += "También puedes continuar en Automático o volver a la pantalla de transmisión.";
+
+        if (wheelPrompt != null) wheelPrompt.text = msg;
+
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Continuar en Automático";
+            skipButton.interactable = true;
+            skipButton.gameObject.SetActive(true);
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Volver a transmisión";
+            reassignButton.interactable = true;
+            reassignButton.gameObject.SetActive(true);
+        }
+    }
+
+    // RuntimeHoriResolver — implementación de IHoriDeviceResolver que consulta
+    // los InputDevices vivos. Usado solo por PrepareWheelScreen para correr
+    // HoriPreflightCheck.Validate contra el hardware actualmente conectado.
+    private class RuntimeHoriResolver : TlaxSim.HoriCalibration.IHoriDeviceResolver
+    {
+        private InputDevice _wheel;
+        private InputDevice _shifter;
+
+        public RuntimeHoriResolver()
+        {
+            foreach (var d in InputSystem.devices)
+            {
+                if (UIInputNew.IsHORITruckWheel(d)) _wheel = d;
+                else if (UIInputNew.IsHORITruckShifter(d)) _shifter = d;
+            }
+        }
+
+        public bool AxisResolves(string path)
+        {
+            if (string.IsNullOrEmpty(path) || _wheel == null) return false;
+            return _wheel.TryGetChildControl(path) != null;
+        }
+
+        public bool ButtonResolves(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return false;
+            InputDevice target = null;
+            string controlPath = path;
+            if (path.StartsWith("wheel:", System.StringComparison.Ordinal))
+            {
+                target = _wheel;
+                controlPath = path.Substring(6);
+            }
+            else if (path.StartsWith("shifter:", System.StringComparison.Ordinal))
+            {
+                target = _shifter;
+                controlPath = path.Substring(8);
+            }
+            else
+            {
+                target = _wheel; // path raw (defensive)
+            }
+            if (target == null) return false;
+            return target.TryGetChildControl(controlPath) != null;
+        }
+
+        public bool ThrottleReaderOk => HoriThrottleReader.Instance != null && HoriThrottleReader.Instance.IsHandleOpen;
+    }
+
     // v1.5.12 (Cambio 5): pre-flight HORI sin shifter conectado. El shifter
     // del HORI HPC-044U es USB separado. Si está desconectado, los paths
     // shifter:trigger/button2..button7 (gears 1-6 + R) no resuelven y Phase 5
@@ -3372,6 +3524,22 @@ public class MenuScreenManager : MonoBehaviour
     IEnumerator SanityCheckThenLoad(float duration)
     {
         InputDevice dev = TryAttachToDevice();
+
+        // v1.7.0: si HORI está conectado, este path NUNCA debería ejecutarse —
+        // PrepareWheelScreen short-circuitea en el verify-only branch antes de
+        // llegar al splash de SanityCheck. Si llegamos aquí con HORI, es un
+        // bug de flow control. La calibración HORI vive en HoriControlMapping
+        // (JSON immutable), NO en PlayerPrefs G923_* — cualquier ClearWheel-
+        // Calibration aquí sería destructivo para G923 (irrelevante) y no
+        // tocaría el JSON HORI (no es el storage). Saltar al load directo.
+        if (dev != null && UIInputNew.IsHORITruck(dev))
+        {
+            Debug.LogWarning("[MenuScreenManager] SanityCheckThenLoad alcanzado con HORI conectado — esperado: PrepareWheelScreen verify-only debería haber cargado directo. Saltando sanity check y cargando escena.");
+            sanityCheckCo = null;
+            LoadSelectedScene();
+            yield break;
+        }
+
         string gasPath = PlayerPrefs.GetString("G923_GasAxis", "");
         string brakePath = PlayerPrefs.GetString("G923_BrakeAxis", "");
 
