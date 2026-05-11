@@ -35,6 +35,13 @@ namespace TlaxSim.HoriCalibration
             string path = StoragePath;
             if (!File.Exists(path))
             {
+                // Primera vez post-OTA: intentar migrar desde PlayerPrefs legacy.
+                if (HoriMappingMigration.TryMigrateFromPlayerPrefs(out var migrated))
+                {
+                    Save(migrated);
+                    Debug.Log("[HoriControlMapping] Migrated from PlayerPrefs to JSON");
+                    return;
+                }
                 Active = null;
                 return;
             }
