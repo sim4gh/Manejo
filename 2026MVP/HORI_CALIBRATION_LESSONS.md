@@ -548,6 +548,100 @@ después del deploy, meter 3ra debe quedar engranada **persistente**.
 Confirmar con F7 sostén 1.5s — `HoriShifterReader gear=3 conn=True`
 mientras la palanca esté en posición.
 
+## v1.6.7 — Fase B7: Neutral debounce HORI (bug "atorado a 20 km/h")
+
+**Reportado por Aramis 2026-05-11 post-deploy v1.6.6**: operador HORI en
+Manual va 40 km/h en 2da, mueve lever a 3ra, velocidad baja a 20 km/h
+y se atora. v1.6.6 (Fase B6) acababa de conectar HoriShifterStateProvider
+al cálculo de desiredGear.
+
+### Causa raíz
+
+`HoriShifterReader` reporta `byte[1]=0` brevemente durante el cruce
+mecánico del lever entre gates (~50-200ms). Sin debounce:
+
+1. Op en 2da, `_currentGear=2`, `desiredGear=2`. Estable.
+2. Op mueve lever sin clutch. Reader transitoriamente reporta 0.
+3. `desiredGear=0`. **Línea 2142**: `toNeutral=true` → condición
+   `clutchPressed || toNeutral || sameGear` se cumple → `_currentGear=0`.
+4. Lever termina en 3ra. Reader reporta 3. `desiredGear=3`.
+5. `clutchInput=0`, ni `toNeutral` ni `sameGear` → BLOQUEADO forever.
+6. `_currentGear=0` → `PlayerCar` aplica `motorTorque=0` → coast a 20 km/h.
+
+Antes de v1.6.6 (pulse-based gear detection), el bug existía latente:
+`_currentGear` se quedaba en última marcha conocida (2) y el vehículo
+bajaba un poco por rev-limit, pero NO caía a 0. El reader continuo del
+v1.6.6 expuso la trampa.
+
+### Fix v1.6.7
+
+**Suprimir transitorios Neutral del reader durante cruces de gate.**
+Solo aplicar Neutral si el lever sostiene la posición por
+>NEUTRAL_HOLD_SECONDS (300ms).
+
+`Assets/Gley/UrbanAssets/Runtime/Scripts/UI/UIInputNew.cs` después del
+asignamiento `desiredGear = readerGear`:
+
+```csharp
+const float NEUTRAL_HOLD_SECONDS = 0.30f;
+if (isHoriShift && desiredGear == 0 && _currentGear != 0)
+{
+    if (_horiNeutralPendingSince < 0f)
+        _horiNeutralPendingSince = Time.unscaledTime;
+    if (Time.unscaledTime - _horiNeutralPendingSince < NEUTRAL_HOLD_SECONDS)
+    {
+        // Transitorio: enmascarar como sameGear → no-op en apply logic
+        desiredGear = _currentGear;
+    }
+    // elapsed >= threshold → dejar desiredGear=0 (Neutral intencional)
+}
+else
+{
+    _horiNeutralPendingSince = -1f;
+}
+```
+
+Reset defensivo en `AttachToWheelDevice` junto a `_manualReverseLatched=false`.
+
+### Por qué preserva la pedagogía
+
+Cuando el operador mueve lever sin clutch:
+- v1.6.7: debounce mantiene `_currentGear=2` durante el cruce; al llegar
+  a 3ra sin clutch → BLOQUEADO con rechino (`_pendingGearShiftWithoutClutchCount++`
+  línea 2176-2186). Vehículo sigue en 2da, rev-limit pero NO se atora.
+- ViolationDetector consume el contador: -5 pts + audio rechino.
+- Op escucha rechino, entiende: "necesito clutch". Lección preservada.
+
+Cuando el operador mueve lever CON clutch:
+- Reader reporta 0 transitorio brevemente (debounce activo).
+- `clutchInput>0.65` → `clutchPressed=true`.
+- Al llegar a 3ra: `desiredGear=3`, condición se cumple por `clutchPressed`
+  → `_currentGear=3`. Cambio limpio.
+
+Cuando el operador deliberadamente quiere Neutral:
+- Mueve lever a posición Neutral del gate y lo deja.
+- Tras 300ms, debounce expira → `desiredGear=0` propaga → `toNeutral=true`
+  → `_currentGear=0`. Comportamiento correcto.
+
+### Edge cases verificados
+
+- 2→3 con clutch: ✓ (transitorio enmascarado, cambio limpio al llegar)
+- 2→3 sin clutch: ✓ (rechino, vehículo en 2da, no atorado)
+- 2→N intencional (>300ms): ✓ (debounce expira, Neutral aplica)
+- N→1 con clutch: ✓ (`_currentGear==0` → condición debounce no aplica)
+- Hot-plug shifter: ✓ (AttachToWheelDevice resetea el field)
+- HORI → G923 switch: ✓ (`isHoriShift=false` → toda la rama no aplica)
+
+### Limitaciones conocidas (codex review v5)
+
+- **D↔R direct detection (`ViolationDetector.cs:195`) ahora más fácil de
+  enmascarar**: el paso por Neutral (debounce activo) lo oculta. Sigue
+  siendo bug pre-existente, no introducido por v1.6.7. Pendiente revisar
+  post-fix.
+- **300ms es arbitrario**: balance permitir disengage rápido vs enmascarar
+  tránsitos largos. Si hardware varía mucho entre kioskos, ajustar via
+  PlayerPref futuro.
+
 ## Archivos tocados en v1.6.4
 
 - `2026MVP/Assets/Gley/UrbanAssets/Runtime/Scripts/UI/UIInputNew.cs:1448-1471`

@@ -575,6 +575,14 @@ Bug Aramis 2026-05-11: 3ra/4ta/5ta/6ta intermitentes con HORI — el carro se qu
 
 Fix: `UIInputNew.cs:1989+` ahora consume `HoriShifterStateProvider` (asignado por `HoriShifterReader.Bootstrap`) cuando el device es HORI y el reader retorna valor válido (`≠ int.MinValue`). El reader lee `byte[1] bits 0-5+6` directo del HID — persistente mientras la palanca está en gear. Pulse-based queda como fallback si el reader muere.
 
+### v1.6.7 — Fase B7: Neutral debounce HORI (fix "atorado a 20 km/h")
+
+Bug introducido por la integración v1.6.6: el reader continuo expuso una trampa en la lógica de gear apply. `HoriShifterReader.byte[1]` reporta 0 brevemente durante el cruce mecánico entre gates (~50-200ms). `UIInputNew.cs` permite `toNeutral=true` (Neutral sin clutch) → `_currentGear=0` durante el transit → al llegar al siguiente gear, `clutchInput=0` lo bloquea forever → vehículo cae a `motorTorque=0`.
+
+Fix: `UIInputNew.cs:2046+` agrega debounce HORI-only de 300ms — si reader reporta 0 mientras `_currentGear≠0`, enmascarar `desiredGear` como sameGear hasta que el lever termine en gate o sostenga N >300ms. Preserva pedagogía: sin clutch → rechino + vehículo en 2da, no atorado.
+
+Ver `HORI_CALIBRATION_LESSONS.md` sección "v1.6.7 — Fase B7" para detalle completo, edge cases y limitaciones conocidas.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)

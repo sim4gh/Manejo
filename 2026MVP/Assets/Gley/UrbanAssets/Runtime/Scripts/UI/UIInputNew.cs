@@ -261,6 +261,15 @@ namespace Gley.UrbanSystem
         // pasa"), cancelar el sticky. -1 = no en estado stuck-indicator.
         // Reseteado en cada path donde _manualReverseLatched se limpia.
         private float _stuckIndicatorStartedAt = -1f;
+
+        // v1.6.7 (Fase B7): timer para debounce de Neutral transitorio reportado
+        // por HoriShifterReader cuando el lever cruza entre gates físicos
+        // (~50-200ms en N). Sin esto: desiredGear=0 → toNeutral=true →
+        // _currentGear=0 → bloqueado en N forever al llegar al siguiente gear
+        // sin clutch ("atorado a 20 km/h", reportado por Aramis 2026-05-11).
+        // -1f = no pending. Reseteado en AttachToWheelDevice y al volver a gear.
+        private float _horiNeutralPendingSince = -1f;
+
         private bool _lastTrianglePressed;
         private bool _lastRestartPressed;
         private float _menuComboTimer;
@@ -1338,6 +1347,7 @@ namespace Gley.UrbanSystem
             _manualReverseLatched = false;
             _lastCrossPressedManual = false;
             _stuckIndicatorStartedAt = -1f;
+            _horiNeutralPendingSince = -1f; // v1.6.7 (Fase B7) reset debounce
 
             // Si el device es Logitech/G923, sembrar los defaults faltantes
             // sin pisar lo que ya esté en PlayerPrefs (preserva remaps F8).
@@ -2033,6 +2043,43 @@ namespace Gley.UrbanSystem
                             }
                         }
                     }
+
+                    // v1.6.7 (Fase B7): HORI-only Neutral debounce. HoriShifterReader
+                    // reporta byte[1]=0 brevemente durante el cruce mecánico entre
+                    // gates físicos (~50-200ms). Sin debounce: desiredGear=0 →
+                    // toNeutral=true → _currentGear=0 → al llegar al siguiente gear
+                    // sin clutch, BLOQUEADO en N forever ("atorado a 20 km/h",
+                    // Aramis 2026-05-11).
+                    //
+                    // Solución: ignorar transitorios <NEUTRAL_HOLD_SECONDS. Permitir
+                    // Neutral real solo si el lever permanece en N por más tiempo
+                    // (operador deliberadamente disengage). Si llega gear válido
+                    // antes del threshold, saltamos el Neutral transitorio
+                    // manteniendo _currentGear hasta que se resuelva con clutch.
+                    //
+                    // Aplica solo a HORI (reader continuo). G923 pulse-based no
+                    // tiene este problema porque desiredGear=0 entre gears es
+                    // legítimo (no había pulse).
+                    const float NEUTRAL_HOLD_SECONDS = 0.30f;
+                    if (isHoriShift && desiredGear == 0 && _currentGear != 0)
+                    {
+                        if (_horiNeutralPendingSince < 0f)
+                            _horiNeutralPendingSince = Time.unscaledTime;
+                        if (Time.unscaledTime - _horiNeutralPendingSince < NEUTRAL_HOLD_SECONDS)
+                        {
+                            // Transitorio: enmascarar como sameGear (el apply logic
+                            // lo tratará como no-op, _currentGear no cambia).
+                            desiredGear = _currentGear;
+                        }
+                        // Si elapsed >= NEUTRAL_HOLD_SECONDS, dejar desiredGear=0
+                        // y propagar al apply normal (toNeutral=true → engage
+                        // Neutral intencional del operador).
+                    }
+                    else
+                    {
+                        _horiNeutralPendingSince = -1f;
+                    }
+
                     // Reversa por Bind_reverse: en G923 PS el R físico es button19
                     // (cubierto por el array hardcoded de _gearControls); en
                     // G923 Xbox es button12 (HOLD level-detectable mientras la
