@@ -711,3 +711,73 @@ HORI Truck only. G923 PS/Xbox y Moto sin cambios.
 
 ### Productivos
 NO se desplegó OTA a productivos en v1.7.0. Aramis only. Productivos pendientes en sesión futura con autorización explícita.
+
+## v1.7.0 — Lecciones del smoke testing (post-PR #162 merge)
+
+El shipping del v1.7.0 tardó **16 builds iterativos** (r1→r15c) en Aramis antes de que todo funcionara. Cada build descubrió bugs nuevos. Lecciones clave:
+
+### 1. Bug catastrófico: brake fantasma durante clutch-press (r14)
+
+**Síntoma**: operator en 3ra a 60 km/h, pisa clutch, sostén 2 seg → pierde 60 km/h. Más rápido que el frenado normal.
+
+**Hipótesis inicial (mala)**: drag/wheel friction natural cuando `motorTorque=0`. Esto explicaba sólo ~1.7 m/s² (drag) — faltaba ~6.6 m/s² inexplicado.
+
+**Root cause** (encontrada con logs SHIFT_DIAG agregados en r13): PlayerPrefs `G923_BrakeAxis` y `G923_ClutchAxis` AMBOS sembrados con `rz` por Discovery antiguo. Mi Phase 6 v1.7.0 wire-in solo override `rest/press` desde JSON pero **NO override los axis paths**. Resultado:
+- `_brakeCtrl = CacheControl("rz")`
+- `_clutchCtrl = CacheControl("rz")`  ← mismo control que brake
+
+Cuando operador pisa clutch → axis `rz` se mueve → tanto `clutchInput` como `brakeInput` reportan ~0.7 → `brakeTorque = 3000 * 0.7 = 2100 Nm`/wheel → ~5 m/s² de freno fantasma + 1.7 drag = ~7 m/s² total.
+
+**Fix**: en `AttachToWheelDevice`, cuando es HORI, override `brakePath` y `clutchPath` desde `HoriControlMapping.Active.axes.brake.path` y `.clutch.path` ANTES de `CacheControl()`.
+
+### 2. Audit de phantoms post-bug (r15)
+
+Después del bug catastrófico, codex y yo auditamos TODAS las lecturas de PlayerPrefs `G923_*` y `Bind_*` en `UIInputNew.cs`. Encontramos 2 phantoms más donde para HORI debíamos leer del JSON pero seguíamos leyendo PlayerPrefs:
+
+| Phantom | Línea | Síntoma posible |
+|---------|-------|-----------------|
+| Steer center/leftMax/rightMax | `_steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter")` etc. | Rangos viejos sobreviven aunque F8 guarde nuevos en JSON |
+| Manual block gate | `if (string.IsNullOrEmpty(PlayerPrefs.GetString(PREF_G923_CLUTCH_AXIS)))` | Bloqueo manual decide por PlayerPrefs no JSON; si limpian un kiosko sin tocar JSON, falsea bloqueo |
+
+**Principio cementado v1.7.0**: para HORI, **NINGUNA lectura de PlayerPrefs debe sobrevivir**. Toda calibración HORI viene del JSON `HoriControlMapping.Active`. PlayerPrefs `G923_*` y `Bind_*` siguen vivos para G923/Moto (gated por `IsHORITruck(device)` en cada read).
+
+### 3. Diagnostic-first cuando el root cause no es obvio
+
+Tras 4 builds (r9-r12) intentando "subir el ghost-torque para compensar el drag", el bug seguía. La frustración me llevó a meter logs exhaustivos (`SHIFT_DIAG` + `SHIFT_APPLY`) cada 15 frames con TODOS los valores de input + state. **Los logs revelaron en <30 segundos** que `brake = clutch = 0.65` valor por valor — imposible si fueran axes distintos. Sin logs hubiera seguido fixing síntomas.
+
+**Lección**: cuando llevo >2 iteraciones sin pegar al root cause, **bajar al data-mining mode**. Logs cada 15 frames con state completo > más builds con hipótesis débiles.
+
+### 4. Unity batch build trampa: asmdef matters
+
+Cuando verifiqué que mi código estaba en el DLL desplegado, hashing `Assembly-CSharp.dll` me dio resultados "idénticos a antes" → casi me llevó a creer que Unity ignoraba mis edits. **Pero `UIInputNew.cs` vive en asmdef `Gley.UrbanSystem` → compila a `Gley.UrbanSystem.dll`, NO a `Assembly-CSharp.dll`**.
+
+**Lección**: para verificar que un cambio C# está baked en un build, primero identificar el `.asmdef` del archivo modificado y hashear el DLL que corresponde a ese asmdef.
+
+### 5. SSH directo > LogUploader S3 para iteración rápida en LAN
+
+Durante el bug investigation, esperar 5 min al flush de LogUploader era inviable. Conexión SSH directa a Aramis vía LAN bajaba `Player.log` en <5 segundos:
+
+```bash
+ssh simul@10.0.0.235 'Get-Content "$env:USERPROFILE\AppData\LocalLow\Tlaxcala\Tlax2026-RC\Player.log" | Select-String -Pattern "SHIFT_DIAG"' > /tmp/aramis-shift-logs.txt
+```
+
+LogUploader queda activo para diagnóstico remoto de productivos (donde no hay SSH).
+
+### 6. Codex como reviewer crítico continuo
+
+Codex reviewó la rama 4 veces durante el desarrollo (v1.7.0 design → UX r8 → reset combo → phantom audit). Cada review encontró ≥1 HIGH/MED issue:
+
+| Review | HIGH | MED | LOW |
+|--------|------|-----|-----|
+| 1 (design) | 0 | 0 | 0 (aprobó) |
+| 2 (UX + initial fixes r8) | 1 (reset combo latch) | 3 (DetectButton snapshot, SwitchPage, EventSystem dedup) | 0 |
+| 3 (r12 fixes) | 1 (ghost-torque en N sostenido) | 3 (intent vs velocity sign, hill-start, diag log) | 1 (reader health) |
+| 4 (r15 phantom audit) | 0 | 0 | 0 (aprobó) |
+
+**Costo total Codex**: ~$? (no medido). Valor: detectó issues que hubiera costado más rounds de testing en kiosko remoto. Vale en projects con loop deploy/test caro.
+
+## Pendiente / mejora long-term
+
+- Productivos HORI (pasajeros1/2, carga, ambulancia) — OTA push pendiente con autorización
+- Detección operativa de phantom future PlayerPrefs reads (un test EditMode que grep el code base por `PlayerPrefs.Get*` no-gated por HORI)
+- v1.7.1: push/restore/clone del mapping desde portal admin

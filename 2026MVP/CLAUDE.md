@@ -595,7 +595,14 @@ Reescritura del flujo de calibración HORI. JSON file en `<persistentDataPath>/h
 - **Path canónico claxon HORI**: `wheel:button7` (verificado por SSH a Aramis Phase 0).
 - **Scope**: HORI Truck only. G923 PS/Xbox/Moto sin cambios.
 
-Ver `HORI_CALIBRATION_LESSONS.md` sección v1.7.0 y `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md`.
+**Bug catastrófico cerrado durante smoke testing** (PR #162 merged 2026-05-11):
+- Pre-fix: `_brakeCtrl` y `_clutchCtrl` ambos cacheados al axis `rz` (PlayerPrefs legacy de Discovery viejo). Pisar clutch → freno fantasma ~2000 Nm → operator perdía 60 km/h en 2 seg por shift.
+- Fix r14: para HORI, `brakePath`/`clutchPath` se leen del JSON en `AttachToWheelDevice`, NO de PlayerPrefs.
+- Audit r15: 2 phantoms más encontrados (steer rangos + manual block gate) → ahora también desde JSON.
+
+**Principio cementado v1.7.0**: para HORI, **ninguna lectura de `PlayerPrefs.Get*("G923_*")` o `Bind_*` debe sobrevivir sin estar gated por `IsHORITruck(device)` y override desde `HoriControlMapping.Active`**. G923/Moto siguen leyendo PlayerPrefs como antes.
+
+Ver `HORI_CALIBRATION_LESSONS.md` sección v1.7.0 y v1.7.0 lecciones smoke testing, y `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md`.
 
 ## Build
 
