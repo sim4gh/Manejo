@@ -1073,6 +1073,12 @@ namespace Gley.UrbanSystem
             return name.Contains("SHIFTER");
         }
 
+        // v1.7.0: ForceHoriBind ya no se usa — los binds vienen de HoriControlMapping.Active
+        // (JSON immutable en persistentDataPath/hori_mapping.json). Comentado para
+        // preservar referencia histórica del fix v1.5.11 (override PlayerPrefs incondicional
+        // para rutas HORI hardware-fijas). Si la calibración nueva (Phase 5+6 dispatching)
+        // necesita el patrón, copiar la firma.
+        /*
         // Force-override de un Bind para HORI (rutas hardware-fijas).
         // Si la PlayerPref existente difiere del canonical, sobrescribe + warning
         // para diagnosticar en S3 si Pantalla 2 sigue corrompiendo el bind.
@@ -1087,6 +1093,7 @@ namespace Gley.UrbanSystem
             }
             PlayerPrefs.SetString(prefKey, canonical);
         }
+        */
 
         // Detecta el Moto Simulator (ESP32-S3 USB HID custom de SimuladoresTlax).
         // No matchea G923/HORI ni gamepads genéricos. Match defensivo por
@@ -1383,45 +1390,22 @@ namespace Gley.UrbanSystem
             //   throttle bypass NO.
             if (IsHORITruck(device))
             {
-                Debug.Log("[UIInputNew] HORI Truck detectado — defaults paddle/hazard/horn/reverse + H-shifter + throttle vía HoriThrottleReader (raw HID byte intercept)");
-                // Botones: solo escribir si no hay valor previo. Esto deja
-                // sobrevivir las reasignaciones F8 entre re-attaches (boot,
-                // reconectar USB). Si se cambia de hardware, el flujo
-                // "Reasignar controles" en Pantalla 2 limpia los binds
-                // explícitamente vía ClearWheelCalibration().
-                if (!PlayerPrefs.HasKey(PREF_BIND_PADDLE_LEFT))
-                    PlayerPrefs.SetString(PREF_BIND_PADDLE_LEFT, "button40");
-                if (!PlayerPrefs.HasKey(PREF_BIND_PADDLE_RIGHT))
-                    PlayerPrefs.SetString(PREF_BIND_PADDLE_RIGHT, "button41");
-                if (!PlayerPrefs.HasKey(PREF_BIND_HAZARD))
-                    PlayerPrefs.SetString(PREF_BIND_HAZARD, "shifter:button27");
-                if (!PlayerPrefs.HasKey(PREF_BIND_HORN))
-                    PlayerPrefs.SetString(PREF_BIND_HORN, "wheel:button7");
-                // Bind_reverse y Bind_gear1..6 son HARDWARE-FIJOS en HORI:
-                // R y las marchas viven SIEMPRE en posiciones específicas del
-                // shifter, no son configurables. Si Pantalla 2 Phase 5 (Discovery
-                // de reversa) o un F8 manual deja Bind_reverse apuntando a otra
-                // ruta — típicamente un eje de pedal por accidente — pisar ese
-                // pedal arma el sticky reverse latch. Caso real reportado por
-                // Norberto SIM-005 en v1.5.10 (2026-05-07): Bind_reverse quedó
-                // en `wheel:slider1` post-Discovery (Phase 5 picked up brake
-                // pedal axis), pisar brake metía R inadvertidamente.
-                //
-                // Fix v1.5.11: override INCONDICIONAL para HORI — el operador
-                // F8 NO puede remapear estas a algo válido distinto, así que
-                // la "preservación de remap" del idempotente no aporta valor.
-                // Log warning si se sobrescribe un valor distinto al canónico
-                // (catch para diagnosticar si Pantalla 2 sigue corrompiendo).
-                ForceHoriBind(PREF_BIND_REVERSE, "shifter:button7");
-                ForceHoriBind(PREF_BIND_GEAR1, "shifter:trigger");
-                ForceHoriBind(PREF_BIND_GEAR2, "shifter:button2");
-                ForceHoriBind(PREF_BIND_GEAR3, "shifter:button3");
-                ForceHoriBind(PREF_BIND_GEAR4, "shifter:button4");
-                ForceHoriBind(PREF_BIND_GEAR5, "shifter:button5");
-                ForceHoriBind(PREF_BIND_GEAR6, "shifter:button6");
+                Debug.Log("[UIInputNew] HORI Truck detectado — binds desde HoriControlMapping.Active (v1.7.0) + throttle vía HoriThrottleReader (raw HID byte intercept)");
 
-                if (!PlayerPrefs.HasKey(PREF_BIND_DOOR))
-                    PlayerPrefs.SetString(PREF_BIND_DOOR, "wheel:button21");
+                // v1.7.0: NO escribir PlayerPrefs PREF_BIND_* para HORI.
+                // La fuente de verdad es HoriControlMapping.Active (JSON immutable).
+                // Los _bind* se asignan desde Active más abajo (después de
+                // ReloadBindings) en este mismo método. Si Active==null, los
+                // _bind* quedan con defaults legacy del PlayerPrefs read en
+                // ReloadBindings — Pantalla 2 mostrará modal "necesita calibración"
+                // antes de cargar escena, así que no se llega a gameplay con
+                // binds inválidos.
+                //
+                // Histórico (v1.5.11): aquí escribíamos PlayerPrefs PREF_BIND_*
+                // con ForceHoriBind() para override "hardware-fijos". v1.7.0
+                // movió la fuente de verdad al JSON immutable — los writes
+                // a PlayerPrefs son ahora ruido (HoriControlMapping pisa todo).
+
                 // Throttle: el HID parser de Unity tiene un bug con el descriptor
                 // del HORI HPC-044U (sliders aliased al mismo byte) y deja el
                 // byte del throttle (21-22 del input report) huérfano — ningún
@@ -1480,6 +1464,38 @@ namespace Gley.UrbanSystem
             // _gearControls (Bind_gear1..6 si configurados, fallback buttons 13-19).
             ReloadBindings();
 
+            // v1.7.0: para HORI, override los binds leídos por ReloadBindings()
+            // con los del JSON immutable HoriControlMapping.Active. Esto pisa los
+            // PlayerPrefs PREF_BIND_* legacy (que podrían tener basura de Discovery
+            // contaminado o de F8 manual pre-v1.7.0). Si Active==null, los binds
+            // quedan con lo que haya en PlayerPrefs — Pantalla 2 mostrará modal.
+            if (IsHORITruck(device))
+            {
+                var hmBinds = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+                if (hmBinds != null)
+                {
+                    _bindSteerAxis   = hmBinds.axes.steer.path;
+                    _bindReverse     = hmBinds.buttons.reverse.path;
+                    _bindHorn        = hmBinds.buttons.horn.path;
+                    _bindHazard      = hmBinds.buttons.hazards.path;
+                    _bindPaddleLeft  = hmBinds.buttons.turnLeft.path;
+                    _bindPaddleRight = hmBinds.buttons.turnRight.path;
+                    _bindGear1       = hmBinds.buttons.gear1.path;
+                    _bindGear2       = hmBinds.buttons.gear2.path;
+                    _bindGear3       = hmBinds.buttons.gear3.path;
+                    _bindGear4       = hmBinds.buttons.gear4.path;
+                    _bindGear5       = hmBinds.buttons.gear5.path;
+                    _bindGear6       = hmBinds.buttons.gear6.path;
+                    Debug.Log($"[UIInputNew] HORI binds overridden from HoriControlMapping.Active (steer='{_bindSteerAxis}' reverse='{_bindReverse}' horn='{_bindHorn}' hazard='{_bindHazard}' paddleL='{_bindPaddleLeft}' paddleR='{_bindPaddleRight}')");
+                    // Re-cache para que los nuevos paths se traduzcan a InputControl*.
+                    if (_wheelDevice != null) ReCacheBindings();
+                }
+                else
+                {
+                    Debug.LogWarning("[UIInputNew] HORI binds: HoriControlMapping.Active=null → usando PlayerPrefs legacy (Pantalla 2 deberá bloquear con modal).");
+                }
+            }
+
             // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
             _isAutomaticMode = PlayerPrefs.GetInt("TransmisionManual", 0) == 0;
             // Si Manual está seleccionado pero no hay clutch axis cacheado
@@ -1513,17 +1529,28 @@ namespace Gley.UrbanSystem
 
             if (IsHORITruck(device))
             {
-                // HORI Truck pedales (rz/slider/slider1): hardware-fijos a rest=-1, press=+1.
-                // HID LE16 byte 0x0000 → Unity normalized -1, 0xFFFF → +1. Discovery puede
-                // capturar valores mal si el operador tiene un pie en el pedal durante el
-                // snapshot — por eso NO leemos PlayerPrefs para rest/press de HORI, solo
-                // para el axis (qué axis es brake vs clutch sí varía por kiosko).
-                // Throttle bypassa NormalizePedal vía HoriThrottleReader (P/Invoke directo
-                // al HID byte 21-22), así que sus rest/press son cosméticos.
-                _gasRest = 0f; _gasPress = 1f;
-                _brakeRest = -1f; _brakePress = 1f;
-                _clutchRest = -1f; _clutchPress = 1f;
-                Debug.Log("[UIInputNew] HORI Truck pedales — rest=-1 press=+1 hardcoded (PlayerPrefs G923_*Rest/Press ignorados)");
+                // v1.7.0: leer de HoriControlMapping.Active (JSON immutable).
+                // Si Active==null (sin calibración o JSON corrupto), Pantalla 2
+                // mostrará modal "necesita calibración" y bloqueará carga de escena.
+                // El runtime sigue con defaults seguros para no crashear el frame.
+                // Throttle bypassa NormalizePedal vía HoriThrottleReader (P/Invoke
+                // directo al HID byte 21-22), así que sus rest/press son cosméticos.
+                var hm = TlaxSim.HoriCalibration.HoriControlMapping.Active;
+                if (hm != null)
+                {
+                    _gasRest = 0f; _gasPress = 1f; // gas viene de HoriThrottleReader
+                    _brakeRest = hm.axes.brake.rest; _brakePress = hm.axes.brake.press;
+                    _clutchRest = hm.axes.clutch.rest; _clutchPress = hm.axes.clutch.press;
+                    Debug.Log($"[UIInputNew] HORI Truck pedales — rest/press desde HoriControlMapping.Active (brake={_brakeRest:F2}/{_brakePress:F2} clutch={_clutchRest:F2}/{_clutchPress:F2})");
+                }
+                else
+                {
+                    // Defaults seguros si no hay JSON activo (operador irá a F8 vía modal).
+                    _gasRest = 0f; _gasPress = 1f;
+                    _brakeRest = -1f; _brakePress = 1f;
+                    _clutchRest = -1f; _clutchPress = 1f;
+                    Debug.LogWarning("[UIInputNew] HORI Truck pedales — HoriControlMapping.Active=null → defaults seguros -1/+1 (Pantalla 2 deberá bloquear con modal de calibración).");
+                }
             }
             else
             {
