@@ -55,8 +55,10 @@ param(
 $ErrorActionPreference = 'Stop'
 
 # ── Resolver InstallDir si no fue dado ───────────────────────────────
+# v1.7.0: default canónico es C:\Tlax2026-RC (no Tlax2026MVP).
 if (-not $InstallDir) {
     $candidates = @(
+        "C:\Tlax2026-RC",
         "$env:ProgramFiles\Tlax2026MVP",
         "C:\Tlax2026MVP",
         "$PWD"
