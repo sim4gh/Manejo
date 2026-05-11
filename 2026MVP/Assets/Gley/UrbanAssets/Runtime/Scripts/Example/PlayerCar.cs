@@ -293,7 +293,24 @@ namespace Gley.UrbanSystem
             // Manual con clutch desacoplado: cortar transmisión de torque al eje
             // motriz. El motor sigue revolucionando (ver UpdateEngineSound) pero
             // el coche no avanza.
-            if (_clutchDisengaged) motorTorque = 0f;
+            // v1.7.0 HORI-only: durante clutch-press del shift, aplicar ghost-torque
+            // para preservar inercia (la mecánica del HPC-044U requiere clutch sostenido
+            // ~500ms-1s para cambiar marcha; sin asistencia el drag mata 10-15 km/h por shift).
+            // G923/Moto NO entran — physics estándar para ellos.
+            if (_clutchDisengaged)
+            {
+                motorTorque = 0f;
+                var uiNewClutch = inputScript as UIInputNew;
+                if (uiNewClutch != null && uiNewClutch.IsHORITruckActive())
+                {
+                    float speedKmhClutch = Mathf.Abs(localVelocity) * 3.6f;
+                    if (speedKmhClutch > 1f)
+                    {
+                        float signClutch = Mathf.Sign(localVelocity);
+                        motorTorque = signClutch * maxMotorTorque * 0.08f * Mathf.Clamp01(speedKmhClutch / 30f);
+                    }
+                }
+            }
 
             // Freno: usa brakeTorque real del WheelCollider
             float brakeTorque = maxBrakeTorque * brakeInputValue;

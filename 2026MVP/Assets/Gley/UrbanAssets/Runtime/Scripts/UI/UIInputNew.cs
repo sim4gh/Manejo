@@ -2361,9 +2361,13 @@ namespace Gley.UrbanSystem
             // (rara vez pisas freno y acelerador a fondo simultáneamente; el 1.5s hold
             // mitiga falsos positivos por hill-start con clutch). Gas RAW (no post-curve)
             // para consistencia entre kioskos con F9 curve N tuneada.
+            // CRITICAL: usar ReadGasRawValue() que respeta el bypass HORI
+            // (_useHoriRawGas → HoriThrottleReader directo). Sin esto, en HORI
+            // gasRaw siempre quedaba 0 porque _gasCtrl es null para HORI.
             if (_hasWheel)
             {
-                float gasRaw = SafeReadFloatRaw(_gasCtrl, out var gr) ? NormalizePedal(gr, _gasRest, _gasPress) : 0f;
+                float gasReading = ReadGasRawValue();
+                float gasRaw = NormalizePedal(gasReading, _gasRest, _gasPress);
                 bool gasPressed = gasRaw >= RESET_COMBO_GAS_THRESHOLD;
                 bool brakePressed = brakeInput >= 0.5f;
                 if (gasPressed && brakePressed)
