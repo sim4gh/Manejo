@@ -343,7 +343,8 @@ Hot-plug: `Update()` retry every 2s si el poller muere. `OnDestroy` cierra handl
 
 ### `Assets/Custom/Menu/MenuScreenManager.cs`
 
-Phase 3 (gas) de Pantalla 2 auto-pasa para HORI con el sentinel. Discovery sigue normal para steering/brake/clutch.
+**v1.5.12** — Phase 3 (gas) de Pantalla 2 auto-pasaba para HORI con el sentinel
+(sin verificar el reader). Discovery sigue normal para steering/brake/clutch.
 
 ```csharp
 if (!throttleDone) {
@@ -359,6 +360,45 @@ if (!throttleDone) {
     // Discovery normal para non-HORI...
 }
 ```
+
+**v1.6.5 (Fase B5)** — el auto-pass se reemplazó con verificación en vivo
+del reader. Ver `HORI_CALIBRATION_LESSONS.md` sección "v1.6.5 — Fase B5".
+Resumen:
+
+```csharp
+if (!throttleDone) {
+    var devForGas = TryAttachToDevice();
+    if (devForGas != null && UIInputNew.IsHORITruck(devForGas)) {
+        if (_horiPhase3StartTime < 0f) _horiPhase3StartTime = Time.unscaledTime;
+        var thrReader = HoriThrottleReader.Instance;
+        float thrValue = thrReader != null ? thrReader.Value : 0f;
+        bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
+
+        // Progress bar en vivo + threshold
+        if (thrHandleOpen && thrValue >= 0.7f) {
+            throttleDone = true;
+            PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
+            PlayerPrefs.SetFloat("G923_GasRest", 0f);
+            PlayerPrefs.SetFloat("G923_GasPress", 1f);
+            wheelPrompt.text = "Pisa el FRENO a fondo";
+            return;
+        }
+        // Si el handle no abrió tras 8s, advertencia visible. Reader sigue
+        // intentando reabrir cada 2s — conectar USB recupera la fase.
+        return;
+    }
+    // Discovery normal para non-HORI...
+}
+```
+
+`HoriThrottleReader.IsHandleOpen` es nuevo getter (v1.6.5):
+
+```csharp
+public bool IsHandleOpen => _running && _hidHandle != null && !_hidHandle.IsInvalid;
+```
+
+F7 LogConsolePanel imprime `handle=open|CLOSED` en la sección "CUSTOM HID READERS"
+para diagnóstico paralelo (v1.6.5 Fase A).
 
 ## 7. Garantía de no romper G923
 

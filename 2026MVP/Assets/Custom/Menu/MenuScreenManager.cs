@@ -91,6 +91,19 @@ public class MenuScreenManager : MonoBehaviour
     private static readonly string[] PEDAL_AXIS_CANDIDATES = {
         "z", "rz", "stick/y", "stick/z", "ry", "rx", "slider", "slider1"
     };
+    // HORI Truck HPC-044U: la pedalera real está SOLO en rz/slider/slider1.
+    // Los demás candidatos (z/stick/y/stick/z/ry/rx) reportan jitter HID
+    // de axes fantasma y pueden ganar el max-delta de Discovery si el
+    // operador no presiona el pedal exacto en el instante preciso, dejando
+    // G923_BrakeAxis apuntando a un axis no-pedal con polaridad invertida.
+    // Resultado runtime: B=1.0 con raw=0 (freno "pegado") → en Auto el carro
+    // no se mueve aunque el throttle esté al fondo. Confirmado en Pasajeros 2
+    // (logs S3 2026-05-08, sesiones consecutivas con brake bound a 'z' y
+    // 'slider' alternadamente). G923 no aplica este filtro: usa la lista
+    // completa porque sus axes en rest son estables.
+    private static readonly HashSet<string> HORI_PEDAL_AXIS_WHITELIST = new HashSet<string> {
+        "rz", "slider", "slider1"
+    };
     private InputControl<float>[] pedalCandidates;
     // Calibración por delta signado desde el reposo — funciona con ejes
     // cuyo rest sea +1, 0 o -1, y en cualquier dirección de press.
@@ -179,6 +192,11 @@ public class MenuScreenManager : MonoBehaviour
     private bool rightDone, leftDone;
     private bool throttleDone, brakeDone;
     private bool reverseDone;
+    // v1.6.5 (B5): timer para verificación del HoriThrottleReader en Phase 3 HORI.
+    // Reset a -1 en PrepareWheelScreen; se inicializa al primer frame que entra
+    // a Phase 3 con HORI conectado. Permite mostrar advertencia tras grace period
+    // si el reader no abre el HID handle (USB unplug, conflicto driver, etc.).
+    private float _horiPhase3StartTime = -1f;
     // Clutch phase: solo aplica si TransmisionManual==1 && IsHORITruck.
     // En G923 (PS y Xbox v1.5.7+) el clutch lo siembra
     // SeedG923VariantDefaultsIfMissing; en automático no hay clutch. Por eso
@@ -2091,12 +2109,25 @@ public class MenuScreenManager : MonoBehaviour
             ClearWheelCalibration();
         }
 
+        // v1.6.4: la migración v1.6.3 que invalidaba prefs HORI corruptas se removió:
+        // ahora UIInputNew.AttachToWheelDevice ignora PlayerPrefs G923_*Rest/Press para
+        // HORI y usa hardcoded -1/+1. Lo que quede en registry no afecta runtime HORI.
+
         // ── 2) Calcular qué fases ya tienen calibración válida ──
+        bool isHoriDevice = dev != null && UIInputNew.IsHORITruck(dev);
+
         bool steeringCal = fingerprintMatches
             && PlayerPrefs.HasKey("G923_SteerMax") && PlayerPrefs.HasKey("G923_SteerMin");
+
+        // Para HORI los pedales son hardware-fijos (rest/press hardcoded en
+        // UIInputNew v1.6.4) — solo el axis path importa para considerar la
+        // calibración válida. Para G923/otros sí necesitamos rest/press persistidos.
         bool pedalsCal = fingerprintMatches
-            && PlayerPrefs.HasKey("G923_GasAxis")   && PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
-            && PlayerPrefs.HasKey("G923_BrakeAxis") && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress");
+            && PlayerPrefs.HasKey("G923_GasAxis") && PlayerPrefs.HasKey("G923_BrakeAxis")
+            && (isHoriDevice || (
+                PlayerPrefs.HasKey("G923_GasRest")   && PlayerPrefs.HasKey("G923_GasPress")
+                && PlayerPrefs.HasKey("G923_BrakeRest") && PlayerPrefs.HasKey("G923_BrakePress")
+            ));
         bool reverseCal = fingerprintMatches && PlayerPrefs.GetInt(PREF_CAL_REVERSE_DONE, 0) == 1;
 
         // Clutch phase: solo HORI + Manual + sin clutch axis válido. G923 PS
@@ -2106,11 +2137,15 @@ public class MenuScreenManager : MonoBehaviour
         // El axis del clutch HORI no se puede hardcodear porque Unity alias
         // slider/slider1/rz arbitrariamente entre brake y clutch (ver
         // HORI_THROTTLE_BUG_RESOLUTION.md). Por eso lo descubrimos pisando.
+        // Para HORI, mismo criterio que pedalsCal: solo axis path (rest/press
+        // hardware-fijos hardcoded en UIInputNew).
         bool clutchPathPersisted = fingerprintMatches
             && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_AXIS)
             && !string.IsNullOrEmpty(PlayerPrefs.GetString(UIInputNew.PREF_G923_CLUTCH_AXIS, ""))
-            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
-            && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS);
+            && (isHoriDevice || (
+                PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_REST)
+                && PlayerPrefs.HasKey(UIInputNew.PREF_G923_CLUTCH_PRESS)
+            ));
         bool clutchAlreadyCal = clutchPathPersisted;
         // v1.5.12 (Cambio 1 extendido): si clutchPath persistido pero el control
         // ya no resuelve en el device actual (e.g., HORI en otro USB con axis
@@ -2142,6 +2177,7 @@ public class MenuScreenManager : MonoBehaviour
         reverseDone = reverseCal;
         clutchDone = !clutchPhaseNeeded;
         _brakeChosenIdx = -1; // se llenará en la phase brake (Update)
+        _horiPhase3StartTime = -1f; // v1.6.5 (B5): timer reseteado al re-prepare
 
         // Reset deltas de candidatos para esta sesión de calibración
         if (pedalCandidateMaxDeltas != null)
@@ -2411,38 +2447,81 @@ public class MenuScreenManager : MonoBehaviour
         // |delta| desde su reposo (capturado al inicio de la fase).
         if (!throttleDone)
         {
-            #region HORI HPC-044U gas phase auto-pass — DO NOT MODIFY (ver HORI_THROTTLE_BUG_RESOLUTION.md, PR #127)
-            // ⚠️ CRITICAL — Sin este auto-pass, Pantalla 2 Discovery se atora
-            //   en Phase 3 con el HORI Truck Control System: el throttle del
-            //   HORI vive en un byte huérfano del HID report (Unity HID parser
-            //   bug por sliders duplicados Usage 0x36) y NINGÚN candidate de
-            //   PEDAL_AXIS_CANDIDATES detecta el delta cuando el usuario pisa
-            //   el acelerador. Sin auto-pass el operador queda bloqueado en la
-            //   pantalla de calibración SIN poder avanzar al examen.
+            #region HORI HPC-044U gas phase verify — v1.6.5 (Fase B5)
+            // El throttle del HORI vive en un byte huérfano del HID report
+            // (Unity HID parser bug por sliders duplicados Usage 0x36); ningún
+            // PEDAL_AXIS_CANDIDATES lo detecta. v1.5.12 auto-pasaba esta fase
+            // sin verificación → si HoriThrottleReader fallaba al inicializar
+            // (USB hot-plug, driver conflict), el operador llegaba a la escena
+            // con throttle silente y no había forma de saberlo en Pantalla 2.
+            //
+            // v1.6.5 (B5): NO auto-pasamos. Verificamos en vivo que el reader:
+            //   (a) tenga el HID handle abierto (IsHandleOpen)
+            //   (b) reporte un valor > HORI_THROTTLE_VERIFY_THRESHOLD (0.7)
+            //       cuando el operador pise el pedal.
+            // Si después de HORI_READER_GRACE_SECONDS (8s) el handle no abrió,
+            // mostramos advertencia visible en el prompt — el reader sigue
+            // intentando reabrir cada 2s (HoriThrottleReader.Update retry loop)
+            // así que conectar el USB recupera la fase. F7 también muestra
+            // `handle=open|CLOSED` para diagnóstico paralelo (Fase A).
+            //
             // El throttle se lee en runtime via HoriThrottleReader (P/Invoke
             // directo al HID device). UIInputNew.AttachToWheelDevice setea el
-            // sentinel también — esto es REDUNDANCIA defensiva por si Pantalla 2
-            // corre antes que AttachToWheelDevice (orden de bootstrap).
-            // NO eliminar.
-            //
-            // HORI Truck workaround: el byte del throttle (HID 21-22) quedó
-            // huérfano en el HID parser de Unity (no hay AxisControl que lo
-            // lea — verificado raw HID dump 2026-05-03). Auto-pasamos esta
-            // fase y dejamos que HoriThrottleReader.cs lea el byte directo
-            // via InputSystem.onEvent intercept. Sentinel HORI_RAW_GAS_PATH.
+            // sentinel; aquí escribimos las prefs solo cuando la verificación
+            // pasa (no antes — evita marcar Phase 3 done con reader muerto).
             var devForGas = TryAttachToDevice();
             if (devForGas != null && UIInputNew.IsHORITruck(devForGas))
             {
-                throttleDone = true;
-                gasFillRT.anchorMax = new Vector2(1, 1);
-                gasFill.color = MenuTheme.IndicatorDone;
-                gasIndicator.color = MenuTheme.IndicatorDone;
-                PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
-                PlayerPrefs.SetFloat("G923_GasRest", 0f);
-                PlayerPrefs.SetFloat("G923_GasPress", 1f);
-                Debug.Log($"[MenuScreenManager] HORI Truck — gas phase auto-pasada, throttle vía HoriThrottleReader (sentinel '{UIInputNew.HORI_RAW_GAS_PATH}')");
-                wheelPrompt.text = "Pisa el FRENO a fondo";
+                if (_horiPhase3StartTime < 0f) _horiPhase3StartTime = Time.unscaledTime;
+                float horiPhase3Elapsed = Time.unscaledTime - _horiPhase3StartTime;
+
+                var thrReader = HoriThrottleReader.Instance;
+                float thrValue = thrReader != null ? thrReader.Value : 0f;
+                bool thrHandleOpen = thrReader != null && thrReader.IsHandleOpen;
+
+                // Progress bar en vivo basada en el valor del reader.
+                float gasProgress = Mathf.Clamp01(thrValue);
+                if (Mathf.Abs(gasProgress - gasFillRT.anchorMax.x) > 0.005f)
+                {
+                    gasFillRT.anchorMax = new Vector2(gasProgress, 1);
+                    gasFill.color = Color.Lerp(MenuTheme.SecondaryCrimson, MenuTheme.IndicatorDone, gasProgress);
+                }
+
+                const float HORI_THROTTLE_VERIFY_THRESHOLD = 0.7f;
+                const float HORI_READER_GRACE_SECONDS = 8f;
+
+                if (thrHandleOpen && thrValue >= HORI_THROTTLE_VERIFY_THRESHOLD)
+                {
+                    throttleDone = true;
+                    gasFillRT.anchorMax = new Vector2(1, 1);
+                    gasFill.color = MenuTheme.IndicatorDone;
+                    gasIndicator.color = MenuTheme.IndicatorDone;
+                    PlayerPrefs.SetString("G923_GasAxis", UIInputNew.HORI_RAW_GAS_PATH);
+                    PlayerPrefs.SetFloat("G923_GasRest", 0f);
+                    PlayerPrefs.SetFloat("G923_GasPress", 1f);
+                    PlayerPrefs.Save();
+                    Debug.Log($"[MenuScreenManager] HORI Truck — gas phase VERIFICADA via HoriThrottleReader (value={thrValue:F3}, handle=open, elapsed={horiPhase3Elapsed:F1}s)");
+                    wheelPrompt.text = "Pisa el FRENO a fondo";
+                    _horiPhase3StartTime = -1f;
+                    return;
+                }
+
+                // Reader muerto tras grace period — advertencia visible. El
+                // reader sigue reintentando cada 2s; conectar USB recupera.
+                if (!thrHandleOpen && horiPhase3Elapsed > HORI_READER_GRACE_SECONDS)
+                {
+                    if (wheelPrompt.text != "HoriThrottleReader sin handle - verifica USB del HORI Truck")
+                    {
+                        Debug.LogWarning($"[MenuScreenManager] HORI Truck — HoriThrottleReader sin handle abierto tras {HORI_READER_GRACE_SECONDS}s. El reader sigue intentando reabrir cada 2s.");
+                        wheelPrompt.text = "HoriThrottleReader sin handle - verifica USB del HORI Truck";
+                    }
+                }
                 return;
+            }
+            else
+            {
+                // Reset al salir del path HORI (cambio de hardware mid-flow).
+                _horiPhase3StartTime = -1f;
             }
             #endregion
             int bestIdx = SamplePedalCandidates(-1, out float bestAbsDelta);
@@ -2495,11 +2574,21 @@ public class MenuScreenManager : MonoBehaviour
                 brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString("G923_BrakeAxis", brakeAxisPath);
-                PlayerPrefs.SetFloat("G923_BrakeRest", rest);
-                PlayerPrefs.SetFloat("G923_BrakePress", press);
+                // Para HORI los pedales son hardware-fijos (rest=-1, press=+1)
+                // y v1.6.4 los hardcodea en UIInputNew → no escribimos basura
+                // del Discovery a las prefs (lección 3 de HORI_CALIBRATION_LESSONS.md).
+                // Solo persistimos el axis path porque Unity puede aliasear
+                // slider/slider1/rz arbitrariamente entre boots.
+                var devForBrakeWrite = TryAttachToDevice();
+                bool isHoriBrake = devForBrakeWrite != null && UIInputNew.IsHORITruck(devForBrakeWrite);
+                if (!isHoriBrake)
+                {
+                    PlayerPrefs.SetFloat("G923_BrakeRest", rest);
+                    PlayerPrefs.SetFloat("G923_BrakePress", press);
+                }
                 // Reescribir la huella aquí también garantiza que un Partial
                 // que solo redescubrió pedales quede asociado al device actual.
-                string fpBrake = ComputeDeviceFingerprint(TryAttachToDevice());
+                string fpBrake = ComputeDeviceFingerprint(devForBrakeWrite);
                 if (!string.IsNullOrEmpty(fpBrake)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpBrake);
                 PlayerPrefs.Save();
                 Debug.Log($"[MenuScreenManager] Freno → eje '{brakeAxisPath}' rest={rest:F3} press={press:F3} fp={fpBrake}");
@@ -2561,9 +2650,16 @@ public class MenuScreenManager : MonoBehaviour
                 brakeIndicator.color = MenuTheme.IndicatorDone;
 
                 PlayerPrefs.SetString(UIInputNew.PREF_G923_CLUTCH_AXIS, clutchAxisPath);
-                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_REST, rest);
-                PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_PRESS, press);
-                string fpClutch = ComputeDeviceFingerprint(TryAttachToDevice());
+                // HORI clutch hardware-fijo a rest=-1/press=+1 (UIInputNew v1.6.4
+                // hardcodea). Skip writes de rest/press para evitar basura.
+                var devForClutchWrite = TryAttachToDevice();
+                bool isHoriClutch = devForClutchWrite != null && UIInputNew.IsHORITruck(devForClutchWrite);
+                if (!isHoriClutch)
+                {
+                    PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_REST, rest);
+                    PlayerPrefs.SetFloat(UIInputNew.PREF_G923_CLUTCH_PRESS, press);
+                }
+                string fpClutch = ComputeDeviceFingerprint(devForClutchWrite);
                 if (!string.IsNullOrEmpty(fpClutch)) PlayerPrefs.SetString(PREF_CAL_FINGERPRINT, fpClutch);
                 PlayerPrefs.Save();
                 Debug.Log($"[MenuScreenManager] Embrague → eje '{clutchAxisPath}' rest={rest:F3} press={press:F3} fp={fpClutch}");
@@ -2665,12 +2761,22 @@ public class MenuScreenManager : MonoBehaviour
         pedalCandidates = new InputControl<float>[PEDAL_AXIS_CANDIDATES.Length];
         pedalCandidateRests = new float[PEDAL_AXIS_CANDIDATES.Length];
         pedalCandidateMaxDeltas = new float[PEDAL_AXIS_CANDIDATES.Length];
+        bool isHori = device != null && UIInputNew.IsHORITruck(device);
+        int horiRejected = 0;
         for (int i = 0; i < PEDAL_AXIS_CANDIDATES.Length; i++)
         {
-            pedalCandidates[i] = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
+            var ctrl = device.TryGetChildControl(PEDAL_AXIS_CANDIDATES[i]) as InputControl<float>;
+            if (isHori && ctrl != null && !HORI_PEDAL_AXIS_WHITELIST.Contains(PEDAL_AXIS_CANDIDATES[i]))
+            {
+                ctrl = null;
+                horiRejected++;
+            }
+            pedalCandidates[i] = ctrl;
             pedalCandidateRests[i] = 1f; // placeholder hasta snapshot
             pedalCandidateMaxDeltas[i] = 0f;
         }
+        if (isHori && horiRejected > 0)
+            Debug.Log($"[MenuScreenManager] HORI Truck — Discovery limitada a {string.Join(",", HORI_PEDAL_AXIS_WHITELIST)} (rechazados {horiRejected} axes fantasma)");
     }
 
     // Captura el valor de reposo de cada candidato. Llamar justo antes de la
@@ -3357,9 +3463,58 @@ public class MenuScreenManager : MonoBehaviour
             PlayerPrefs.Save();
         }
 
-        float gasRest = PlayerPrefs.GetFloat("G923_GasRest", 0f);
-        float brakeRest = PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
-        float clutchRest = PlayerPrefs.GetFloat(UIInputNew.PREF_G923_CLUTCH_REST, -1f);
+        // HORI Truck pedales son hardware-fijos (rest=-1, press=+1); no leer de PlayerPrefs.
+        // Si llegamos aquí con HORI y los rest/press de PlayerPrefs estuvieran corruptos
+        // (registry contaminado de versiones previas), el sanity check usaría valores
+        // erróneos y haría delete-cycle infinito. Hardcoded para evitarlo.
+        bool isHori = dev != null && UIInputNew.IsHORITruck(dev);
+        float gasRest    = isHori ? 0f  : PlayerPrefs.GetFloat("G923_GasRest", 0f);
+        float brakeRest  = isHori ? -1f : PlayerPrefs.GetFloat("G923_BrakeRest", 0f);
+        float clutchRest = isHori ? -1f : PlayerPrefs.GetFloat(UIInputNew.PREF_G923_CLUTCH_REST, -1f);
+
+        // v1.6.5 (B3): hardware-aware sanity check para HORI brake/clutch. Los
+        // pedales HORI viven en axes con rango [-1, +1] (HID LE16 unsigned →
+        // Unity normalized). Si el axis raw cae consistentemente fuera de
+        // [-1.05, +1.05] durante 3 frames, eso significa "axis path incorrecto"
+        // (Discovery capturó otro axis), no "operador tocando el pedal" — invalidar
+        // SOLO el path para forzar Phase 4/6 dirigida. Window de 3 frames evita
+        // falsos positivos por jitter post-attach.
+        // No aplica a gas (HORI gas es sentinel via HoriThrottleReader, no pasa
+        // por SafeReadFloatRaw). No aplica a G923 (rangos varían por variante).
+        if (isHori)
+        {
+            const float HORI_AXIS_LO = -1.05f, HORI_AXIS_HI = 1.05f;
+            const int OUT_OF_RANGE_FRAMES_REQUIRED = 3;
+            int brakeOutOfRange = 0, clutchOutOfRange = 0;
+            for (int i = 0; i < OUT_OF_RANGE_FRAMES_REQUIRED; i++)
+            {
+                if (SafeReadFloatRaw(brakeC, out var bv))
+                {
+                    if (bv < HORI_AXIS_LO || bv > HORI_AXIS_HI) brakeOutOfRange++;
+                }
+                if (clutchC != null && SafeReadFloatRaw(clutchC, out var cv))
+                {
+                    if (cv < HORI_AXIS_LO || cv > HORI_AXIS_HI) clutchOutOfRange++;
+                }
+                yield return null;
+            }
+            if (brakeOutOfRange >= OUT_OF_RANGE_FRAMES_REQUIRED)
+            {
+                Debug.LogWarning($"[MenuScreenManager] HORI brake axis '{brakePath}' raw consistente fuera de [-1, +1] ({OUT_OF_RANGE_FRAMES_REQUIRED}/{OUT_OF_RANGE_FRAMES_REQUIRED} frames) → axis path probablemente incorrecto, invalidando para forzar re-Discovery de freno");
+                PlayerPrefs.DeleteKey("G923_BrakeAxis");
+                PlayerPrefs.Save();
+                PrepareWheelScreen();
+                yield break;
+            }
+            if (needClutch && clutchOutOfRange >= OUT_OF_RANGE_FRAMES_REQUIRED)
+            {
+                Debug.LogWarning($"[MenuScreenManager] HORI clutch axis '{clutchPath}' raw consistente fuera de [-1, +1] → invalidar para forzar re-Discovery de clutch");
+                PlayerPrefs.DeleteKey(UIInputNew.PREF_G923_CLUTCH_AXIS);
+                PlayerPrefs.Save();
+                PrepareWheelScreen();
+                yield break;
+            }
+        }
 
         // v1.5.12 (Cambio 2): sanity check NO-destructiva. Antes hacía
         // ClearWheelCalibration() global con cualquier delta > 0.5, y un pie

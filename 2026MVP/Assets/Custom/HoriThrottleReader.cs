@@ -70,6 +70,17 @@ public class HoriThrottleReader : MonoBehaviour
     public float Value => _value;
     private volatile float _value;
 
+    /// <summary>True si el HID handle está abierto y el poller corriendo
+    /// (i.e., el reader puede entregar lecturas vivas). Codex review v3:
+    /// Pantalla 2 verifica este flag antes de validar el throttle, y
+    /// HoriThrottleReader.cs reintenta abrir el handle cada 2s post-bootstrap
+    /// si el wheel se conecta tarde (USB hot-plug). v1.6.5 (Fase B5).</summary>
+#if HORI_USE_PINVOKE
+    public bool IsHandleOpen => _running && _hidHandle != null && !_hidHandle.IsInvalid;
+#else
+    public bool IsHandleOpen => false;  // platforms sin P/Invoke (macOS/Linux build)
+#endif
+
 #if HORI_USE_PINVOKE
     private const int VID = 0x0F0D;
     private const int PID = 0x017A;

@@ -247,6 +247,42 @@ public class LogConsolePanel : MonoBehaviour
             }
         }
 
+        // Custom HID readers (P/Invoke bypass de Unity Input System).
+        // El HORI HPC-044U declara 2 Sliders Usage 0x36 duplicados → Unity hace
+        // alias y deja el byte del throttle (21-22) huérfano: ningún AxisControl
+        // lo lee, por eso F7 nunca lo muestra en la sección de devices arriba.
+        // HoriThrottleReader / HoriShifterReader leen el HID directo via ReadFile.
+        // Mostrarlos aquí es el único lugar donde el operador puede confirmar que
+        // el throttle/shifter responde al pisar/mover.
+        sb.Append($"\n<color={HEX_HEADER}>// CUSTOM HID READERS</color>  <color={HEX_DIM}>(bypass del HID parser de Unity para HORI Truck)</color>\n");
+        var thrInst = HoriThrottleReader.Instance;
+        if (thrInst != null)
+        {
+            sb.Append($"   <color={HEX_AXIS}>AXIS</color> ");
+            sb.Append("HoriThrottleReader".PadRight(22));
+            sb.Append($" v=<color={HEX_VAL}>{thrInst.Value,7:F3}</color>");
+            sb.Append($" base=<color={HEX_DIM}>{0f,6:F2}</color>");
+            sb.Append($" rango=<color={HEX_DIM}>[ 0.00,  1.00]</color>");
+            sb.Append($" handle=<color={HEX_DIM}>{(thrInst.IsHandleOpen ? "open" : "CLOSED")}</color>\n");
+        }
+        else
+        {
+            sb.Append($"   <color={HEX_DIM}>HoriThrottleReader  &lt;no instance&gt;</color>\n");
+        }
+        var shfInst = HoriShifterReader.Instance;
+        if (shfInst != null)
+        {
+            sb.Append($"   <color={HEX_AXIS}>AXIS</color> ");
+            sb.Append("HoriShifterReader".PadRight(22));
+            sb.Append($" gear=<color={HEX_VAL}>{shfInst.CurrentGear,2}</color>");
+            sb.Append($" R=<color={HEX_DIM}>{shfInst.IsLeverInR}</color>");
+            sb.Append($" conn=<color={HEX_DIM}>{shfInst.IsConnected}</color>\n");
+        }
+        else
+        {
+            sb.Append($"   <color={HEX_DIM}>HoriShifterReader   &lt;no instance&gt;</color>\n");
+        }
+
         if (!anyDevice)
             sb.Append($"\n   <color={HEX_DIM}>Mueve cualquier eje o presiona cualquier botón</color>\n");
         return sb.ToString();

@@ -261,6 +261,15 @@ namespace Gley.UrbanSystem
         // pasa"), cancelar el sticky. -1 = no en estado stuck-indicator.
         // Reseteado en cada path donde _manualReverseLatched se limpia.
         private float _stuckIndicatorStartedAt = -1f;
+
+        // v1.6.7 (Fase B7): timer para debounce de Neutral transitorio reportado
+        // por HoriShifterReader cuando el lever cruza entre gates físicos
+        // (~50-200ms en N). Sin esto: desiredGear=0 → toNeutral=true →
+        // _currentGear=0 → bloqueado en N forever al llegar al siguiente gear
+        // sin clutch ("atorado a 20 km/h", reportado por Aramis 2026-05-11).
+        // -1f = no pending. Reseteado en AttachToWheelDevice y al volver a gear.
+        private float _horiNeutralPendingSince = -1f;
+
         private bool _lastTrianglePressed;
         private bool _lastRestartPressed;
         private float _menuComboTimer;
@@ -326,6 +335,25 @@ namespace Gley.UrbanSystem
         // sí al revés. HoriThrottleReader se registra aquí en su Bootstrap.
         // Devuelve el throttle 0..1 leído raw del HID byte 21-22.
         public static System.Func<float> HoriThrottleProvider;
+
+        // HoriShifterReader (v1.6.0 plan, integrado en v1.6.6): raw HID lever
+        // position, bypasses Unity's PULSE-only button2..6 + button7. Returns:
+        // -1=R, 0=N, 1-6=gears, int.MinValue=not connected/uncalibrated.
+        //
+        // Asignado por HoriShifterReader.Bootstrap. UIInputNew lo consume en el
+        // bloque Manual de Update() para sobrescribir desiredGear cuando el
+        // device es HORI y el reader reporta valor válido (≠ int.MinValue).
+        // El loop pulse-based de _gearControls queda como fallback (G923, o
+        // HORI con reader dead/handle cerrado).
+        //
+        // Por qué este fix existe (bug v1.6.5 reportado por Aramis 2026-05-11):
+        // shifter:button3 (3ra) y arriba parecen ser PULSE en HPC-044U, no HOLD.
+        // Unity InputSystem ve el botón 1-2 frames y después desiredGear→0=Neutral
+        // → carro pierde tracción y coasts a 20-30 km/h hasta meter otra marcha.
+        // 1ra (shifter:trigger) y 2da (shifter:button2) parecen ser HOLD por
+        // diferencias del firmware HORI. Reader lee byte[1] bits 0-5 directo
+        // del HID, continuo y persistente.
+        public static System.Func<int> HoriShifterStateProvider;
         #endregion
         public const string PREF_BIND_DRIVE = "Bind_drive";
         public const string PREF_BIND_PADDLE_LEFT = "Bind_paddleLeft";
@@ -994,6 +1022,33 @@ namespace Gley.UrbanSystem
 
         public static bool IsHORITruck(InputDevice d)
         {
+            if (d == null) return false;
+
+            // Path 1: VID + PID + interfaceName HID. Más robusto que match por
+            // strings — Windows puede normalizar/truncar displayName y dejar
+            // un HORI sin "HORI" en el nombre (lección v1.6.4).
+            // HORI HPC-044U wheel: VID=0x0F0D PID=0x017A. Shifter: PID=0x0186.
+            if (d.description.interfaceName == "HID" &&
+                !string.IsNullOrEmpty(d.description.capabilities))
+            {
+                try
+                {
+                    var caps = UnityEngine.InputSystem.HID.HID.HIDDeviceDescriptor.FromJson(
+                        d.description.capabilities);
+                    const int HORI_VID = 0x0F0D;
+                    if (caps.vendorId == HORI_VID &&
+                        (caps.productId == 0x017A || caps.productId == 0x0186))
+                    {
+                        return true;
+                    }
+                }
+                catch (System.Exception)
+                {
+                    // JSON malformed — fallthrough al match por strings.
+                }
+            }
+
+            // Path 2: displayName/product fallback (preserva v1.6.4 si VID falla).
             string name = d.displayName ?? string.Empty;
             string product = d.description.product ?? string.Empty;
             return name.IndexOf("HORI", System.StringComparison.OrdinalIgnoreCase) >= 0
@@ -1292,6 +1347,7 @@ namespace Gley.UrbanSystem
             _manualReverseLatched = false;
             _lastCrossPressedManual = false;
             _stuckIndicatorStartedAt = -1f;
+            _horiNeutralPendingSince = -1f; // v1.6.7 (Fase B7) reset debounce
 
             // Si el device es Logitech/G923, sembrar los defaults faltantes
             // sin pisar lo que ya esté en PlayerPrefs (preserva remaps F8).
@@ -1437,13 +1493,30 @@ namespace Gley.UrbanSystem
             }
             if (_isAutomaticMode && _currentGear == 0) _currentGear = 1;
 
-            // Cargar calibración de pedales (rest+press) hecha en el menú.
-            _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
-            _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
-            _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
-            _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
-            _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
-            _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+            if (IsHORITruck(device))
+            {
+                // HORI Truck pedales (rz/slider/slider1): hardware-fijos a rest=-1, press=+1.
+                // HID LE16 byte 0x0000 → Unity normalized -1, 0xFFFF → +1. Discovery puede
+                // capturar valores mal si el operador tiene un pie en el pedal durante el
+                // snapshot — por eso NO leemos PlayerPrefs para rest/press de HORI, solo
+                // para el axis (qué axis es brake vs clutch sí varía por kiosko).
+                // Throttle bypassa NormalizePedal vía HoriThrottleReader (P/Invoke directo
+                // al HID byte 21-22), así que sus rest/press son cosméticos.
+                _gasRest = 0f; _gasPress = 1f;
+                _brakeRest = -1f; _brakePress = 1f;
+                _clutchRest = -1f; _clutchPress = 1f;
+                Debug.Log("[UIInputNew] HORI Truck pedales — rest=-1 press=+1 hardcoded (PlayerPrefs G923_*Rest/Press ignorados)");
+            }
+            else
+            {
+                // G923 y otros: cargar calibración del menú (Discovery por variante PS/Xbox).
+                _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
+                _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
+                _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
+                _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+                _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
+                _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+            }
 
             // Calibración del steering (si no existe, rango ideal -1..1 sin offset)
             _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
@@ -1483,12 +1556,22 @@ namespace Gley.UrbanSystem
 
         // Normaliza pedal a [0,1] usando rest+press calibrados en pantalla.
         // Funciona sin importar la dirección del eje (rest puede ser > o < press).
+        // v1.6.5: implementación delegada a TlaxSim.Input.InputMath (Assets/Custom/),
+        // que también es testeada en EditMode. El default inline aquí es idéntico,
+        // así que si InputMath no inyecta su impl (build de Editor sin Custom o
+        // similar), el comportamiento runtime no cambia. Cross-asmdef Custom→Gley
+        // está permitido; lo inverso no, por eso usamos delegate injection (mismo
+        // patrón que HoriThrottleProvider).
+        public static System.Func<float, float, float, float> NormalizePedalImpl =
+            (raw, rest, press) =>
+            {
+                float span = press - rest;
+                if (Mathf.Abs(span) < 0.05f) return 0f;
+                return Mathf.Clamp01((raw - rest) / span);
+            };
+
         private float NormalizePedal(float raw, float rest, float press)
-        {
-            float span = press - rest;
-            if (Mathf.Abs(span) < 0.05f) return 0f;
-            return Mathf.Clamp01((raw - rest) / span);
-        }
+            => NormalizePedalImpl(raw, rest, press);
 
         // Adopta un Moto Simulator (ESP32-S3 USB HID) como wheelDevice. Bypassa
         // la heurística axisCount/buttonCount (solo expone 2 botones). Cachea
@@ -1928,8 +2011,28 @@ namespace Gley.UrbanSystem
                 if (_hasWheel && _wheelDevice != null)
                 {
                     desiredGear = 0;
-                    if (_gearControls != null)
+
+                    // v1.6.6 (Fase B6): para HORI usamos HoriShifterReader que
+                    // lee byte[1] bits 0-5+6 directo del HID (persistente,
+                    // bypassa Unity PULSE-only). Bug v1.6.5: 3ra/4ta/5ta/6ta
+                    // perdían la marcha tras 1-2 frames porque button2..6 son
+                    // PULSE en HPC-044U y _gearControls los leía via IsPressed.
+                    // 1ra (trigger) y reverse (sticky latch v1.5.9) tenían
+                    // workarounds; el reader unifica todo.
+                    bool isHoriShift = _wheelDevice != null && IsHORITruck(_wheelDevice);
+                    int readerGear = (isHoriShift && HoriShifterStateProvider != null)
+                        ? HoriShifterStateProvider() : int.MinValue;
+                    if (isHoriShift && readerGear != int.MinValue)
                     {
+                        // Reader vivo. -1=R, 0=N, 1-6=gear. Asigna directo;
+                        // el sticky latch debajo queda dormant (gearActive=true
+                        // cancela el latch al detectar gear válido).
+                        desiredGear = readerGear;
+                    }
+                    else if (_gearControls != null)
+                    {
+                        // Fallback pulse-based: G923, o HORI con reader dead
+                        // (handle cerrado / device desconectado / uncalibrated).
                         for (int i = 0; i < _gearControls.Length; i++)
                         {
                             if (IsPressed(_gearControls[i]))
@@ -1940,6 +2043,43 @@ namespace Gley.UrbanSystem
                             }
                         }
                     }
+
+                    // v1.6.7 (Fase B7): HORI-only Neutral debounce. HoriShifterReader
+                    // reporta byte[1]=0 brevemente durante el cruce mecánico entre
+                    // gates físicos (~50-200ms). Sin debounce: desiredGear=0 →
+                    // toNeutral=true → _currentGear=0 → al llegar al siguiente gear
+                    // sin clutch, BLOQUEADO en N forever ("atorado a 20 km/h",
+                    // Aramis 2026-05-11).
+                    //
+                    // Solución: ignorar transitorios <NEUTRAL_HOLD_SECONDS. Permitir
+                    // Neutral real solo si el lever permanece en N por más tiempo
+                    // (operador deliberadamente disengage). Si llega gear válido
+                    // antes del threshold, saltamos el Neutral transitorio
+                    // manteniendo _currentGear hasta que se resuelva con clutch.
+                    //
+                    // Aplica solo a HORI (reader continuo). G923 pulse-based no
+                    // tiene este problema porque desiredGear=0 entre gears es
+                    // legítimo (no había pulse).
+                    const float NEUTRAL_HOLD_SECONDS = 0.30f;
+                    if (isHoriShift && desiredGear == 0 && _currentGear != 0)
+                    {
+                        if (_horiNeutralPendingSince < 0f)
+                            _horiNeutralPendingSince = Time.unscaledTime;
+                        if (Time.unscaledTime - _horiNeutralPendingSince < NEUTRAL_HOLD_SECONDS)
+                        {
+                            // Transitorio: enmascarar como sameGear (el apply logic
+                            // lo tratará como no-op, _currentGear no cambia).
+                            desiredGear = _currentGear;
+                        }
+                        // Si elapsed >= NEUTRAL_HOLD_SECONDS, dejar desiredGear=0
+                        // y propagar al apply normal (toNeutral=true → engage
+                        // Neutral intencional del operador).
+                    }
+                    else
+                    {
+                        _horiNeutralPendingSince = -1f;
+                    }
+
                     // Reversa por Bind_reverse: en G923 PS el R físico es button19
                     // (cubierto por el array hardcoded de _gearControls); en
                     // G923 Xbox es button12 (HOLD level-detectable mientras la

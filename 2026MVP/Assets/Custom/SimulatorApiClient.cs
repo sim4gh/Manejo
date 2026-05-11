@@ -608,6 +608,15 @@ public static class SimulatorApiClient
 
     private static CalibrationPayload BuildCalibrationPayload()
     {
+        // HORI Truck pedales son hardware-fijos (rest=-1, press=+1) y v1.6.4 los
+        // hardcodea en UIInputNew. Las PlayerPrefs G923_*Rest/Press pueden quedar
+        // basura del Discovery (v1.6.5 ya no las escribe para HORI, pero kioskos
+        // existentes pueden tener stale values pre-OTA). Para diagnóstico claro
+        // en el portal, reportar canónico cuando detectamos HORI por su sentinel
+        // de gas. Sentinel: G923_GasAxis == "__HORI_RAW_HID_THROTTLE__".
+        bool isHori = PlayerPrefs.GetString("G923_GasAxis", "")
+                      == Gley.UrbanSystem.UIInputNew.HORI_RAW_GAS_PATH;
+
         return new CalibrationPayload
         {
             deviceFingerprint    = PlayerPrefs.GetString("Cal_DeviceFingerprint", ""),
@@ -621,11 +630,11 @@ public static class SimulatorApiClient
             steerMax             = PlayerPrefs.GetFloat("G923_SteerMax", 0f),
             steerMin             = PlayerPrefs.GetFloat("G923_SteerMin", 0f),
             gasAxis              = PlayerPrefs.GetString("G923_GasAxis", ""),
-            gasRest              = PlayerPrefs.GetFloat("G923_GasRest", 0f),
-            gasPress             = PlayerPrefs.GetFloat("G923_GasPress", 0f),
+            gasRest              = isHori ? 0f : PlayerPrefs.GetFloat("G923_GasRest", 0f),
+            gasPress             = isHori ? 1f : PlayerPrefs.GetFloat("G923_GasPress", 0f),
             brakeAxis            = PlayerPrefs.GetString("G923_BrakeAxis", ""),
-            brakeRest            = PlayerPrefs.GetFloat("G923_BrakeRest", 0f),
-            brakePress           = PlayerPrefs.GetFloat("G923_BrakePress", 0f),
+            brakeRest            = isHori ? -1f : PlayerPrefs.GetFloat("G923_BrakeRest", 0f),
+            brakePress           = isHori ?  1f : PlayerPrefs.GetFloat("G923_BrakePress", 0f),
             advSteerCurveA       = PlayerPrefs.GetFloat("Adv_SteerCurveA", 1f),
             advSteerDeadzone     = PlayerPrefs.GetFloat("Adv_SteerDeadzone", 0.02f),
             advBrakeSoftEnd      = PlayerPrefs.GetFloat("Adv_BrakeSoftEnd", 0.8f),
