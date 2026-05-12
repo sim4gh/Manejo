@@ -625,6 +625,27 @@ Plan: `docs/superpowers/plans/2026-05-11-g923-v180-implementation.md`
 
 **Principio cementado v1.8.0**: para G923 con flag=1, cada read de `PlayerPrefs.Get*("G923_*")` o `Bind_*` en el branch G923 está gated por el ternary `(IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
 
+### v1.8.1 — DetectPedalAxis canonical rest/press hardcoded (hotfix post-smoke-test Aramis)
+
+Smoke test de v1.8.0 en Aramis (2026-05-12) reveló bug en `G923CalibrationPanel.CoCapturePedalAxis`: la inferencia `restVal = initial[chosen]; pressVal = restVal >= 0 ? -1 : 1` rompía cuando `ReadUnprocessedValue()` retornaba `0` al inicio del sample 3s — sucede si InputSystem aún no había polled el axis en ese frame. Resultado: gas guardado con `rest=0/press=1` (incorrecto), `NormalizePedal` dividía por (press-rest)=-1, gas no respondía. Brake y clutch capturaron OK porque ya habían sido polled antes.
+
+Fix: hardcode rest/press canónico por axis name (hardware-fijo, no necesita detección):
+- `z`, `rz` → `rest=1, press=-1` (idle=+1, fullPress=-1)
+- `stick/y` → `rest=-1, press=+1` (idle=-1, fullPress=+1)
+- fallback defensivo para axis no canónicos: inferencia legacy con `LogWarning`.
+
+Spec/plan no cambia — esto es defensive coding en el panel, no cambio de comportamiento. Migration (PlayerPrefs → JSON) no afectada, sus defaults canónicos ya estaban correctos.
+
+### Deploy Aramis (smoke test 2026-05-12)
+
+- v1.8.0 build inicial deployed a Aramis via **LAN SCP directo** (no Mexicalabs OTA — Aramis está en red local del operator, ver memoria `feedback_aramis_lan_deploy.md`).
+- Flag activado por SSH `reg add G923_UseJsonMapping_h726773106 = 0x1` (hash Unity DJB2-XOR de `G923_UseJsonMapping`).
+- Bug del gas reproducido, parcheado in-situ via SSH (PowerShell editando `g923_mapping.json`), confirmando que el patrón JSON+SSH funciona como rollback emergency.
+- v1.8.1 rebuilt con fix, redeployed LAN. Smoke OK con G923 PS.
+- HORI no testeado: análisis de código + 17/17 HORI EditMode tests pass → riesgo de regresión bajo. Skip hasta autorización de productivos HORI.
+
+**Gotcha SSH launch**: `Start-Process Tlax2026-RC.exe` via SSH NO funciona — DX11 crashea sin session interactiva ("Switching to resolution failed"). Pedir al operator que lance desde console/RDP. Ver memoria `feedback_unity_dx11_needs_console.md`.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)
