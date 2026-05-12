@@ -300,6 +300,11 @@ public class RedLightDetector : MonoBehaviour
 
     void TriggerRedLightViolation(float speed, string intersectionName)
     {
+        // Vehículo de emergencia (ambulancia) exento de cruce de semáforo rojo
+        // por la Ley de Movilidad y Seguridad Vial de Tlaxcala (con la
+        // obligación legal de reducir velocidad y ceder paso si hay riesgo).
+        if (GameManager.IsEmergencyExam()) return;
+
         lastViolationTime = Time.time;
 
         if (showDebug)

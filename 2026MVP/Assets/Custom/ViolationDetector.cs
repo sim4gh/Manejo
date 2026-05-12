@@ -168,7 +168,12 @@ public class ViolationDetector : MonoBehaviour
         float speed = GetSpeed();
         bool isSpeeding = speed > currentSpeedLimit;
 
-        if (isSpeeding && Time.time - lastSpeedingTime >= SPEEDING_COOLDOWN)
+        // Vehículos de emergencia (ambulancia) exentos de exceso de velocidad por
+        // la Ley de Movilidad y Seguridad Vial de Tlaxcala. Guard en la condición
+        // del if para que ni el cooldown se actualice — no afecta cambios de
+        // marcha ni colisiones (esos siguen aplicando).
+        if (isSpeeding && Time.time - lastSpeedingTime >= SPEEDING_COOLDOWN
+            && !GameManager.IsEmergencyExam())
         {
             lastSpeedingTime = Time.time;
             DeductScore(speedingPenalty);
