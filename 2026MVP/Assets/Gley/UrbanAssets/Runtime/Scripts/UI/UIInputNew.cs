@@ -1,4 +1,5 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+using TlaxSim.G923Calibration;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -1484,6 +1485,26 @@ namespace Gley.UrbanSystem
                     Debug.Log($"[UIInputNew] HORI brake/clutch paths from JSON: brake={brakePath} clutch={clutchPath}");
                 }
             }
+            // v1.8.0: G923 JSON immutable override — leer paths del JSON cuando flag=1.
+            // Solo aplica si NO es HORI (HORI tiene su propio override arriba) Y es G923
+            // Y la flag G923_UseJsonMapping está activada. Si Active==null (sin migración
+            // o sin calibración), MenuScreenManager.PrepareWheelScreen mostró modal antes
+            // de gameplay — aquí caemos a los defaults legacy de PlayerPrefs (gasPath ya
+            // leído arriba en línea ~1445).
+            else if (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+            {
+                var gm = G923ControlMapping.Active;
+                if (gm != null)
+                {
+                    if (!string.IsNullOrEmpty(gm.axes.gas.path))    gasPath    = gm.axes.gas.path;
+                    if (!string.IsNullOrEmpty(gm.axes.brake.path))  brakePath  = gm.axes.brake.path;
+                    if (!string.IsNullOrEmpty(gm.axes.clutch.path)) clutchPath = gm.axes.clutch.path;
+                    // Re-cache _gasCtrl porque gasPath cambió (HORI sentinel guard arriba ya corrió).
+                    _useHoriRawGas = false;
+                    _gasCtrl = CacheControl(gasPath);
+                    Debug.Log($"[UIInputNew] G923 paths from JSON (variant={gm.variant}): gas={gasPath} brake={brakePath} clutch={clutchPath}");
+                }
+            }
             _brakeCtrl = CacheControl(brakePath);
             // Clutch (opcional — solo G923 PS / HORI manual). Si no hay path,
             // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
@@ -1524,6 +1545,29 @@ namespace Gley.UrbanSystem
                 {
                     Debug.LogWarning("[UIInputNew] HORI binds: HoriControlMapping.Active=null → usando PlayerPrefs legacy (Pantalla 2 deberá bloquear con modal).");
                 }
+            }
+            // v1.8.0: para G923 JSON mode, override binds del JSON.
+            else if (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+            {
+                var gmBinds = G923ControlMapping.Active;
+                if (gmBinds != null)
+                {
+                    _bindSteerAxis   = gmBinds.axes.steer.path;
+                    _bindReverse     = gmBinds.buttons.reverse.path;
+                    _bindHorn        = gmBinds.buttons.horn.path;
+                    _bindHazard      = gmBinds.buttons.hazards.path;
+                    _bindPaddleLeft  = gmBinds.buttons.turnLeft.path;
+                    _bindPaddleRight = gmBinds.buttons.turnRight.path;
+                    _bindGear1       = gmBinds.buttons.gear1.path;
+                    _bindGear2       = gmBinds.buttons.gear2.path;
+                    _bindGear3       = gmBinds.buttons.gear3.path;
+                    _bindGear4       = gmBinds.buttons.gear4.path;
+                    _bindGear5       = gmBinds.buttons.gear5.path;
+                    _bindGear6       = gmBinds.buttons.gear6.path;
+                    Debug.Log($"[UIInputNew] G923 binds overridden from G923ControlMapping.Active (variant={gmBinds.variant} steer='{_bindSteerAxis}' reverse='{_bindReverse}' horn='{_bindHorn}' hazard='{_bindHazard}' paddleL='{_bindPaddleLeft}' paddleR='{_bindPaddleRight}')");
+                    if (_wheelDevice != null) ReCacheBindings();
+                }
+                // Si Active==null, _bind* quedan con PlayerPrefs legacy (lo que ReloadBindings ya cargó). Pantalla 2 mostrará modal preflight.
             }
 
             // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
@@ -1585,12 +1629,28 @@ namespace Gley.UrbanSystem
             else
             {
                 // G923 y otros: cargar calibración del menú (Discovery por variante PS/Xbox).
-                _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
-                _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
-                _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
-                _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
-                _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
-                _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+                // v1.8.0: para G923 JSON mode, leer del JSON inmutable.
+                var g923Active = (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+                    ? G923ControlMapping.Active : null;
+                if (g923Active != null)
+                {
+                    _gasRest    = g923Active.axes.gas.rest;
+                    _gasPress   = g923Active.axes.gas.press;
+                    _brakeRest  = g923Active.axes.brake.rest;
+                    _brakePress = g923Active.axes.brake.press;
+                    _clutchRest  = g923Active.axes.clutch.rest;
+                    _clutchPress = g923Active.axes.clutch.press;
+                    Debug.Log($"[UIInputNew] G923 pedales desde JSON (variant={g923Active.variant} gas={_gasRest:F2}/{_gasPress:F2} brake={_brakeRest:F2}/{_brakePress:F2} clutch={_clutchRest:F2}/{_clutchPress:F2})");
+                }
+                else
+                {
+                    _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
+                    _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
+                    _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
+                    _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+                    _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
+                    _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+                }
             }
 
             // Calibración del steering (si no existe, rango ideal -1..1 sin offset).
@@ -1605,9 +1665,21 @@ namespace Gley.UrbanSystem
             }
             else
             {
-                _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
-                _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
-                _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+                // v1.8.0: G923 JSON mode override.
+                var g923SteerActive = (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+                    ? G923ControlMapping.Active : null;
+                if (g923SteerActive != null)
+                {
+                    _steerCenter = g923SteerActive.axes.steer.center;
+                    _steerMax    = g923SteerActive.axes.steer.rightMax;
+                    _steerMin    = g923SteerActive.axes.steer.leftMax;
+                }
+                else
+                {
+                    _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
+                    _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
+                    _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+                }
             }
 
             // Parámetros tuneable (panel F9)
