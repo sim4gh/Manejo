@@ -639,12 +639,22 @@ Spec/plan no cambia — esto es defensive coding en el panel, no cambio de compo
 ### Deploy Aramis (smoke test 2026-05-12)
 
 - v1.8.0 build inicial deployed a Aramis via **LAN SCP directo** (no Mexicalabs OTA — Aramis está en red local del operator, ver memoria `feedback_aramis_lan_deploy.md`).
-- Flag activado por SSH `reg add G923_UseJsonMapping_h726773106 = 0x1` (hash Unity DJB2-XOR de `G923_UseJsonMapping`).
+- Flag activado por SSH `reg add G923_UseJsonMapping_h726773106 = 0x1` (hash Unity DJB2-XOR de `G923_UseJsonMapping`, ver `reference_unity_playerprefs_hash.md`).
 - Bug del gas reproducido, parcheado in-situ via SSH (PowerShell editando `g923_mapping.json`), confirmando que el patrón JSON+SSH funciona como rollback emergency.
 - v1.8.1 rebuilt con fix, redeployed LAN. Smoke OK con G923 PS.
-- HORI no testeado: análisis de código + 17/17 HORI EditMode tests pass → riesgo de regresión bajo. Skip hasta autorización de productivos HORI.
+
+### Deploy Pasajeros 1 (productivo HORI, 2026-05-12)
+
+- v1.8.1 publicada a Mexicalabs CDN (`unity-builds/dev/1.8.1/`, sha `55bbb163...`). Upload tomó ~37 min total — el primer intento se rompió por bug zsh array off-by-one (ver `feedback_zsh_array_off_by_one.md`) que requirió full re-upload con mapping correcto. Necesita VPN para evitar Xfinity throttling.
+- OTA deploy a Pasajeros 1 (SIM-005, HORI Truck) tomó ~4 min desde scheduled hasta INSTALLED. AutoUpdater 1.2.2+ funcionó: PENDING → DOWNLOADING → INSTALLING → INSTALLED v=1.8.1 auto-confirmado por heartbeat.
+- Versión previa de Pasajeros 1 era 1.6.4 — saltó directo a 1.8.1, incluyendo HORI v1.7.0 immutable calibration. Si Pasajeros 1 no tenía `hori_mapping.json` previo, la primera apertura va a mostrar modal "Calibración HORI requerida — F8 sostén 1.5s".
+- G923 v1.8.0 code queda dormant en este HORI kiosk (flag=0 default + sin G923 conectado).
 
 **Gotcha SSH launch**: `Start-Process Tlax2026-RC.exe` via SSH NO funciona — DX11 crashea sin session interactiva ("Switching to resolution failed"). Pedir al operator que lance desde console/RDP. Ver memoria `feedback_unity_dx11_needs_console.md`.
+
+**Gotcha upload Mexicalabs**: requiere VPN (no Xfinity directo). Sin VPN, chunks intermitentemente fallan con HTTP 000 (connection refused / DNS throttling), retries se acumulan. Con VPN, ritmo normal ~4-5s/chunk.
+
+**Gotcha shell semantics**: scripts de upload chunk DEBEN usar `for f in $(ls glob | sort); counter++` pattern. Array indexing con `IDX=$((N-1))` rompe en zsh (1-indexed). Ver `feedback_zsh_array_off_by_one.md`.
 
 ## Build
 
