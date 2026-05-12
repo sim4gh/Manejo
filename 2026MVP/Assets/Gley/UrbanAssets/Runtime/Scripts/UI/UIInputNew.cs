@@ -1,5 +1,6 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -1794,11 +1795,32 @@ namespace Gley.UrbanSystem
 
             // Cachear ctrls de los 5 inputs físicos. Paths configurables via PlayerPrefs
             // (override post-F7 si los reales difieren). Defaults asumidos en DEFAULT_MOTO_*.
-            string leanPath  = PlayerPrefs.GetString(PREF_MOTO_LEAN_PATH,  DEFAULT_MOTO_LEAN_PATH);
-            string hbarPath  = PlayerPrefs.GetString(PREF_MOTO_HBAR_PATH,  DEFAULT_MOTO_HBAR_PATH);
-            string gasPath   = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,   DEFAULT_MOTO_GAS_PATH);
-            string brakePath = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH, DEFAULT_MOTO_BRAKE_PATH);
-            string clutchPath= PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH,DEFAULT_MOTO_CLUTCH_PATH);
+            // v1.9.0: Moto JSON immutable override — leer paths del JSON cuando flag=1.
+            // Si Active==null (sin migración o sin calibración), caemos a defaults
+            // canónicos (igual que pre-v1.9.0 cuando PlayerPrefs estaban vacíos).
+            // Lección v1.7.0 HORI / v1.8.0 G923: cada read de PlayerPrefs MOTO_* debe
+            // estar gated por `IsJsonModeEnabled() ? Active : PlayerPrefs` ternary.
+            bool motoJsonMode = MotoControlMapping.IsJsonModeEnabled();
+            var motoActive = motoJsonMode ? MotoControlMapping.Active : null;
+
+            string leanPath, hbarPath, gasPath, brakePath, clutchPath;
+            if (motoActive != null)
+            {
+                leanPath   = !string.IsNullOrEmpty(motoActive.axes.lean.path)      ? motoActive.axes.lean.path      : DEFAULT_MOTO_LEAN_PATH;
+                hbarPath   = !string.IsNullOrEmpty(motoActive.axes.handlebar.path) ? motoActive.axes.handlebar.path : DEFAULT_MOTO_HBAR_PATH;
+                gasPath    = !string.IsNullOrEmpty(motoActive.axes.gas.path)       ? motoActive.axes.gas.path       : DEFAULT_MOTO_GAS_PATH;
+                brakePath  = !string.IsNullOrEmpty(motoActive.buttons.brake.path)  ? motoActive.buttons.brake.path  : DEFAULT_MOTO_BRAKE_PATH;
+                clutchPath = !string.IsNullOrEmpty(motoActive.buttons.clutch.path) ? motoActive.buttons.clutch.path : DEFAULT_MOTO_CLUTCH_PATH;
+                Debug.Log($"[UIInputNew] Moto paths from JSON: lean={leanPath} hbar={hbarPath} gas={gasPath} brake={brakePath} clutch={clutchPath}");
+            }
+            else
+            {
+                leanPath   = PlayerPrefs.GetString(PREF_MOTO_LEAN_PATH,   DEFAULT_MOTO_LEAN_PATH);
+                hbarPath   = PlayerPrefs.GetString(PREF_MOTO_HBAR_PATH,   DEFAULT_MOTO_HBAR_PATH);
+                gasPath    = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,    DEFAULT_MOTO_GAS_PATH);
+                brakePath  = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH,  DEFAULT_MOTO_BRAKE_PATH);
+                clutchPath = PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH, DEFAULT_MOTO_CLUTCH_PATH);
+            }
             // Lean/hbar/gas fallback list: el HID layout que Unity asigna al
             // device varía con cómo se enumere (VID/PID, descriptor). Probar
             // path persistido, luego stick/x (compound), luego x raíz; idem
@@ -1832,20 +1854,38 @@ namespace Gley.UrbanSystem
             //     via PREF_MOTO_GAS_REST/PRESS sin recompilar.
             //   - Brake/clutch: HID buttons en Unity son [0,1] (0=libre, 1=press).
             //     NormalizePedal con rest=0/press=1 da idéntico a leer raw directo.
-            _gasRest    = PlayerPrefs.GetFloat(PREF_MOTO_GAS_REST,  -1f);
-            _gasPress   = PlayerPrefs.GetFloat(PREF_MOTO_GAS_PRESS, +1f);
+            // v1.9.0: gas rest/press desde JSON cuando flag=1 (hardcoded canónico -1/+1
+            // por migración, ver MotoMappingMigration). Fallback a PlayerPrefs cuando
+            // legacy mode — mismo patrón ternary que paths/rangos arriba.
+            if (motoActive != null)
+            {
+                _gasRest  = motoActive.axes.gas.rest;
+                _gasPress = motoActive.axes.gas.press;
+            }
+            else
+            {
+                _gasRest  = PlayerPrefs.GetFloat(PREF_MOTO_GAS_REST,  -1f);
+                _gasPress = PlayerPrefs.GetFloat(PREF_MOTO_GAS_PRESS, +1f);
+            }
             _brakeRest   = 0f; _brakePress  = 1f;
             _clutchRest  = 0f; _clutchPress = 1f;
 
-            // Calibración del rango de lean/handlebar/gas. Defaults [-1,+1] /
-            // press=1 asumen que el firmware ya entrega valores normalizados.
-            // Si el sensor del chasis está mal montado o el rango efectivo es
-            // menor, recalibrar via firmware /calibrate o guardar PREF_MOTO_*
-            // dinámicamente desde una pantalla de cal Unity (Fase futura).
-            _motoLeanMin = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MIN, -1f);
-            _motoLeanMax = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MAX, +1f);
-            _motoHbarMin = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MIN, -1f);
-            _motoHbarMax = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MAX, +1f);
+            // Normalize moto controls — rangos vienen del JSON cuando JSON mode,
+            // de PlayerPrefs MOTO_* cuando legacy mode.
+            if (motoActive != null)
+            {
+                _motoLeanMin = motoActive.axes.lean.min;
+                _motoLeanMax = motoActive.axes.lean.max;
+                _motoHbarMin = motoActive.axes.handlebar.min;
+                _motoHbarMax = motoActive.axes.handlebar.max;
+            }
+            else
+            {
+                _motoLeanMin = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MIN, -1f);
+                _motoLeanMax = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MAX, +1f);
+                _motoHbarMin = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MIN, -1f);
+                _motoHbarMax = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MAX, +1f);
+            }
 
             // Reusar el _steerCenter/Max/Min que existe para wheel-style — algunos
             // overlays (F8 BindingsPanel, F10 OnGUI) los leen directo.
