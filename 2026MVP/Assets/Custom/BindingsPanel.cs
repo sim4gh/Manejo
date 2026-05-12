@@ -6,6 +6,7 @@ using UnityEngine.InputSystem.Controls;
 using TMPro;
 using Gley.UrbanSystem;
 using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 
 /// <summary>
 /// Panel de remapeo de controles (F8 hold 1.5s). Permite asignar qué botón
@@ -106,7 +107,8 @@ public class BindingsPanel : MonoBehaviour
         //   else → BindingsPanel (legacy PlayerPrefs)
         bool g923PanelOpen = G923CalibrationPanel.Instance?.IsOpen ?? false;
         bool horiPanelOpen = HoriCalibrationPanel.Instance?.IsOpen ?? false;
-        if (!panelOpen && !horiPanelOpen && !g923PanelOpen)
+        bool motoPanelOpen = MotoCalibrationPanel.Instance?.IsOpen ?? false;
+        if (!panelOpen && !horiPanelOpen && !g923PanelOpen && !motoPanelOpen)
         {
             if (kb != null && kb.f8Key.isPressed)
             {
@@ -127,6 +129,11 @@ public class BindingsPanel : MonoBehaviour
                     {
                         Debug.Log("[BindingsPanel] G923 + JSON mode — abriendo G923CalibrationPanel");
                         G923CalibrationPanel.Instance?.Open();
+                    }
+                    else if (MotoCalibrationPanel.IsMotoConnected() && MotoControlMapping.IsJsonModeEnabled())
+                    {
+                        Debug.Log("[BindingsPanel] Moto + JSON mode — abriendo MotoCalibrationPanel");
+                        MotoCalibrationPanel.Instance?.Open();
                     }
                     else
                     {
