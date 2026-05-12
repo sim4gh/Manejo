@@ -604,6 +604,27 @@ Reescritura del flujo de calibración HORI. JSON file en `<persistentDataPath>/h
 
 Ver `HORI_CALIBRATION_LESSONS.md` sección v1.7.0 y v1.7.0 lecciones smoke testing, y `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md`.
 
+### v1.8.0 — G923 calibración immutable con rollback feature flag
+
+Mirror del pattern HORI v1.7.0 aplicado a G923 (PS + Xbox variants), pero con **rollback strategy** para no romper productivos. Productivos G923 (Sedán 1, Sedán 2) NO pueden quedarse rotos, así que el flag default es 0 (legacy) y la migración es opt-in por kiosko.
+
+- **Archivos nuevos**: `Assets/Custom/G923Calibration/{G923Mapping,G923ControlMapping,G923MappingMigration,G923PreflightCheck}.cs` + `Assets/Custom/G923CalibrationPanel.cs` + asmdef `TlaxSim.G923Calibration`.
+- **Feature flag**: PlayerPref `G923_UseJsonMapping` (int)
+  - `0` (default) = legacy PlayerPrefs mode. Comportamiento idéntico a v1.7.x — sin cambios.
+  - `1` = JSON immutable mode. UIInputNew lee `G923ControlMapping.Active`. F8 abre `G923CalibrationPanel` nuevo. Pantalla 2 entra en verify-only.
+- **Migración**: al primer flip 0→1, lee PlayerPrefs G923_*/Bind_*, detecta variant por `Cal_DeviceFingerprint` (fingerprint contiene "Xbox" o "PlayStation"/"Logitech") o fallback por gas axis (z=PS, stick/y=Xbox), valida rest/press (±0.1 de canonical ±1 y signos opuestos), guarda JSON `g923_mapping.json`. Si validación falla, modal F8 pide calibrar manual.
+- **Rollback**: F8 → "Volver a modo legacy" pone flag=0 (no toca PlayerPrefs ni borra JSON). SSH alternativa: `reg add ... G923_UseJsonMapping_h<hash> /t REG_DWORD /d 0 /f`. PlayerPrefs NUNCA se borran durante JSON mode → rollback inmediato siempre disponible.
+- **Heartbeat**: `controlMapping` field con priority HORI > G923 (single blob JSON-stringified). Solo envía G923 cuando flag=1 + Active válido.
+- **F8 panel**: 3 tabs (Conducción / Luces / Marchas Manual). Botón "Volver a modo legacy" en header. Gas pedal usa `DetectAxis` regular (no `HoriThrottleReader` sentinel).
+- **Portal admin**: `WheelMappingTable.tsx` (genérico) detecta tipo HORI vs G923 por discriminator (variant field) y renderiza tabla correspondiente.
+- **Out of scope**: FFB tuning (F9 `Adv_*`), Moto, HORI Truck (sin cambios).
+- **Bloqueado para productivos sin autorización explícita**. Smoke test en Casa Aramis (PS variant) primero.
+
+Spec: `docs/superpowers/specs/2026-05-11-g923-v180-immutable-calibration-design.md`
+Plan: `docs/superpowers/plans/2026-05-11-g923-v180-implementation.md`
+
+**Principio cementado v1.8.0**: para G923 con flag=1, cada read de `PlayerPrefs.Get*("G923_*")` o `Bind_*` en el branch G923 está gated por el ternary `(IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)

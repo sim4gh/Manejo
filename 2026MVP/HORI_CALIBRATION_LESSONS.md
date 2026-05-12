@@ -781,3 +781,17 @@ Codex reviewó la rama 4 veces durante el desarrollo (v1.7.0 design → UX r8 �
 - Productivos HORI (pasajeros1/2, carga, ambulancia) — OTA push pendiente con autorización
 - Detección operativa de phantom future PlayerPrefs reads (un test EditMode que grep el code base por `PlayerPrefs.Get*` no-gated por HORI)
 - v1.7.1: push/restore/clone del mapping desde portal admin
+
+## v1.8.0 — Aplicación a G923
+
+El pattern HORI v1.7.0 se replicó en G923, con la diferencia clave de **feature flag de rollback** (`G923_UseJsonMapping`). Lecciones HORI aplicadas:
+
+1. **Audit phantom exhaustivo** de PlayerPrefs reads — cada `G923_*` o `Bind_*` debe estar gated por `(IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled()) ? Active : PlayerPrefs` en el branch G923 de `AttachToWheelDevice`. Audit completo se hizo después de Phase 7; no se encontraron phantoms gracias al pattern `g923Active != null ? ... : ...`.
+2. **Validation estricta** en migration (`ValidatePedal`): rest/press dentro de ±0.1 de ±1, signos opuestos, NaN abort. Si falla, NO produce JSON — operator calibra manual via F8.
+3. **Diagnostic-first** si > 2 iteraciones sin root cause (mismo principio HORI).
+4. **Variants PS+Xbox detectados** por displayName, mismo pattern que UIInputNew ya usa (verified v1.5.7+). En migration, fingerprint primary + gas axis fallback (z=PS, stick/y=Xbox).
+5. **Codex review** post-design, post-implementación, post-bug-fix (opcional pero recomendado, no obligatorio v1.8.0 por scope).
+
+La diferencia clave con HORI es que G923 productivos (Sedán 1, Sedán 2) NO pueden quedarse rotos, así que el flag default es 0 (legacy). Solo se activa JSON mode tras smoke test en kiosko de pruebas (Aramis PS variant).
+
+**Principio cementado v1.8.0**: para G923 con flag=1, ninguna lectura de `PlayerPrefs.Get*("G923_*")` o `Bind_*` puede sobrevivir sin el gating ternary. PlayerPrefs siguen escribiéndose por Pantalla 2 Discovery legacy — esto es intencional, garantiza rollback inmediato si flag se pone a 0.
