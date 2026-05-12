@@ -636,6 +636,27 @@ Fix: hardcode rest/press canónico por axis name (hardware-fijo, no necesita det
 
 Spec/plan no cambia — esto es defensive coding en el panel, no cambio de comportamiento. Migration (PlayerPrefs → JSON) no afectada, sus defaults canónicos ya estaban correctos.
 
+### v1.9.0 — Moto Simulator calibración immutable con rollback feature flag
+
+Mirror del pattern G923 v1.8.0 aplicado al Moto Simulator (simbt001, ESP32-S3 USB HID custom firmware VID 0x303A / PID 0x4D54). Mismo rollback strategy via feature flag — productivos Motocicleta (SIM-007) no pueden quedarse rotos, default flag=0 (legacy).
+
+- **Archivos nuevos**: `Assets/Custom/MotoCalibration/{MotoMapping,MotoControlMapping,MotoMappingMigration,MotoPreflightCheck}.cs` + `Assets/Custom/MotoCalibrationPanel.cs` + asmdef `TlaxSim.MotoCalibration`.
+- **Feature flag**: PlayerPref `Moto_UseJsonMapping` (int)
+  - `0` (default) = legacy PlayerPrefs MOTO_* mode. Comportamiento idéntico a v1.8.x — sin cambios.
+  - `1` = JSON immutable mode. UIInputNew lee `MotoControlMapping.Active`. F8 abre `MotoCalibrationPanel` nuevo. MenuScreenManager entra en verify-only.
+- **Migración**: al primer flip 0→1, lee PlayerPrefs MOTO_* (LeanPath/HbarPath/GasPath/BrakePath/ClutchPath + rangos LeanMin/Max/HbarMin/Max + DeviceFingerprint), valida fingerprint contiene "Moto" o "SimuladoresTlax", valida rangos lean/hbar span ≥ 0.5 (sin valores NaN), hardcode rest/press canónico para gas (rest=-1/press=+1 — Hall throttle del simbt001 firmware, lección v1.8.1), guarda JSON `moto_mapping.json`. Si validación falla → modal F8 pide calibrar manual.
+- **Rollback**: F8 → "Volver a modo legacy" pone flag=0 (no toca PlayerPrefs ni borra JSON). SSH alternativa: `reg add ... Moto_UseJsonMapping_h<hash> /t REG_DWORD /d 0 /f`. PlayerPrefs MOTO_* NUNCA se borran durante JSON mode → rollback inmediato siempre disponible.
+- **Heartbeat**: `controlMapping` field con priority HORI > G923 > Moto (single blob JSON-stringified). Solo envía Moto cuando flag=1 + Active válido.
+- **F8 panel**: 3 secciones lineales sin tabs (Conducción / Botones / Diagnóstico). Sin gears, sin paddles, sin FFB, sin reverse — Moto es mucho más simple que HORI/G923.
+- **Portal admin**: `WheelMappingTable.tsx` detecta tipo por discriminator `vehicleType:"motorcycle"` y renderiza `MotoBody` (lean/handlebar/gas + brake/clutch buttons).
+- **Out of scope**: tuning F9 (`MOTO_HighSpeedLeanWeight`, `MOTO_BlendStart/EndKmh`), firmware MQTT calibration (`calibrate-hbar`, BNO chasis center — vive en moto-controller firmware, flag-agnóstico), HORI/G923 (sin cambios).
+- **Bloqueado para productivos sin autorización explícita**. Smoke test en kiosko Moto de prueba primero (SIM-007 Motocicleta solo con autorización + plan claro de rollback).
+
+Spec: `docs/superpowers/specs/2026-05-12-moto-v190-immutable-calibration-design.md`
+Plan: `docs/superpowers/plans/2026-05-12-moto-v190-implementation.md`
+
+**Principio cementado v1.9.0**: para Moto con flag=1, cada read de `PlayerPrefs.Get*("MOTO_*")` en el branch Moto está gated por el ternary `(IsMotoSimulator(device) && MotoControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
+
 ### Deploy Aramis (smoke test 2026-05-12)
 
 - v1.8.0 build inicial deployed a Aramis via **LAN SCP directo** (no Mexicalabs OTA — Aramis está en red local del operator, ver memoria `feedback_aramis_lan_deploy.md`).
