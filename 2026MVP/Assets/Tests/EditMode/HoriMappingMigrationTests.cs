@@ -30,7 +30,12 @@ namespace TlaxSim.Tests
             SetCleanHoriPrefs(_prefs);
             bool ok = HoriMappingMigration.TryMigrateFromPlayerPrefs(_prefs, out var mapping);
             Assert.IsTrue(ok);
-            Assert.AreEqual("HORI TRUCK CONTROL SYSTEM", mapping.deviceFingerprint);
+            // Migration preserva el fingerprint completo (formato canónico
+            // product|manufacturer|serial). HoriMappingMigration.cs:46 hace
+            // deviceFingerprint = fp; pass-through directo. El portal
+            // (WheelMappingTable) y el wheel-detection downstream dependen
+            // de tener los 3 componentes.
+            Assert.AreEqual("HORI TRUCK CONTROL SYSTEM|HORI CO.,LTD.|", mapping.deviceFingerprint);
             Assert.AreEqual("rz", mapping.axes.brake.path);
             Assert.AreEqual(-1f, mapping.axes.brake.rest, 0.01f);
             Assert.AreEqual("shifter:button7", mapping.buttons.reverse.path);
