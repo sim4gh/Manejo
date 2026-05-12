@@ -4,6 +4,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 
 /// <summary>
 /// Cliente HTTP para comunicar el simulador Unity con el backend AWS.
@@ -706,8 +707,9 @@ public static class SimulatorApiClient
         if (config == null || string.IsNullOrEmpty(config.pcId)) yield break;
 
         string url = $"{BaseUrl}/simulator/heartbeat";
-        // v1.8.0: priority HORI > G923 (single blob; backend acepta cualquier
-        // JSON opaco). G923 solo se envía si la flag G923_UseJsonMapping=1.
+        // v1.9.0: priority HORI > G923 > Moto (single blob; backend acepta cualquier
+        // JSON opaco). G923 solo se envía si flag G923_UseJsonMapping=1.
+        // Moto solo se envía si flag Moto_UseJsonMapping=1 + Active válido.
         var hm = TlaxSim.HoriCalibration.HoriControlMapping.Active;
         string controlMappingJson = null;
         if (hm != null)
@@ -717,6 +719,10 @@ public static class SimulatorApiClient
         else if (G923ControlMapping.IsJsonModeEnabled() && G923ControlMapping.Active != null)
         {
             controlMappingJson = UnityEngine.JsonUtility.ToJson(G923ControlMapping.Active);
+        }
+        else if (MotoControlMapping.IsJsonModeEnabled() && MotoControlMapping.Active != null)
+        {
+            controlMappingJson = UnityEngine.JsonUtility.ToJson(MotoControlMapping.Active);
         }
         string json = JsonUtility.ToJson(new HeartbeatRequest
         {
