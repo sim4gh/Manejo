@@ -40,10 +40,12 @@ MonoBehaviour:
     - {r: 1, g: 1, b: 1, a: 1}
     Active: 01
   PathFindingRoutes:
-    Id: ffffffff
+    Id: 00000000010000000a000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
-    Active: 01
+    - {r: 1, g: 1, b: 1, a: 1}
+    - {r: 1, g: 1, b: 1, a: 1}
+    Active: 010101
   PriorityRoutes:
     Id: 0100000002000000
     RoutesColor:

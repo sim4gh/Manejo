@@ -309,7 +309,7 @@ namespace Gley.UrbanSystem
                         + $"gas={gasInput:F2} brake={brakeInputValue:F2} clutch={clutchValue:F2} "
                         + $"_clutchDisengaged={_clutchDisengaged} currentGear={currentGear} "
                         + $"lastNonNeutral={lastNNDiag} "
-                        + $"rb.drag={rb.drag:F3} rb.angularDrag={rb.angularDrag:F3} "
+                        + $"rb.drag={rb.linearDamping:F3} rb.angularDrag={rb.angularDamping:F3} "
                         + $"mass={rb.mass:F0} motorTorqueBeforeGhost={motorTorque:F0}");
                 }
 
