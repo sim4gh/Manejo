@@ -9,6 +9,8 @@ using UnityEngine.InputSystem.Controls;
 using TMPro;
 using QRCoder;
 using Gley.UrbanSystem;
+using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 
 /// <summary>
 /// Menú principal del simulador — flujo QR/código → opciones → verificación volante.
@@ -2089,6 +2091,29 @@ public class MenuScreenManager : MonoBehaviour
         {
             if (!UIInputNew.IsMotoSimulator(dev))
                 Debug.LogWarning($"[MenuScreenManager] Moto fast-path via session-context fallback (licenseType=motocicleta + Joystick con rz). Device: '{dev.displayName}'");
+
+            // v1.9.0: si flag Moto_UseJsonMapping=1 → entrar a verify-only path
+            // (similar a G923/HORI). Si flag=0 → fast-path legacy idéntico a pre-v1.9.0.
+            if (MotoControlMapping.IsJsonModeEnabled())
+            {
+                var motoActive = MotoControlMapping.Active;
+                if (motoActive == null)
+                {
+                    Debug.LogWarning("[MenuScreenManager] Moto conectado con flag=1 pero MotoControlMapping.Active=null — modal de calibración requerida.");
+                    ShowMotoPreflightModal(new List<string> { "Calibración Moto ausente (JSON no encontrado/inválido)." });
+                    return;
+                }
+                var motoResolver = new RuntimeMotoResolver();
+                var motoPreflight = MotoPreflightCheck.Validate(motoActive, motoResolver);
+                if (!motoPreflight.IsOk)
+                {
+                    Debug.LogWarning($"[MenuScreenManager] Moto preflight FAILED — missing: {string.Join(", ", motoPreflight.Missing)}");
+                    ShowMotoPreflightModal(motoPreflight.Missing);
+                    return;
+                }
+                Debug.Log("[MenuScreenManager] Moto preflight OK — skip Pantalla 2, cargando escena directo.");
+            }
+
             string fp = ComputeDeviceFingerprint(dev);
             if (!string.IsNullOrEmpty(fp))
                 PlayerPrefs.SetString(UIInputNew.PREF_MOTO_DEVICE_FINGERPRINT, fp);
@@ -2105,6 +2130,51 @@ public class MenuScreenManager : MonoBehaviour
             brakeFillRT.anchorMax = new Vector2(1, 1); brakeFill.color = MenuTheme.IndicatorDone;
             reverseFillRT.anchorMax = new Vector2(1, 1); reverseFill.color = MenuTheme.IndicatorDone;
             wheelPrompt.text = "Moto Simulator detectado. Cargando prueba...";
+            if (skipButton != null) skipButton.gameObject.SetActive(false);
+            if (reassignButton != null) reassignButton.gameObject.SetActive(false);
+            StartCoroutine(LoadSceneDelayed(1.0f));
+            return;
+        }
+
+        // ── v1.8.0: G923 VERIFY-ONLY (cuando flag G923_UseJsonMapping=1) ────
+        // Análogo a HORI VERIFY-ONLY: si G923 conectado + flag activada + JSON
+        // válido + preflight OK → skip Discovery y carga escena directo. Si
+        // flag=0, este bloque NO corre y cae al fast-path legacy de abajo
+        // (comportamiento idéntico a v1.7.x).
+        if (dev != null && UIInputNew.IsLogitechG923Family(dev) && G923ControlMapping.IsJsonModeEnabled())
+        {
+            bool manual = PlayerPrefs.GetInt("TransmisionManual", 0) == 1;
+            var g923Active = G923ControlMapping.Active;
+            if (g923Active == null)
+            {
+                Debug.LogWarning("[MenuScreenManager] G923 conectado con flag=1 pero G923ControlMapping.Active=null — modal de calibración requerida.");
+                ShowG923PreflightModal(new List<string> { "Calibración G923 ausente (JSON no encontrado/inválido)." });
+                return;
+            }
+            var g923Resolver = new RuntimeG923Resolver();
+            var g923Preflight = G923PreflightCheck.Validate(g923Active, g923Resolver, manual);
+            if (!g923Preflight.IsOk)
+            {
+                Debug.LogWarning($"[MenuScreenManager] G923 preflight FAILED — missing: {string.Join(", ", g923Preflight.Missing)}");
+                ShowG923PreflightModal(g923Preflight.Missing);
+                return;
+            }
+            Debug.Log($"[MenuScreenManager] G923 preflight OK (variant={g923Active.variant}) — skip Pantalla 2, cargando escena directo.");
+            // Marcar UI como completed (mismo pattern que el HORI verify-only y el G923 fast-path).
+            rightDone = leftDone = throttleDone = brakeDone = reverseDone = true;
+            clutchDone = true;
+            steerCenter = 0f; steerMaxSeen = 1f; steerMinSeen = -1f; steerCenterCaptured = true;
+            if (rightIndicator != null) rightIndicator.color = MenuTheme.IndicatorDone;
+            if (leftIndicator != null) leftIndicator.color = MenuTheme.IndicatorDone;
+            if (gasIndicator != null) gasIndicator.color = MenuTheme.IndicatorDone;
+            if (brakeIndicator != null) brakeIndicator.color = MenuTheme.IndicatorDone;
+            if (reverseIndicator != null) reverseIndicator.color = MenuTheme.IndicatorDone;
+            if (rightFillRT != null) { rightFillRT.anchorMax = new Vector2(1, 1); rightFill.color = MenuTheme.IndicatorDone; }
+            if (leftFillRT != null)  { leftFillRT.anchorMin  = new Vector2(0, 0); leftFill.color  = MenuTheme.IndicatorDone; }
+            if (gasFillRT != null)   { gasFillRT.anchorMax   = new Vector2(1, 1); gasFill.color   = MenuTheme.IndicatorDone; }
+            if (brakeFillRT != null) { brakeFillRT.anchorMax = new Vector2(1, 1); brakeFill.color = MenuTheme.IndicatorDone; }
+            if (reverseFillRT != null) { reverseFillRT.anchorMax = new Vector2(1, 1); reverseFill.color = MenuTheme.IndicatorDone; }
+            if (wheelPrompt != null) wheelPrompt.text = $"Volante Logitech G923 ({g923Active.variant}) verificado. Cargando prueba...";
             if (skipButton != null) skipButton.gameObject.SetActive(false);
             if (reassignButton != null) reassignButton.gameObject.SetActive(false);
             StartCoroutine(LoadSceneDelayed(1.0f));
@@ -3391,6 +3461,46 @@ public class MenuScreenManager : MonoBehaviour
         }
     }
 
+    // v1.8.0: modal pre-flight G923 — análogo a ShowHoriPreflightModal pero
+    // referencia al G923CalibrationPanel (F8) y al rollback "Volver a modo legacy".
+    void ShowG923PreflightModal(List<string> missing)
+    {
+        _manualBlockedModalActive = true;
+        _manualBlockedReason = UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
+
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+        rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
+
+        SetWheelDiscoveryScaffoldingVisible(false);
+
+        string msg = "El volante <b>Logitech G923</b> necesita calibración (modo JSON v1.8.0).\n\n";
+        if (missing != null && missing.Count > 0)
+        {
+            msg += "Faltan:\n";
+            for (int i = 0; i < missing.Count; i++) msg += "  • " + missing[i] + "\n";
+            msg += "\n";
+        }
+        msg += "Presiona <b>F8 (sostén 1.5s)</b> para abrir el panel de calibración G923 y configurar los controles.\n\n";
+        msg += "Si prefieres usar la calibración legacy (PlayerPrefs Discovery), F8 → \"Volver a modo legacy\".";
+
+        if (wheelPrompt != null) wheelPrompt.text = msg;
+
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Continuar en Automático";
+            skipButton.interactable = true;
+            skipButton.gameObject.SetActive(true);
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Volver a transmisión";
+            reassignButton.interactable = true;
+            reassignButton.gameObject.SetActive(true);
+        }
+    }
+
     // v1.7.0: oculta/muestra las 5 barras Discovery (DERECHA/IZQUIERDA/ACELERADOR/FRENO/REVERSA)
     // que se construyen en BuildScreen2_Wheel. Llamado con false desde
     // ShowHoriPreflightModal para limpiar el UI cuando el modal está activo.
@@ -3454,6 +3564,121 @@ public class MenuScreenManager : MonoBehaviour
         }
 
         public bool ThrottleReaderOk => HoriThrottleReader.Instance != null && HoriThrottleReader.Instance.IsHandleOpen;
+    }
+
+    // v1.8.0: G923 resolver — implementación de IG923DeviceResolver para
+    // validar contra el InputDevice G923 conectado en runtime.
+    private class RuntimeG923Resolver : IG923DeviceResolver
+    {
+        private InputDevice _g923;
+
+        public RuntimeG923Resolver()
+        {
+            foreach (var d in InputSystem.devices)
+            {
+                if (UIInputNew.IsLogitechG923Family(d)) { _g923 = d; break; }
+            }
+        }
+
+        public bool ResolveAxis(string path)
+        {
+            if (string.IsNullOrEmpty(path) || _g923 == null) return false;
+            return _g923.TryGetChildControl(path) != null;
+        }
+
+        public bool ResolveButton(string path)
+        {
+            if (string.IsNullOrEmpty(path) || _g923 == null) return false;
+            return _g923.TryGetChildControl(path) != null;
+        }
+    }
+
+    // v1.9.0: modal pre-flight Moto — análogo a ShowG923PreflightModal pero
+    // referencia al MotoCalibrationPanel (F8) y al rollback "Volver a modo legacy".
+    void ShowMotoPreflightModal(List<string> missing)
+    {
+        _manualBlockedModalActive = true;
+        _manualBlockedReason = UIInputNew.ManualBlockReason.NoPhysicalClutch_HORINotCalibrated;
+
+        if (sanityCheckCo != null) { StopCoroutine(sanityCheckCo); sanityCheckCo = null; }
+        rightDone = leftDone = throttleDone = brakeDone = reverseDone = clutchDone = true;
+
+        SetWheelDiscoveryScaffoldingVisible(false);
+
+        string msg = "El <b>Moto Simulator</b> (motocicleta) necesita calibración (modo JSON v1.9.0).\n\n";
+        if (missing != null && missing.Count > 0)
+        {
+            msg += "Faltan:\n";
+            for (int i = 0; i < missing.Count; i++) msg += "  • " + TranslateMotoRole(missing[i]) + "\n";
+            msg += "\n";
+        }
+        msg += "Presiona <b>F8 (sostén 1.5s)</b> para abrir el panel de calibración Moto y configurar los controles.\n\n";
+        msg += "Si prefieres usar la calibración legacy (PlayerPrefs Discovery), F8 → \"Volver a modo legacy\".";
+
+        if (wheelPrompt != null) wheelPrompt.text = msg;
+
+        if (skipButton != null)
+        {
+            var t = skipButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Continuar en Automático";
+            skipButton.interactable = true;
+            skipButton.gameObject.SetActive(true);
+        }
+        if (reassignButton != null)
+        {
+            var t = reassignButton.GetComponentInChildren<TextMeshProUGUI>();
+            if (t != null) t.text = "Volver a transmisión";
+            reassignButton.interactable = true;
+            reassignButton.gameObject.SetActive(true);
+        }
+
+        // TODO(v1.9.0-Phase6): cuando MotoCalibrationPanel exista, ofrecer aquí un
+        // hook directo (botón "Abrir calibración") que llame:
+        //   MotoCalibrationPanel.Instance?.Open();
+        // Por ahora el operador debe sostener F8 1.5s — mismo patrón que G923/HORI.
+        Debug.Log("[MenuScreenManager] TODO Phase 6: open MotoCalibrationPanel");
+    }
+
+    // v1.9.0: traduce los roles raw del MotoPreflightCheck (lean/handlebar/gas/brake/clutch)
+    // a texto leíble en español para el modal.
+    private static string TranslateMotoRole(string role) => role switch
+    {
+        "lean" => "recostado lateral (lean)",
+        "handlebar" => "manubrio",
+        "gas" => "acelerador",
+        "brake" => "freno",
+        "clutch" => "clutch",
+        _ => role
+    };
+
+    // v1.9.0: Moto resolver — implementación de IMotoDeviceResolver para
+    // validar contra el InputDevice del Moto Simulator conectado en runtime.
+    // Itera InputSystem.devices y filtra por UIInputNew.IsMotoSimulator.
+    private sealed class RuntimeMotoResolver : TlaxSim.MotoCalibration.IMotoDeviceResolver
+    {
+        private InputDevice _moto;
+
+        public RuntimeMotoResolver()
+        {
+            foreach (var d in InputSystem.devices)
+            {
+                if (UIInputNew.IsMotoSimulator(d)) { _moto = d; break; }
+            }
+        }
+
+        public bool ResolveAxis(string path)
+        {
+            if (string.IsNullOrEmpty(path) || _moto == null) return false;
+            var c = _moto.TryGetChildControl(path);
+            return c is UnityEngine.InputSystem.Controls.AxisControl;
+        }
+
+        public bool ResolveButton(string path)
+        {
+            if (string.IsNullOrEmpty(path) || _moto == null) return false;
+            var c = _moto.TryGetChildControl(path);
+            return c is UnityEngine.InputSystem.Controls.ButtonControl;
+        }
     }
 
     // v1.5.12 (Cambio 5): pre-flight HORI sin shifter conectado. El shifter

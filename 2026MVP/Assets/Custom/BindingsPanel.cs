@@ -5,6 +5,8 @@ using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
 using TMPro;
 using Gley.UrbanSystem;
+using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 
 /// <summary>
 /// Panel de remapeo de controles (F8 hold 1.5s). Permite asignar qué botón
@@ -99,8 +101,14 @@ public class BindingsPanel : MonoBehaviour
         var kb = Keyboard.current;
         bool panelOpen = panelRoot != null;
 
-        // Hold F8 para abrir. Si HORI conectado → HoriCalibrationPanel. Si no → BindingsPanel.
-        if (!panelOpen && !(HoriCalibrationPanel.Instance?.IsOpen ?? false))
+        // Hold F8 para abrir. Routing:
+        //   HORI conectado → HoriCalibrationPanel
+        //   G923 conectado + flag G923_UseJsonMapping=1 → G923CalibrationPanel
+        //   else → BindingsPanel (legacy PlayerPrefs)
+        bool g923PanelOpen = G923CalibrationPanel.Instance?.IsOpen ?? false;
+        bool horiPanelOpen = HoriCalibrationPanel.Instance?.IsOpen ?? false;
+        bool motoPanelOpen = MotoCalibrationPanel.Instance?.IsOpen ?? false;
+        if (!panelOpen && !horiPanelOpen && !g923PanelOpen && !motoPanelOpen)
         {
             if (kb != null && kb.f8Key.isPressed)
             {
@@ -117,9 +125,19 @@ public class BindingsPanel : MonoBehaviour
                         Debug.Log("[BindingsPanel] HORI detectado — abriendo HoriCalibrationPanel");
                         HoriCalibrationPanel.Instance?.Open();
                     }
+                    else if (G923CalibrationPanel.IsG923Connected() && G923ControlMapping.IsJsonModeEnabled())
+                    {
+                        Debug.Log("[BindingsPanel] G923 + JSON mode — abriendo G923CalibrationPanel");
+                        G923CalibrationPanel.Instance?.Open();
+                    }
+                    else if (MotoCalibrationPanel.IsMotoConnected() && MotoControlMapping.IsJsonModeEnabled())
+                    {
+                        Debug.Log("[BindingsPanel] Moto + JSON mode — abriendo MotoCalibrationPanel");
+                        MotoCalibrationPanel.Instance?.Open();
+                    }
                     else
                     {
-                        Debug.Log("[BindingsPanel] Abriendo panel");
+                        Debug.Log("[BindingsPanel] Abriendo panel legacy");
                         Open();
                     }
                     holdTimer = 0f;
@@ -303,6 +321,24 @@ public class BindingsPanel : MonoBehaviour
         CreateButton(card.transform, "Restaurar defaults", -220f, y, new Color(0.5f, 0.35f, 0.1f), OnRestoreDefaults);
         CreateButton(card.transform, "Limpiar binding activo", 0f, y, new Color(0.5f, 0.15f, 0.15f), OnClearActive);
         CreateButton(card.transform, "Cerrar", 220f, y, new Color(0.12f, 0.4f, 0.6f), Close);
+
+        // v1.8.0: opt-in para G923 — activa JSON mode + trigger migration.
+        // Solo se muestra cuando hay G923 conectado y el flag está apagado.
+        // Permite al operador estrenar el flujo immutable sin SSH al kiosko.
+        if (G923CalibrationPanel.IsG923Connected() && !G923ControlMapping.IsJsonModeEnabled())
+        {
+            y -= 60f;
+            CreateButton(card.transform, "Activar modo JSON G923 (v1.8.0)", 0f, y, new Color(0.25f, 0.55f, 0.3f), OnEnableG923JsonMode);
+        }
+    }
+
+    void OnEnableG923JsonMode()
+    {
+        G923ControlMapping.SetJsonMode(true);
+        G923ControlMapping.LoadFromDisk();  // intenta migración desde PlayerPrefs
+        var loaded = G923ControlMapping.Active;
+        Debug.Log($"[BindingsPanel] G923 JSON mode activado. Active={(loaded != null ? "loaded variant=" + loaded.variant : "NULL — calibrar via F8 sostén")}");
+        Close();
     }
 
     void BuildRow(Transform parent, ActionEntry a, float yOffset)

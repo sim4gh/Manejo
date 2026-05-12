@@ -1,4 +1,6 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+using TlaxSim.G923Calibration;
+using TlaxSim.MotoCalibration;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -1484,6 +1486,26 @@ namespace Gley.UrbanSystem
                     Debug.Log($"[UIInputNew] HORI brake/clutch paths from JSON: brake={brakePath} clutch={clutchPath}");
                 }
             }
+            // v1.8.0: G923 JSON immutable override — leer paths del JSON cuando flag=1.
+            // Solo aplica si NO es HORI (HORI tiene su propio override arriba) Y es G923
+            // Y la flag G923_UseJsonMapping está activada. Si Active==null (sin migración
+            // o sin calibración), MenuScreenManager.PrepareWheelScreen mostró modal antes
+            // de gameplay — aquí caemos a los defaults legacy de PlayerPrefs (gasPath ya
+            // leído arriba en línea ~1445).
+            else if (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+            {
+                var gm = G923ControlMapping.Active;
+                if (gm != null)
+                {
+                    if (!string.IsNullOrEmpty(gm.axes.gas.path))    gasPath    = gm.axes.gas.path;
+                    if (!string.IsNullOrEmpty(gm.axes.brake.path))  brakePath  = gm.axes.brake.path;
+                    if (!string.IsNullOrEmpty(gm.axes.clutch.path)) clutchPath = gm.axes.clutch.path;
+                    // Re-cache _gasCtrl porque gasPath cambió (HORI sentinel guard arriba ya corrió).
+                    _useHoriRawGas = false;
+                    _gasCtrl = CacheControl(gasPath);
+                    Debug.Log($"[UIInputNew] G923 paths from JSON (variant={gm.variant}): gas={gasPath} brake={brakePath} clutch={clutchPath}");
+                }
+            }
             _brakeCtrl = CacheControl(brakePath);
             // Clutch (opcional — solo G923 PS / HORI manual). Si no hay path,
             // _clutchCtrl queda null → clutchInput=0 → manual sin desacople.
@@ -1524,6 +1546,29 @@ namespace Gley.UrbanSystem
                 {
                     Debug.LogWarning("[UIInputNew] HORI binds: HoriControlMapping.Active=null → usando PlayerPrefs legacy (Pantalla 2 deberá bloquear con modal).");
                 }
+            }
+            // v1.8.0: para G923 JSON mode, override binds del JSON.
+            else if (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+            {
+                var gmBinds = G923ControlMapping.Active;
+                if (gmBinds != null)
+                {
+                    _bindSteerAxis   = gmBinds.axes.steer.path;
+                    _bindReverse     = gmBinds.buttons.reverse.path;
+                    _bindHorn        = gmBinds.buttons.horn.path;
+                    _bindHazard      = gmBinds.buttons.hazards.path;
+                    _bindPaddleLeft  = gmBinds.buttons.turnLeft.path;
+                    _bindPaddleRight = gmBinds.buttons.turnRight.path;
+                    _bindGear1       = gmBinds.buttons.gear1.path;
+                    _bindGear2       = gmBinds.buttons.gear2.path;
+                    _bindGear3       = gmBinds.buttons.gear3.path;
+                    _bindGear4       = gmBinds.buttons.gear4.path;
+                    _bindGear5       = gmBinds.buttons.gear5.path;
+                    _bindGear6       = gmBinds.buttons.gear6.path;
+                    Debug.Log($"[UIInputNew] G923 binds overridden from G923ControlMapping.Active (variant={gmBinds.variant} steer='{_bindSteerAxis}' reverse='{_bindReverse}' horn='{_bindHorn}' hazard='{_bindHazard}' paddleL='{_bindPaddleLeft}' paddleR='{_bindPaddleRight}')");
+                    if (_wheelDevice != null) ReCacheBindings();
+                }
+                // Si Active==null, _bind* quedan con PlayerPrefs legacy (lo que ReloadBindings ya cargó). Pantalla 2 mostrará modal preflight.
             }
 
             // Volante apareció después de Initialize → respetar PlayerPrefs de transmisión
@@ -1585,12 +1630,28 @@ namespace Gley.UrbanSystem
             else
             {
                 // G923 y otros: cargar calibración del menú (Discovery por variante PS/Xbox).
-                _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
-                _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
-                _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
-                _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
-                _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
-                _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+                // v1.8.0: para G923 JSON mode, leer del JSON inmutable.
+                var g923Active = (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+                    ? G923ControlMapping.Active : null;
+                if (g923Active != null)
+                {
+                    _gasRest    = g923Active.axes.gas.rest;
+                    _gasPress   = g923Active.axes.gas.press;
+                    _brakeRest  = g923Active.axes.brake.rest;
+                    _brakePress = g923Active.axes.brake.press;
+                    _clutchRest  = g923Active.axes.clutch.rest;
+                    _clutchPress = g923Active.axes.clutch.press;
+                    Debug.Log($"[UIInputNew] G923 pedales desde JSON (variant={g923Active.variant} gas={_gasRest:F2}/{_gasPress:F2} brake={_brakeRest:F2}/{_brakePress:F2} clutch={_clutchRest:F2}/{_clutchPress:F2})");
+                }
+                else
+                {
+                    _gasRest    = PlayerPrefs.GetFloat("G923_GasRest",  1f);
+                    _gasPress   = PlayerPrefs.GetFloat("G923_GasPress", -1f);
+                    _brakeRest  = PlayerPrefs.GetFloat("G923_BrakeRest",  1f);
+                    _brakePress = PlayerPrefs.GetFloat("G923_BrakePress", -1f);
+                    _clutchRest  = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_REST,  -1f);
+                    _clutchPress = PlayerPrefs.GetFloat(PREF_G923_CLUTCH_PRESS,  1f);
+                }
             }
 
             // Calibración del steering (si no existe, rango ideal -1..1 sin offset).
@@ -1605,9 +1666,21 @@ namespace Gley.UrbanSystem
             }
             else
             {
-                _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
-                _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
-                _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+                // v1.8.0: G923 JSON mode override.
+                var g923SteerActive = (IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled())
+                    ? G923ControlMapping.Active : null;
+                if (g923SteerActive != null)
+                {
+                    _steerCenter = g923SteerActive.axes.steer.center;
+                    _steerMax    = g923SteerActive.axes.steer.rightMax;
+                    _steerMin    = g923SteerActive.axes.steer.leftMax;
+                }
+                else
+                {
+                    _steerCenter = PlayerPrefs.GetFloat("G923_SteerCenter", 0f);
+                    _steerMax    = PlayerPrefs.GetFloat("G923_SteerMax",   1f);
+                    _steerMin    = PlayerPrefs.GetFloat("G923_SteerMin",  -1f);
+                }
             }
 
             // Parámetros tuneable (panel F9)
@@ -1722,11 +1795,32 @@ namespace Gley.UrbanSystem
 
             // Cachear ctrls de los 5 inputs físicos. Paths configurables via PlayerPrefs
             // (override post-F7 si los reales difieren). Defaults asumidos en DEFAULT_MOTO_*.
-            string leanPath  = PlayerPrefs.GetString(PREF_MOTO_LEAN_PATH,  DEFAULT_MOTO_LEAN_PATH);
-            string hbarPath  = PlayerPrefs.GetString(PREF_MOTO_HBAR_PATH,  DEFAULT_MOTO_HBAR_PATH);
-            string gasPath   = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,   DEFAULT_MOTO_GAS_PATH);
-            string brakePath = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH, DEFAULT_MOTO_BRAKE_PATH);
-            string clutchPath= PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH,DEFAULT_MOTO_CLUTCH_PATH);
+            // v1.9.0: Moto JSON immutable override — leer paths del JSON cuando flag=1.
+            // Si Active==null (sin migración o sin calibración), caemos a defaults
+            // canónicos (igual que pre-v1.9.0 cuando PlayerPrefs estaban vacíos).
+            // Lección v1.7.0 HORI / v1.8.0 G923: cada read de PlayerPrefs MOTO_* debe
+            // estar gated por `IsJsonModeEnabled() ? Active : PlayerPrefs` ternary.
+            bool motoJsonMode = MotoControlMapping.IsJsonModeEnabled();
+            var motoActive = motoJsonMode ? MotoControlMapping.Active : null;
+
+            string leanPath, hbarPath, gasPath, brakePath, clutchPath;
+            if (motoActive != null)
+            {
+                leanPath   = !string.IsNullOrEmpty(motoActive.axes.lean.path)      ? motoActive.axes.lean.path      : DEFAULT_MOTO_LEAN_PATH;
+                hbarPath   = !string.IsNullOrEmpty(motoActive.axes.handlebar.path) ? motoActive.axes.handlebar.path : DEFAULT_MOTO_HBAR_PATH;
+                gasPath    = !string.IsNullOrEmpty(motoActive.axes.gas.path)       ? motoActive.axes.gas.path       : DEFAULT_MOTO_GAS_PATH;
+                brakePath  = !string.IsNullOrEmpty(motoActive.buttons.brake.path)  ? motoActive.buttons.brake.path  : DEFAULT_MOTO_BRAKE_PATH;
+                clutchPath = !string.IsNullOrEmpty(motoActive.buttons.clutch.path) ? motoActive.buttons.clutch.path : DEFAULT_MOTO_CLUTCH_PATH;
+                Debug.Log($"[UIInputNew] Moto paths from JSON: lean={leanPath} hbar={hbarPath} gas={gasPath} brake={brakePath} clutch={clutchPath}");
+            }
+            else
+            {
+                leanPath   = PlayerPrefs.GetString(PREF_MOTO_LEAN_PATH,   DEFAULT_MOTO_LEAN_PATH);
+                hbarPath   = PlayerPrefs.GetString(PREF_MOTO_HBAR_PATH,   DEFAULT_MOTO_HBAR_PATH);
+                gasPath    = PlayerPrefs.GetString(PREF_MOTO_GAS_PATH,    DEFAULT_MOTO_GAS_PATH);
+                brakePath  = PlayerPrefs.GetString(PREF_MOTO_BRAKE_PATH,  DEFAULT_MOTO_BRAKE_PATH);
+                clutchPath = PlayerPrefs.GetString(PREF_MOTO_CLUTCH_PATH, DEFAULT_MOTO_CLUTCH_PATH);
+            }
             // Lean/hbar/gas fallback list: el HID layout que Unity asigna al
             // device varía con cómo se enumere (VID/PID, descriptor). Probar
             // path persistido, luego stick/x (compound), luego x raíz; idem
@@ -1760,20 +1854,38 @@ namespace Gley.UrbanSystem
             //     via PREF_MOTO_GAS_REST/PRESS sin recompilar.
             //   - Brake/clutch: HID buttons en Unity son [0,1] (0=libre, 1=press).
             //     NormalizePedal con rest=0/press=1 da idéntico a leer raw directo.
-            _gasRest    = PlayerPrefs.GetFloat(PREF_MOTO_GAS_REST,  -1f);
-            _gasPress   = PlayerPrefs.GetFloat(PREF_MOTO_GAS_PRESS, +1f);
+            // v1.9.0: gas rest/press desde JSON cuando flag=1 (hardcoded canónico -1/+1
+            // por migración, ver MotoMappingMigration). Fallback a PlayerPrefs cuando
+            // legacy mode — mismo patrón ternary que paths/rangos arriba.
+            if (motoActive != null)
+            {
+                _gasRest  = motoActive.axes.gas.rest;
+                _gasPress = motoActive.axes.gas.press;
+            }
+            else
+            {
+                _gasRest  = PlayerPrefs.GetFloat(PREF_MOTO_GAS_REST,  -1f);
+                _gasPress = PlayerPrefs.GetFloat(PREF_MOTO_GAS_PRESS, +1f);
+            }
             _brakeRest   = 0f; _brakePress  = 1f;
             _clutchRest  = 0f; _clutchPress = 1f;
 
-            // Calibración del rango de lean/handlebar/gas. Defaults [-1,+1] /
-            // press=1 asumen que el firmware ya entrega valores normalizados.
-            // Si el sensor del chasis está mal montado o el rango efectivo es
-            // menor, recalibrar via firmware /calibrate o guardar PREF_MOTO_*
-            // dinámicamente desde una pantalla de cal Unity (Fase futura).
-            _motoLeanMin = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MIN, -1f);
-            _motoLeanMax = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MAX, +1f);
-            _motoHbarMin = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MIN, -1f);
-            _motoHbarMax = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MAX, +1f);
+            // Normalize moto controls — rangos vienen del JSON cuando JSON mode,
+            // de PlayerPrefs MOTO_* cuando legacy mode.
+            if (motoActive != null)
+            {
+                _motoLeanMin = motoActive.axes.lean.min;
+                _motoLeanMax = motoActive.axes.lean.max;
+                _motoHbarMin = motoActive.axes.handlebar.min;
+                _motoHbarMax = motoActive.axes.handlebar.max;
+            }
+            else
+            {
+                _motoLeanMin = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MIN, -1f);
+                _motoLeanMax = PlayerPrefs.GetFloat(PREF_MOTO_LEAN_MAX, +1f);
+                _motoHbarMin = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MIN, -1f);
+                _motoHbarMax = PlayerPrefs.GetFloat(PREF_MOTO_HBAR_MAX, +1f);
+            }
 
             // Reusar el _steerCenter/Max/Min que existe para wheel-style — algunos
             // overlays (F8 BindingsPanel, F10 OnGUI) los leen directo.

@@ -604,6 +604,79 @@ Reescritura del flujo de calibración HORI. JSON file en `<persistentDataPath>/h
 
 Ver `HORI_CALIBRATION_LESSONS.md` sección v1.7.0 y v1.7.0 lecciones smoke testing, y `docs/superpowers/specs/2026-05-11-hori-v170-immutable-calibration-design.md`.
 
+### v1.8.0 — G923 calibración immutable con rollback feature flag
+
+Mirror del pattern HORI v1.7.0 aplicado a G923 (PS + Xbox variants), pero con **rollback strategy** para no romper productivos. Productivos G923 (Sedán 1, Sedán 2) NO pueden quedarse rotos, así que el flag default es 0 (legacy) y la migración es opt-in por kiosko.
+
+- **Archivos nuevos**: `Assets/Custom/G923Calibration/{G923Mapping,G923ControlMapping,G923MappingMigration,G923PreflightCheck}.cs` + `Assets/Custom/G923CalibrationPanel.cs` + asmdef `TlaxSim.G923Calibration`.
+- **Feature flag**: PlayerPref `G923_UseJsonMapping` (int)
+  - `0` (default) = legacy PlayerPrefs mode. Comportamiento idéntico a v1.7.x — sin cambios.
+  - `1` = JSON immutable mode. UIInputNew lee `G923ControlMapping.Active`. F8 abre `G923CalibrationPanel` nuevo. Pantalla 2 entra en verify-only.
+- **Migración**: al primer flip 0→1, lee PlayerPrefs G923_*/Bind_*, detecta variant por `Cal_DeviceFingerprint` (fingerprint contiene "Xbox" o "PlayStation"/"Logitech") o fallback por gas axis (z=PS, stick/y=Xbox), valida rest/press (±0.1 de canonical ±1 y signos opuestos), guarda JSON `g923_mapping.json`. Si validación falla, modal F8 pide calibrar manual.
+- **Rollback**: F8 → "Volver a modo legacy" pone flag=0 (no toca PlayerPrefs ni borra JSON). SSH alternativa: `reg add ... G923_UseJsonMapping_h<hash> /t REG_DWORD /d 0 /f`. PlayerPrefs NUNCA se borran durante JSON mode → rollback inmediato siempre disponible.
+- **Heartbeat**: `controlMapping` field con priority HORI > G923 (single blob JSON-stringified). Solo envía G923 cuando flag=1 + Active válido.
+- **F8 panel**: 3 tabs (Conducción / Luces / Marchas Manual). Botón "Volver a modo legacy" en header. Gas pedal usa `DetectAxis` regular (no `HoriThrottleReader` sentinel).
+- **Portal admin**: `WheelMappingTable.tsx` (genérico) detecta tipo HORI vs G923 por discriminator (variant field) y renderiza tabla correspondiente.
+- **Out of scope**: FFB tuning (F9 `Adv_*`), Moto, HORI Truck (sin cambios).
+- **Bloqueado para productivos sin autorización explícita**. Smoke test en Casa Aramis (PS variant) primero.
+
+Spec: `docs/superpowers/specs/2026-05-11-g923-v180-immutable-calibration-design.md`
+Plan: `docs/superpowers/plans/2026-05-11-g923-v180-implementation.md`
+
+**Principio cementado v1.8.0**: para G923 con flag=1, cada read de `PlayerPrefs.Get*("G923_*")` o `Bind_*` en el branch G923 está gated por el ternary `(IsLogitechG923Family(device) && G923ControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
+
+### v1.8.1 — DetectPedalAxis canonical rest/press hardcoded (hotfix post-smoke-test Aramis)
+
+Smoke test de v1.8.0 en Aramis (2026-05-12) reveló bug en `G923CalibrationPanel.CoCapturePedalAxis`: la inferencia `restVal = initial[chosen]; pressVal = restVal >= 0 ? -1 : 1` rompía cuando `ReadUnprocessedValue()` retornaba `0` al inicio del sample 3s — sucede si InputSystem aún no había polled el axis en ese frame. Resultado: gas guardado con `rest=0/press=1` (incorrecto), `NormalizePedal` dividía por (press-rest)=-1, gas no respondía. Brake y clutch capturaron OK porque ya habían sido polled antes.
+
+Fix: hardcode rest/press canónico por axis name (hardware-fijo, no necesita detección):
+- `z`, `rz` → `rest=1, press=-1` (idle=+1, fullPress=-1)
+- `stick/y` → `rest=-1, press=+1` (idle=-1, fullPress=+1)
+- fallback defensivo para axis no canónicos: inferencia legacy con `LogWarning`.
+
+Spec/plan no cambia — esto es defensive coding en el panel, no cambio de comportamiento. Migration (PlayerPrefs → JSON) no afectada, sus defaults canónicos ya estaban correctos.
+
+### v1.9.0 — Moto Simulator calibración immutable con rollback feature flag
+
+Mirror del pattern G923 v1.8.0 aplicado al Moto Simulator (simbt001, ESP32-S3 USB HID custom firmware VID 0x303A / PID 0x4D54). Mismo rollback strategy via feature flag — productivos Motocicleta (SIM-007) no pueden quedarse rotos, default flag=0 (legacy).
+
+- **Archivos nuevos**: `Assets/Custom/MotoCalibration/{MotoMapping,MotoControlMapping,MotoMappingMigration,MotoPreflightCheck}.cs` + `Assets/Custom/MotoCalibrationPanel.cs` + asmdef `TlaxSim.MotoCalibration`.
+- **Feature flag**: PlayerPref `Moto_UseJsonMapping` (int)
+  - `0` (default) = legacy PlayerPrefs MOTO_* mode. Comportamiento idéntico a v1.8.x — sin cambios.
+  - `1` = JSON immutable mode. UIInputNew lee `MotoControlMapping.Active`. F8 abre `MotoCalibrationPanel` nuevo. MenuScreenManager entra en verify-only.
+- **Migración**: al primer flip 0→1, lee PlayerPrefs MOTO_* (LeanPath/HbarPath/GasPath/BrakePath/ClutchPath + rangos LeanMin/Max/HbarMin/Max + DeviceFingerprint), valida fingerprint contiene "Moto" o "SimuladoresTlax", valida rangos lean/hbar span ≥ 0.5 (sin valores NaN), hardcode rest/press canónico para gas (rest=-1/press=+1 — Hall throttle del simbt001 firmware, lección v1.8.1), guarda JSON `moto_mapping.json`. Si validación falla → modal F8 pide calibrar manual.
+- **Rollback**: F8 → "Volver a modo legacy" pone flag=0 (no toca PlayerPrefs ni borra JSON). SSH alternativa: `reg add ... Moto_UseJsonMapping_h<hash> /t REG_DWORD /d 0 /f`. PlayerPrefs MOTO_* NUNCA se borran durante JSON mode → rollback inmediato siempre disponible.
+- **Heartbeat**: `controlMapping` field con priority HORI > G923 > Moto (single blob JSON-stringified). Solo envía Moto cuando flag=1 + Active válido.
+- **F8 panel**: 3 secciones lineales sin tabs (Conducción / Botones / Diagnóstico). Sin gears, sin paddles, sin FFB, sin reverse — Moto es mucho más simple que HORI/G923.
+- **Portal admin**: `WheelMappingTable.tsx` detecta tipo por discriminator `vehicleType:"motorcycle"` y renderiza `MotoBody` (lean/handlebar/gas + brake/clutch buttons).
+- **Out of scope**: tuning F9 (`MOTO_HighSpeedLeanWeight`, `MOTO_BlendStart/EndKmh`), firmware MQTT calibration (`calibrate-hbar`, BNO chasis center — vive en moto-controller firmware, flag-agnóstico), HORI/G923 (sin cambios).
+- **Bloqueado para productivos sin autorización explícita**. Smoke test en kiosko Moto de prueba primero (SIM-007 Motocicleta solo con autorización + plan claro de rollback).
+
+Spec: `docs/superpowers/specs/2026-05-12-moto-v190-immutable-calibration-design.md`
+Plan: `docs/superpowers/plans/2026-05-12-moto-v190-implementation.md`
+
+**Principio cementado v1.9.0**: para Moto con flag=1, cada read de `PlayerPrefs.Get*("MOTO_*")` en el branch Moto está gated por el ternary `(IsMotoSimulator(device) && MotoControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
+
+### Deploy Aramis (smoke test 2026-05-12)
+
+- v1.8.0 build inicial deployed a Aramis via **LAN SCP directo** (no Mexicalabs OTA — Aramis está en red local del operator, ver memoria `feedback_aramis_lan_deploy.md`).
+- Flag activado por SSH `reg add G923_UseJsonMapping_h726773106 = 0x1` (hash Unity DJB2-XOR de `G923_UseJsonMapping`, ver `reference_unity_playerprefs_hash.md`).
+- Bug del gas reproducido, parcheado in-situ via SSH (PowerShell editando `g923_mapping.json`), confirmando que el patrón JSON+SSH funciona como rollback emergency.
+- v1.8.1 rebuilt con fix, redeployed LAN. Smoke OK con G923 PS.
+
+### Deploy Pasajeros 1 (productivo HORI, 2026-05-12)
+
+- v1.8.1 publicada a Mexicalabs CDN (`unity-builds/dev/1.8.1/`, sha `55bbb163...`). Upload tomó ~37 min total — el primer intento se rompió por bug zsh array off-by-one (ver `feedback_zsh_array_off_by_one.md`) que requirió full re-upload con mapping correcto. Necesita VPN para evitar Xfinity throttling.
+- OTA deploy a Pasajeros 1 (SIM-005, HORI Truck) tomó ~4 min desde scheduled hasta INSTALLED. AutoUpdater 1.2.2+ funcionó: PENDING → DOWNLOADING → INSTALLING → INSTALLED v=1.8.1 auto-confirmado por heartbeat.
+- Versión previa de Pasajeros 1 era 1.6.4 — saltó directo a 1.8.1, incluyendo HORI v1.7.0 immutable calibration. Si Pasajeros 1 no tenía `hori_mapping.json` previo, la primera apertura va a mostrar modal "Calibración HORI requerida — F8 sostén 1.5s".
+- G923 v1.8.0 code queda dormant en este HORI kiosk (flag=0 default + sin G923 conectado).
+
+**Gotcha SSH launch**: `Start-Process Tlax2026-RC.exe` via SSH NO funciona — DX11 crashea sin session interactiva ("Switching to resolution failed"). Pedir al operator que lance desde console/RDP. Ver memoria `feedback_unity_dx11_needs_console.md`.
+
+**Gotcha upload Mexicalabs**: requiere VPN (no Xfinity directo). Sin VPN, chunks intermitentemente fallan con HTTP 000 (connection refused / DNS throttling), retries se acumulan. Con VPN, ritmo normal ~4-5s/chunk.
+
+**Gotcha shell semantics**: scripts de upload chunk DEBEN usar `for f in $(ls glob | sort); counter++` pattern. Array indexing con `IDX=$((N-1))` rompe en zsh (1-indexed). Ver `feedback_zsh_array_off_by_one.md`.
+
 ## Build
 
 - **Ejecutable:** `build/<version>/Tlax2026-RC.exe` (productName = `Tlax2026-RC`, NO `Tlax2026MVP`)
