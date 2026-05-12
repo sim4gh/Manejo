@@ -587,12 +587,32 @@ public class G923CalibrationPanel : MonoBehaviour
             yield break;
         }
 
-        // G923 pedales: idle (sin pisar) reporta +1 en z/rz, -1 en stick/y.
-        // Inferir rest/press del valor inicial (baseline) — el extremo opuesto
-        // es el press. Mantener convention: rest > press para z/rz, rest < press
-        // para stick/y.
-        float restVal = initial[chosen];
-        float pressVal = restVal >= 0f ? -1f : 1f;
+        // G923 pedales: rest/press son hardware-fijos por axis name, NO inferir
+        // del baseline (bug v1.8.0: si InputSystem no había polled el axis al
+        // momento del Detectar, ReadUnprocessedValue retornaba 0, y la inferencia
+        // `restVal >= 0 ? -1 : 1` daba press=-1 con restVal=0 → NormalizePedal
+        // dividía por -1 y reportaba valores incorrectos; gas no respondía).
+        // Hardware reality:
+        //   z, rz       → idle=+1, fullPress=-1  (rest=1, press=-1)
+        //   stick/y     → idle=-1, fullPress=+1  (rest=-1, press=1)
+        float restVal, pressVal;
+        switch (chosen)
+        {
+            case "z":
+            case "rz":
+                restVal = 1f; pressVal = -1f;
+                break;
+            case "stick/y":
+                restVal = -1f; pressVal = 1f;
+                break;
+            default:
+                // Fallback defensivo si en el futuro otro axis se agrega al
+                // candidate list: inferir por baseline (legacy behavior).
+                restVal = initial[chosen];
+                pressVal = restVal >= 0f ? -1f : 1f;
+                Debug.LogWarning($"[G923CalibrationPanel] Axis '{chosen}' no canónico — fallback a baseline inference rest={restVal:F2} press={pressVal:F2}");
+                break;
+        }
 
         Debug.Log($"[G923CalibrationPanel] Captured pedal '{which}' = {chosen} (delta {chosenDelta:F2}, rest={restVal:F2}, press={pressVal:F2})");
         if (which == "gas") { _draft.axes.gas.path = chosen; _draft.axes.gas.rest = restVal; _draft.axes.gas.press = pressVal; }
