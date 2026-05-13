@@ -41,7 +41,7 @@ MonoBehaviour:
     - {r: 0.9339623, g: 0.004405493, b: 0.004405493, a: 1}
     - {r: 0.9339623, g: 0.013216423, b: 0.7007745, a: 1}
     - {r: 0.9433962, g: 0.76316696, b: 0, a: 1}
-    Active: 01010101
+    Active: 01010001
   PathFindingRoutes:
     Id: 000000000500000014000000
     RoutesColor:
@@ -64,11 +64,11 @@ MonoBehaviour:
   ViewRoadWaypoints: 1
   ViewLabels: 1
   PathFindingEnabled: 0
-  WaypointDistance: 4
+  WaypointDistance: 8
   LaneWidth: 7
   MoveTool: 1
   speedRoutes:
-    Id: 0a0000001200000014000000320000005a0000006e000000
+    Id: 0f0000001200000014000000320000005a0000006e000000
     RoutesColor:
     - {r: 1, g: 1, b: 1, a: 1}
     - {r: 0.8461076, g: 1, b: 0, a: 1}
@@ -83,7 +83,7 @@ MonoBehaviour:
   leftSideTraffic: 0
   maxSpeed: 110
   nrOfLanes: 2
-  otherLaneLinkDistance: 2
+  otherLaneLinkDistance: 3
   globalCarList: 00000000
   showAllIntersections: 1
   showExitWaypoints: 1
