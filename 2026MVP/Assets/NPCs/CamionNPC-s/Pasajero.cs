@@ -31,6 +31,7 @@ public class Pasajero : MonoBehaviour
 
     void Start()
     {
+        _BusTransform = GameObject.Find("PasajerosHolder");
         RutaPuntos = GameObject.Find("RutasAsiento").GetComponent<Transform>();
         foreach(Transform puntosRuta in RutaPuntos.transform)
         {
