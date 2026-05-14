@@ -37,6 +37,19 @@ namespace TlaxSim.MotoSensitivity
             return Path.Combine(Application.persistentDataPath, FILE_NAME);
         }
 
+        FileSystemWatcher _watcher;
+        // _lastWatcherEventTicks se actualiza en thread-pool y se lee en main thread.
+        // Usar Interlocked.Exchange/Read para acceso atómico en ambos lados.
+        long _lastWatcherEventTicks;
+        const float DEBOUNCE_SECONDS = 0.5f;
+        // El parse debe correr en main thread (Unity API). El watcher fires en
+        // thread-pool — encolamos un flag y main-thread lo consume en Tick().
+        volatile bool _pendingReload;
+        // Estado entre frames del retry loop. Permite spread de reintentos sin
+        // bloquear el main thread con Thread.Sleep.
+        int _reloadAttempts;
+        float _nextRetryAt;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         public static void Bootstrap()
         {
@@ -45,6 +58,102 @@ namespace TlaxSim.MotoSensitivity
             Instance.Loaded = LoadOrInitializeFromPath(Instance._jsonPath);
             Instance.Active = Instance.Loaded != null ? ResolveActive(Instance.Loaded) : null;
             Debug.Log($"[MotoSensitivity] Bootstrap: path={Instance._jsonPath} loaded={Instance.Loaded != null} preset={Instance.Loaded?.activePreset ?? "<null>"} killSwitch={Instance.IsKillSwitchOn}");
+            Instance.StartWatcher();
+
+            // Crear GameObject Persistent para tickear el reload pendiente cada frame.
+            var go = new GameObject("[MotoSensitivityProvider]");
+            UnityEngine.Object.DontDestroyOnLoad(go);
+            go.AddComponent<MotoSensitivityTicker>();
+        }
+
+        void StartWatcher()
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(_jsonPath);
+                if (!Directory.Exists(dir)) Directory.CreateDirectory(dir);
+                _watcher = new FileSystemWatcher(dir, FILE_NAME)
+                {
+                    NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.Size
+                };
+                _watcher.Changed += OnFileChangedThreadPool;
+                _watcher.Created += OnFileChangedThreadPool;
+                _watcher.Renamed += (s, e) => OnFileChangedThreadPool(s, null);
+                _watcher.EnableRaisingEvents = true;
+                Debug.Log($"[MotoSensitivity] FileSystemWatcher activo en {dir}");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[MotoSensitivity] No se pudo iniciar FileSystemWatcher: {e.Message}. SCP hot-reload deshabilitado; cambios requerirán restart de Unity.");
+            }
+        }
+
+        void OnFileChangedThreadPool(object sender, FileSystemEventArgs e)
+        {
+            System.Threading.Interlocked.Exchange(ref _lastWatcherEventTicks, DateTime.UtcNow.Ticks);
+            _pendingReload = true;
+        }
+
+        // Llamado cada frame por MotoSensitivityTicker (main thread).
+        // Implementa debounce + reintentos frame-spread (sin Thread.Sleep en main thread).
+        //
+        // Race protection: capturamos los ticks observados ANTES del reload y al
+        // limpiar _pendingReload chequeamos que no haya llegado un evento nuevo
+        // durante el reload. Si llegó uno nuevo, dejamos _pendingReload=true para
+        // re-procesar en el próximo Tick.
+        public void Tick()
+        {
+            if (!_pendingReload) return;
+
+            long observedTicks = System.Threading.Interlocked.Read(ref _lastWatcherEventTicks);
+            var lastEvent = new DateTime(observedTicks, DateTimeKind.Utc);
+
+            // Debounce: si el último evento fue muy reciente, esperar.
+            if ((DateTime.UtcNow - lastEvent).TotalSeconds < DEBOUNCE_SECONDS) return;
+
+            // Si estamos en cooldown entre reintentos, esperar.
+            if (Time.unscaledTime < _nextRetryAt) return;
+
+            _reloadAttempts++;
+            const int MAX_ATTEMPTS = 3;
+            const float RETRY_DELAY_SECONDS = 0.1f;
+
+            var reloaded = LoadOrInitializeFromPath(_jsonPath);
+            if (reloaded != null)
+            {
+                _reloadAttempts = 0;
+                Loaded = reloaded;
+                Active = ResolveActive(reloaded);
+                // Solo limpiar _pendingReload si no llegó un evento nuevo durante el reload.
+                long currentTicks = System.Threading.Interlocked.Read(ref _lastWatcherEventTicks);
+                if (currentTicks == observedTicks)
+                {
+                    _pendingReload = false;
+                }
+                else
+                {
+                    Debug.Log("[MotoSensitivity] Evento nuevo durante reload; reprocesará próximo Tick.");
+                }
+                Debug.Log($"[MotoSensitivity] Hot-reload OK: preset={reloaded.activePreset} lastModBy={reloaded.lastModifiedBy}");
+                OnReloaded?.Invoke();
+                return;
+            }
+
+            if (_reloadAttempts >= MAX_ATTEMPTS)
+            {
+                Debug.LogWarning($"[MotoSensitivity] Reload por FileSystemWatcher falló tras {MAX_ATTEMPTS} intentos. Manteniendo Active anterior.");
+                _reloadAttempts = 0;
+                // Igual: solo limpiar si no hay evento nuevo en cola.
+                long currentTicks = System.Threading.Interlocked.Read(ref _lastWatcherEventTicks);
+                if (currentTicks == observedTicks)
+                {
+                    _pendingReload = false;
+                }
+                return;
+            }
+
+            // Schedule next retry en próximo frame + delay.
+            _nextRetryAt = Time.unscaledTime + RETRY_DELAY_SECONDS;
         }
 
         public void Reload()
@@ -133,6 +242,16 @@ namespace TlaxSim.MotoSensitivity
                 case "Custom":       return sens.custom               ?? MotoSensitivityDefaults.Normal();
                 default:             return MotoSensitivityDefaults.Normal();
             }
+        }
+    }
+
+    // Component invisible que tickea el reload pendiente del provider en main thread.
+    public class MotoSensitivityTicker : MonoBehaviour
+    {
+        void Update()
+        {
+            if (MotoSensitivityProvider.Instance != null)
+                MotoSensitivityProvider.Instance.Tick();
         }
     }
 }
