@@ -20,6 +20,15 @@ public class MotoSensitivityPanel : MonoBehaviour
     MotoSensitivity _editing;  // copia editable, no aplica hasta Aplicar y cerrar
     string _selectedPreset;
 
+    Gley.UrbanSystem.UIInputNew _cachedInput;
+
+    Gley.UrbanSystem.UIInputNew GetInput()
+    {
+        if (_cachedInput == null)
+            _cachedInput = UnityEngine.Object.FindObjectOfType<Gley.UrbanSystem.UIInputNew>();
+        return _cachedInput;
+    }
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     public static void Bootstrap()
     {
@@ -238,6 +247,13 @@ public class MotoSensitivityPanel : MonoBehaviour
         dst.curveType  = DrawCurveTypeDropdown(dst.curveType, startY); startY += 25;
         dst.curveParam = DrawSlider("Curva (n)",  dst.curveParam, 0.5f, 3f,  startY); startY += 25;
         dst.scale      = DrawSlider("Escala máx", dst.scale,      0.3f, 1f,  startY); startY += 30;
+        var input = GetInput();
+        if (input != null)
+        {
+            float live = title.StartsWith("Inclinación") ? input.MotoLeanProcessed : input.MotoHbarProcessed;
+            GUI.Label(new Rect(10, startY, 660, 20), $"Live procesado: {live:F3}");
+            startY += 20;
+        }
         return startY + 10;
     }
 
@@ -250,6 +266,12 @@ public class MotoSensitivityPanel : MonoBehaviour
         dst.curveParam   = DrawSlider("Curva (n)",      dst.curveParam,   0.5f, 3f,    startY); startY += 25;
         dst.rampUpPerSec = DrawSlider("Ramp (1/s)",     dst.rampUpPerSec, 0.5f, 10f,   startY); startY += 25;
         dst.scale        = DrawSlider("Escala máx",     dst.scale,        0.3f, 1f,    startY); startY += 30;
+        var input = GetInput();
+        if (input != null)
+        {
+            GUI.Label(new Rect(10, startY, 660, 20), $"Live procesado: {input.MotoGasProcessed:F3}");
+            startY += 20;
+        }
         return startY + 10;
     }
 
