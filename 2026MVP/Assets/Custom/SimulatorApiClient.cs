@@ -574,6 +574,10 @@ public static class SimulatorApiClient
         // v1.7.0: JSON-stringified HoriMapping (sólo cuando HoriControlMapping.Active != null).
         // Backend lo guarda tal cual; portal admin lo parsea para mostrar.
         public string controlMapping;
+        // Snapshot del preset activo de Moto Sensitivity. null si el kiosko no es moto
+        // o el sistema está deshabilitado/no cargado. JSON-stringified summary.
+        // Ver spec sección 7.1.
+        public string motoSensitivity;
     }
 
     // Subset de PlayerPrefs que el portal admin necesita para visualizar la
@@ -724,12 +728,57 @@ public static class SimulatorApiClient
         {
             controlMappingJson = UnityEngine.JsonUtility.ToJson(MotoControlMapping.Active);
         }
+
+        string motoSensitivityJson = null;
+        // Solo enviar si el kiosko es de moto. Heurística: escena actual es Motocicleta
+        // O el último vehículo seleccionado fue moto (GameManager.lastVehicleType si existe).
+        bool isMotoKiosk = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Motocicleta";
+        if (!isMotoKiosk)
+        {
+            // Best-effort: chequear GameManager.lastVehicleType si existe (puede no estar en MainMenu).
+            var gm = UnityEngine.Object.FindObjectOfType<GameManager>();
+            if (gm != null)
+            {
+                var prop = gm.GetType().GetField("lastVehicleType",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                if (prop != null)
+                {
+                    var v = prop.GetValue(gm) as string;
+                    if (v == "motorcycle" || v == "moto") isMotoKiosk = true;
+                }
+            }
+        }
+
+        if (isMotoKiosk
+            && TlaxSim.MotoSensitivity.MotoSensitivityProvider.Instance != null
+            && TlaxSim.MotoSensitivity.MotoSensitivityProvider.Instance.IsLoaded
+            && TlaxSim.MotoSensitivity.MotoSensitivityProvider.Instance.Active != null)
+        {
+            var sens = TlaxSim.MotoSensitivity.MotoSensitivityProvider.Instance.Loaded;
+            var p = TlaxSim.MotoSensitivity.MotoSensitivityProvider.Instance.Active;
+            var payload = new MotoSensitivitySummaryPayload
+            {
+                schemaVersion = 1,
+                activePreset = sens.activePreset,
+                lastModifiedAt = sens.lastModifiedAt,
+                lastModifiedBy = sens.lastModifiedBy
+            };
+            payload.summary.lean = new MotoSensitivityAxisSummary { dz = p.lean.deadzone, curve = $"{p.lean.curveType}:{p.lean.curveParam:F2}", scale = p.lean.scale };
+            payload.summary.hbar = new MotoSensitivityAxisSummary { dz = p.hbar.deadzone, curve = $"{p.hbar.curveType}:{p.hbar.curveParam:F2}", scale = p.hbar.scale };
+            payload.summary.gas  = new MotoSensitivityPedalSummary { dz = p.gas.deadzone,  curve = $"{p.gas.curveType}:{p.gas.curveParam:F2}",  scale = p.gas.scale, rampUp = p.gas.rampUpPerSec };
+            payload.summary.brake  = new MotoSensitivityScaleSummary { scale = p.brake.scale };
+            payload.summary.clutch = new MotoSensitivityScaleSummary { scale = p.clutch.scale };
+            payload.summary.blend  = new MotoSensitivityBlendSummary { startKmh = p.blendStartKmh, endKmh = p.blendEndKmh, highWeight = p.highSpeedLeanWeight };
+            motoSensitivityJson = UnityEngine.JsonUtility.ToJson(payload);
+        }
+
         string json = JsonUtility.ToJson(new HeartbeatRequest
         {
             pcId = config.pcId,
             appVersion = UnityEngine.Application.version,
             calibration = BuildCalibrationPayload(),
             controlMapping = controlMappingJson,
+            motoSensitivity = motoSensitivityJson
         });
 
         using (var request = new UnityWebRequest(url, "POST"))
@@ -996,3 +1045,33 @@ public static class SimulatorApiClient
         }
     }
 }
+
+// ── Moto Sensitivity heartbeat payload ───────────────────────────────
+// Tipos serializables para JsonUtility (no soporta tipos anónimos).
+// Ver spec sección 7.1.
+
+[System.Serializable]
+public class MotoSensitivitySummaryPayload
+{
+    public int schemaVersion = 1;
+    public string activePreset;
+    public string lastModifiedAt;
+    public string lastModifiedBy;
+    public MotoSensitivitySummaryBody summary = new MotoSensitivitySummaryBody();
+}
+
+[System.Serializable]
+public class MotoSensitivitySummaryBody
+{
+    public MotoSensitivityAxisSummary lean = new MotoSensitivityAxisSummary();
+    public MotoSensitivityAxisSummary hbar = new MotoSensitivityAxisSummary();
+    public MotoSensitivityPedalSummary gas = new MotoSensitivityPedalSummary();
+    public MotoSensitivityScaleSummary brake = new MotoSensitivityScaleSummary();
+    public MotoSensitivityScaleSummary clutch = new MotoSensitivityScaleSummary();
+    public MotoSensitivityBlendSummary blend = new MotoSensitivityBlendSummary();
+}
+
+[System.Serializable] public class MotoSensitivityAxisSummary  { public float dz; public string curve; public float scale; }
+[System.Serializable] public class MotoSensitivityPedalSummary { public float dz; public string curve; public float scale; public float rampUp; }
+[System.Serializable] public class MotoSensitivityScaleSummary { public float scale; }
+[System.Serializable] public class MotoSensitivityBlendSummary { public float startKmh; public float endKmh; public float highWeight; }
