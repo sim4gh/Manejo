@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using TlaxSim.MotoSensitivity;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 // Panel F11 (hold 1.5s) para tunear la sensibilidad del Moto Simulator.
@@ -40,15 +41,18 @@ public class MotoSensitivityPanel : MonoBehaviour
 
     void Update()
     {
+        var kb = Keyboard.current;
+        if (kb == null) return;
+
         // Esc cierra si está abierto.
-        if (IsOpen && Input.GetKeyDown(KeyCode.Escape))
+        if (IsOpen && kb.escapeKey.wasPressedThisFrame)
         {
             ClosePanel(saveChanges: false);
             return;
         }
 
         // F11 hold 1.5s para abrir.
-        if (!IsOpen && Input.GetKey(KeyCode.F11))
+        if (!IsOpen && kb.f11Key.isPressed)
         {
             if (SceneManager.GetActiveScene().name != TARGET_SCENE)
             {
