@@ -114,5 +114,42 @@ namespace TlaxSim.MotoSensitivity.Tests
                 if (x < -0.1f) Assert.Less(y, 0f);
             }
         }
+
+        [Test]
+        public void Defaults_RealistaIsIdentity()
+        {
+            var realista = MotoSensitivityDefaults.Realista();
+            for (int i = -10; i <= 10; i++)
+            {
+                float x = i / 10f;
+                Assert.AreEqual(x, MotoSensitivityCurves.ApplyAxis(x, realista.lean), 0.05f);
+                Assert.AreEqual(x, MotoSensitivityCurves.ApplyAxis(x, realista.hbar), 0.05f);
+            }
+        }
+
+        [Test]
+        public void Defaults_PrincipianteFlatensCenter()
+        {
+            var principiante = MotoSensitivityDefaults.Principiante();
+            float center = MotoSensitivityCurves.ApplyAxis(0.5f, principiante.lean);
+            Assert.Less(center, 0.5f, "Principiante debe aplanar el centro");
+        }
+
+        [Test]
+        public void Defaults_AllPresetsHaveValidCurveType()
+        {
+            string[] valid = { "linear", "pow" };
+            var presets = new[] {
+                MotoSensitivityDefaults.Principiante(),
+                MotoSensitivityDefaults.Normal(),
+                MotoSensitivityDefaults.Realista()
+            };
+            foreach (var p in presets)
+            {
+                CollectionAssert.Contains(valid, p.lean.curveType);
+                CollectionAssert.Contains(valid, p.hbar.curveType);
+                CollectionAssert.Contains(valid, p.gas.curveType);
+            }
+        }
     }
 }
