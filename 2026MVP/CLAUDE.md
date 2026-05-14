@@ -657,6 +657,26 @@ Plan: `docs/superpowers/plans/2026-05-12-moto-v190-implementation.md`
 
 **Principio cementado v1.9.0**: para Moto con flag=1, cada read de `PlayerPrefs.Get*("MOTO_*")` en el branch Moto está gated por el ternary `(IsMotoSimulator(device) && MotoControlMapping.IsJsonModeEnabled()) ? Active : null`. Cuando Active!=null, los valores vienen del JSON; cuando Active=null o flag=0, fallback a PlayerPrefs legacy.
 
+### v1.10.x — Moto Sensitivity (panel F11 + curvas de sensibilidad)
+
+Sistema de tuning de sensibilidad para el Moto Simulator. Operadores reportaban que el examen de moto era casi imposible de completar (gente se caía) — el input de `lean`/`hbar` se procesaba linealmente sin curva ni atenuación. Resuelto con curvas + deadzone + scale configurables por preset.
+
+- **Archivos nuevos:** `Assets/Custom/MotoSensitivity/{MotoSensitivity,MotoSensitivityCurves,MotoSensitivityProvider,MotoSensitivityDefaults}.cs` + `Assets/Custom/MotoSensitivityPanel.cs`. Tests EditMode en el asmdef EXISTENTE `TlaxSim.Tests.EditMode` (Unity prohíbe 2 asmdef por carpeta — no crear uno nuevo).
+- **JSON:** `<persistentDataPath>/moto_sensitivity.json` — **SEPARADO** de `moto_mapping.json`. Sensibilidad ≠ calibración hardware. 3 presets: Principiante / Normal / Realista (+ slot Custom). Default Realista = comportamiento legacy.
+- **Panel F11** (hold 1.5s, solo escena `Motocicleta`): selector de preset + sliders por canal (lean/hbar/gas + brake/clutch scale) + live values + preview de curva. Lo usa el operador; persiste por kiosko.
+- **Pipeline en `UpdateMotoSimulator`:** después de `NormalizeRange` → `MotoSensitivityCurves.ApplyAxis` (deadzone → curve → scale → clamp) para lean/hbar, `ApplyPedal` (+ ramp) para gas. Gateado por `_motoSensActive != null` (kill-switch `MotoSens_Disabled` + fallback legacy si el JSON está corrupto).
+- **Hot-reload:** `FileSystemWatcher` en `MotoSensitivityProvider` → editar el JSON por SCP/SSH se aplica sin reiniciar Unity.
+- **Heartbeat:** campo `motoSensitivity` (separado de `controlMapping`) → el portal admin lo muestra read-only en `/admin/simuladores/pcs/[pcId]/calibracion`.
+- **Reset combo moto:** desde v1.10.3 es **freno + acelerador a fondo 1.5s** (antes freno + clutch — el moto controller NO tiene clutch físico).
+
+**Bugs de campo resueltos (smoke test 2026-05-14, flota en 1.10.3):**
+- **v1.10.0 → v1.10.1:** `MotoSensitivityPanel.Update()` usaba `UnityEngine.Input.GetKey` legacy → `InvalidOperationException` cada frame (el proyecto es `activeInputHandler: 1`). Fix: `Keyboard.current`. **Todo código nuevo que lea input DEBE usar el new Input System.**
+- **Ventana negra al lanzar un build nuevo en el kiosko:** resultó AMBIENTAL (estado post-deploy de display/USB), no la build — un build viejo también se colgaba; un reinicio de la PC lo arregló.
+- **Giro asimétrico (derecha sluggish, izquierda bien):** NO era el preset de sensibilidad — era el centro del manubrio descalibrado (`handlebar=14.1°` en reposo, `calibrated=False` en el firmware simbt001). Fix: comando `calibrate-hbar` del firmware (re-centra + persiste en NVS, no requiere rebuild). Sensibilidad (`moto_sensitivity.json`) y calibración del centro (firmware) son cosas DISTINTAS.
+
+Spec: `docs/superpowers/specs/2026-05-13-moto-sensitivity-design.md`
+Plan: `docs/superpowers/plans/2026-05-13-moto-sensitivity-implementation.md`
+
 ### Deploy Aramis (smoke test 2026-05-12)
 
 - v1.8.0 build inicial deployed a Aramis via **LAN SCP directo** (no Mexicalabs OTA — Aramis está en red local del operator, ver memoria `feedback_aramis_lan_deploy.md`).
