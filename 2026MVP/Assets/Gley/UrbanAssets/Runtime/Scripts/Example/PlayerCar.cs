@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
+using TlaxSim.MotoSensitivity;
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using UnityEngine.InputSystem;
 #endif
@@ -327,7 +328,11 @@ namespace Gley.UrbanSystem
             }
 
             // Freno: usa brakeTorque real del WheelCollider
-            float brakeTorque = maxBrakeTorque * brakeInputValue;
+            // Moto Sensitivity: escalar el brakeTorque cuando el preset lo pide.
+            // No-op (scale=1) en escenas no-moto o cuando el sistema está inactivo.
+            // clutch.scale se descarta en v1 (preservado en JSON para roundtrip).
+            var (motoBrakeScale, _) = GetMotoSensScales();
+            float brakeTorque = maxBrakeTorque * brakeInputValue * motoBrakeScale;
 
             // DIAG r13: snapshot DESPUÉS de calcular motorTorque + brakeTorque finales,
             // incluyendo wheel RPM (para detectar wheel slip vs chassis decel).
@@ -534,6 +539,25 @@ namespace Gley.UrbanSystem
             motor.volume = currentVolume;
         }
 
+
+        // Detección de escena moto. Usado para gateear las escalas brake/clutch
+        // del sistema Moto Sensitivity. Solo aplica en escena "Motocicleta".
+        private static bool IsMotoScene()
+        {
+            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == "Motocicleta";
+        }
+
+        private static (float brakeScale, float clutchScale) GetMotoSensScales()
+        {
+            if (!IsMotoScene()) return (1f, 1f);
+            var prov = MotoSensitivityProvider.Instance;
+            if (prov == null || !prov.IsLoaded || prov.IsKillSwitchOn || prov.Active == null)
+                return (1f, 1f);
+            // NOTA v1: clutchScale se retorna pero NO se aplica en este file. El moto
+            // tiene clutch digital — multiplicar motorTorque agrega comportamiento sorpresa.
+            // El campo del JSON se preserva para roundtrip y v2.
+            return (prov.Active.brake.scale, prov.Active.clutch.scale);
+        }
 
         private bool GetKeyDownSpace()
         {
