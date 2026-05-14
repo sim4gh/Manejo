@@ -2676,18 +2676,20 @@ namespace Gley.UrbanSystem
             brakeInput  = brakePressed  ? 1f : 0f;
             clutchInput = clutchPressed ? 1f : 0f;
 
-            // ---- v1.7.0: Reset escena moto (brake + clutch HID buttons 1.5s) ----
-            // En moto no hay "reversa", así que el combo wheel-style no aplica.
-            // Combo unnatural moto: brake + clutch HID buttons sostenidos 1.5s.
-            if (_brakeCtrl != null && _clutchCtrl != null)
+            // ---- Reset escena moto (brake + acelerador a fondo 1.5s) ----
+            // El moto controller NO tiene clutch fisico, asi que el reset usa
+            // freno + acelerador a fondo sostenidos 1.5s. gasNorm es el throttle
+            // normalizado [0,1] computado arriba. RESET_COMBO_GAS_THRESHOLD=0.7.
+            if (_brakeCtrl != null)
             {
-                bool comboPressed = brakePressed && clutchPressed;
+                bool gasFull = gasNorm >= RESET_COMBO_GAS_THRESHOLD;
+                bool comboPressed = brakePressed && gasFull;
                 if (comboPressed)
                 {
                     if (_resetComboHoldStart < 0f) _resetComboHoldStart = Time.unscaledTime;
                     if (Time.unscaledTime - _resetComboHoldStart >= RESET_COMBO_HOLD_SECONDS)
                     {
-                        Debug.Log("[UIInputNew/Moto] Reset combo (Brake+Clutch 1.5s) → recargando escena");
+                        Debug.Log("[UIInputNew/Moto] Reset combo (Brake+Gas a fondo 1.5s) → recargando escena");
                         _resetComboHoldStart = -1f;
                         Time.timeScale = 1f;
                         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
