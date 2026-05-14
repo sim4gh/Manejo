@@ -2655,9 +2655,20 @@ namespace Gley.UrbanSystem
             float steerHigh = wHigh * lean + (1f - wHigh) * hbar;
             horizontalInput = Mathf.Clamp(Mathf.Lerp(hbar, steerHigh, blend), -1f, +1f);
 
-            // Throttle. Aplica curva _gasCurveN si != 1.0 (config F9).
+            // Throttle. Si Moto Sensitivity activo, aplicar deadzone + curve + ramp + scale.
+            // Si no, legacy: _gasCurveN del F9.
             float gasNorm = NormalizePedal(gasRaw, _gasRest, _gasPress);
-            float gas = Mathf.Approximately(_gasCurveN, 1f) ? gasNorm : Mathf.Pow(gasNorm, _gasCurveN);
+            float gas;
+            if (_motoSensActive != null)
+            {
+                gas = MotoSensitivityCurves.ApplyPedal(gasNorm, ref _motoGasPrev, _motoSensActive.gas, Time.deltaTime);
+            }
+            else
+            {
+                gas = Mathf.Approximately(_gasCurveN, 1f) ? gasNorm : Mathf.Pow(gasNorm, _gasCurveN);
+            }
+            MotoGasProcessed = gas;
+
             // Clutch apretado → motor libre (sin drive). Útil para revs sin moverse.
             verticalInput = clutchPressed ? 0f : gas;
 
