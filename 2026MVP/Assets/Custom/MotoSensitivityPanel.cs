@@ -134,33 +134,232 @@ public class MotoSensitivityPanel : MonoBehaviour
         Time.timeScale = _previousTimeScale;
     }
 
+    Vector2 _scrollPos;
+
     void OnGUI()
     {
         if (!IsOpen) return;
 
-        // Layout básico — Task 10 + 11 + 12 + 13 lo extienden.
-        float w = 700, h = 200;
+        float w = 700, h = 600;
         float x = (Screen.width - w) / 2;
         float y = (Screen.height - h) / 2;
         GUI.Box(new Rect(x, y, w, h), "Sensibilidad de Moto");
 
-        // Banner si kill-switch activo.
+        // Banner kill-switch.
+        float cursorY = y + 30;
         if (MotoSensitivityProvider.Instance != null && MotoSensitivityProvider.Instance.IsKillSwitchOn)
         {
             GUI.color = Color.yellow;
-            GUI.Label(new Rect(x + 10, y + 30, w - 20, 30),
+            GUI.Label(new Rect(x + 10, cursorY, w - 20, 30),
                 "Sistema deshabilitado por administrador — los cambios se guardarán pero no aplicarán hasta reactivar.");
             GUI.color = Color.white;
+            cursorY += 30;
         }
 
-        // Placeholder para Task 10 (preset selector).
-        GUI.Label(new Rect(x + 10, y + 80, w - 20, 30), $"Preset activo: {_selectedPreset}");
+        // Preset selector.
+        GUI.Label(new Rect(x + 10, cursorY, 100, 25), "Preset:");
+        string[] presetNames = { "Principiante", "Normal", "Realista", "Custom" };
+        for (int i = 0; i < presetNames.Length; i++)
+        {
+            bool isActive = _selectedPreset == presetNames[i];
+            bool clicked = GUI.Toggle(new Rect(x + 110 + i * 120, cursorY, 110, 25), isActive, presetNames[i]);
+            if (clicked && !isActive)
+            {
+                ApplyPresetToEditing(presetNames[i]);
+            }
+        }
+        cursorY += 30;
 
-        // Footer (placeholder; Task 13 implementa save/reset).
-        if (GUI.Button(new Rect(x + w - 220, y + h - 40, 100, 30), "Cancelar"))
+        // Scroll area para los sliders por canal.
+        Rect scrollViewRect = new Rect(x + 10, cursorY, w - 20, h - (cursorY - y) - 50);
+        Rect contentRect = new Rect(0, 0, w - 40, 900);
+        _scrollPos = GUI.BeginScrollView(scrollViewRect, _scrollPos, contentRect);
+
+        float innerY = 0;
+        var preset = GetEditingPreset();
+
+        innerY = DrawAxisSection("Inclinación (lean)", preset.lean, ref preset.lean, innerY);
+        innerY = DrawAxisSection("Manubrio (hbar)", preset.hbar, ref preset.hbar, innerY);
+        innerY = DrawPedalSection("Acelerador (gas)", preset.gas, ref preset.gas, innerY);
+        innerY = DrawScaleOnlySection("Freno", preset.brake, ref preset.brake, innerY);
+        innerY = DrawScaleOnlySection("Clutch", preset.clutch, ref preset.clutch, innerY);
+        innerY = DrawBlendSection(preset, ref preset, innerY);
+
+        GUI.EndScrollView();
+
+        // Footer.
+        if (GUI.Button(new Rect(x + 10, y + h - 40, 200, 30), "Restaurar default del preset"))
+            ApplyPresetToEditing(_selectedPreset);
+        if (GUI.Button(new Rect(x + w - 320, y + h - 40, 100, 30), "Cancelar"))
             ClosePanel(saveChanges: false);
-        if (GUI.Button(new Rect(x + w - 110, y + h - 40, 100, 30), "Aplicar"))
+        if (GUI.Button(new Rect(x + w - 210, y + h - 40, 100, 30), "Guardar Custom"))
+        {
+            _editing.custom = DeepCopyPreset(GetEditingPreset());
+            _selectedPreset = "Custom";
+        }
+        if (GUI.Button(new Rect(x + w - 100, y + h - 40, 90, 30), "Aplicar"))
             ClosePanel(saveChanges: true);
+    }
+
+    MotoPreset GetEditingPreset()
+    {
+        switch (_selectedPreset)
+        {
+            case "Principiante": return _editing.presets.Principiante;
+            case "Normal":       return _editing.presets.Normal;
+            case "Realista":     return _editing.presets.Realista;
+            case "Custom":       return _editing.custom ?? (_editing.custom = MotoSensitivityDefaults.Normal());
+            default:             return _editing.presets.Normal;
+        }
+    }
+
+    void ApplyPresetToEditing(string presetName)
+    {
+        _selectedPreset = presetName;
+        switch (presetName)
+        {
+            case "Principiante": _editing.presets.Principiante = MotoSensitivityDefaults.Principiante(); break;
+            case "Normal":       _editing.presets.Normal       = MotoSensitivityDefaults.Normal();       break;
+            case "Realista":     _editing.presets.Realista     = MotoSensitivityDefaults.Realista();     break;
+            case "Custom":       _editing.custom               = _editing.custom ?? MotoSensitivityDefaults.Normal(); break;
+        }
+    }
+
+    float DrawAxisSection(string title, AxisSensitivity src, ref AxisSensitivity dst, float startY)
+    {
+        GUI.Label(new Rect(10, startY, 660, 25), title);
+        startY += 25;
+        dst.deadzone   = DrawSlider("Deadzone",   dst.deadzone,   0f, 0.3f, startY); startY += 25;
+        dst.curveType  = DrawCurveTypeDropdown(dst.curveType, startY); startY += 25;
+        dst.curveParam = DrawSlider("Curva (n)",  dst.curveParam, 0.5f, 3f,  startY); startY += 25;
+        dst.scale      = DrawSlider("Escala máx", dst.scale,      0.3f, 1f,  startY); startY += 30;
+        OnEditingChanged();
+        return startY + 10;
+    }
+
+    float DrawPedalSection(string title, PedalSensitivity src, ref PedalSensitivity dst, float startY)
+    {
+        GUI.Label(new Rect(10, startY, 660, 25), title);
+        startY += 25;
+        dst.deadzone     = DrawSlider("Deadzone",       dst.deadzone,     0f, 0.2f, startY); startY += 25;
+        dst.curveType    = DrawCurveTypeDropdown(dst.curveType, startY); startY += 25;
+        dst.curveParam   = DrawSlider("Curva (n)",      dst.curveParam,   0.5f, 3f,    startY); startY += 25;
+        dst.rampUpPerSec = DrawSlider("Ramp (1/s)",     dst.rampUpPerSec, 0.5f, 10f,   startY); startY += 25;
+        dst.scale        = DrawSlider("Escala máx",     dst.scale,        0.3f, 1f,    startY); startY += 30;
+        OnEditingChanged();
+        return startY + 10;
+    }
+
+    float DrawScaleOnlySection(string title, ScaleOnly src, ref ScaleOnly dst, float startY)
+    {
+        GUI.Label(new Rect(10, startY, 200, 25), title);
+        dst.scale = DrawSlider("Escala", dst.scale, 0.3f, 1f, startY + 25);
+        OnEditingChanged();
+        return startY + 65;
+    }
+
+    float DrawBlendSection(MotoPreset src, ref MotoPreset dst, float startY)
+    {
+        GUI.Label(new Rect(10, startY, 660, 25), "Mezcla por velocidad");
+        startY += 25;
+        dst.blendStartKmh       = DrawSlider("Inicio (km/h)", dst.blendStartKmh, 10f, 80f, startY); startY += 25;
+        dst.blendEndKmh         = DrawSlider("Fin (km/h)",    dst.blendEndKmh,   30f, 120f, startY); startY += 25;
+        dst.highSpeedLeanWeight = DrawSlider("Peso lean alta vel", dst.highSpeedLeanWeight, 0f, 1f, startY); startY += 30;
+        OnEditingChanged();
+        return startY + 10;
+    }
+
+    float DrawSlider(string label, float current, float min, float max, float y)
+    {
+        GUI.Label(new Rect(10, y, 140, 20), label);
+        float v = GUI.HorizontalSlider(new Rect(160, y + 5, 400, 20), current, min, max);
+        GUI.Label(new Rect(570, y, 90, 20), v.ToString("F3"));
+        return v;
+    }
+
+    string DrawCurveTypeDropdown(string current, float y)
+    {
+        GUI.Label(new Rect(10, y, 140, 20), "Curva");
+        bool isPow = current == "pow";
+        bool clickedLinear = GUI.Toggle(new Rect(160, y, 100, 20), !isPow, "linear");
+        bool clickedPow    = GUI.Toggle(new Rect(270, y, 100, 20),  isPow, "pow");
+        if (clickedLinear && isPow) return "linear";
+        if (clickedPow && !isPow) return "pow";
+        return current;
+    }
+
+    void OnEditingChanged()
+    {
+        // Si el operador modifica algún slider mientras un preset nombrado está activo,
+        // detectar diferencia respecto al preset hardcoded y saltar a Custom para
+        // preservar la fuente de verdad. Esto evita silently mutar Principiante/Normal/Realista.
+        if (_selectedPreset == "Custom") return;
+
+        // Capturar cuál preset se estaba editando ANTES de cualquier mutación.
+        // Bug previo: usábamos _editing.activePreset (que no se actualiza con el selector
+        // de radio) → restauraba el preset incorrecto. Ahora usamos _selectedPreset
+        // capturado en una variable local.
+        string editingPreset = _selectedPreset;
+
+        MotoPreset hardcoded;
+        switch (editingPreset)
+        {
+            case "Principiante": hardcoded = MotoSensitivityDefaults.Principiante(); break;
+            case "Normal":       hardcoded = MotoSensitivityDefaults.Normal();       break;
+            case "Realista":     hardcoded = MotoSensitivityDefaults.Realista();     break;
+            default:             return;
+        }
+        var current = GetEditingPreset();
+        if (!PresetsEqual(current, hardcoded))
+        {
+            // Snapshot el current como custom.
+            _editing.custom = DeepCopyPreset(current);
+            // Restaurar el preset nombrado QUE SE ESTABA EDITANDO a su hardcoded.
+            switch (editingPreset)
+            {
+                case "Principiante": _editing.presets.Principiante = MotoSensitivityDefaults.Principiante(); break;
+                case "Normal":       _editing.presets.Normal       = MotoSensitivityDefaults.Normal();       break;
+                case "Realista":     _editing.presets.Realista     = MotoSensitivityDefaults.Realista();     break;
+            }
+            _selectedPreset = "Custom";
+        }
+    }
+
+    static bool PresetsEqual(MotoPreset a, MotoPreset b)
+    {
+        // Comparación field-by-field con epsilon (1e-4 — más conservador que UI step).
+        // JSON-string-compare causaba false-switch a Custom por float serialization drift.
+        const float EPS = 1e-4f;
+        return AxisEqual(a.lean, b.lean, EPS)
+            && AxisEqual(a.hbar, b.hbar, EPS)
+            && PedalEqual(a.gas, b.gas, EPS)
+            && Mathf.Abs(a.brake.scale - b.brake.scale) < EPS
+            && Mathf.Abs(a.clutch.scale - b.clutch.scale) < EPS
+            && Mathf.Abs(a.blendStartKmh - b.blendStartKmh) < EPS
+            && Mathf.Abs(a.blendEndKmh - b.blendEndKmh) < EPS
+            && Mathf.Abs(a.highSpeedLeanWeight - b.highSpeedLeanWeight) < EPS;
+    }
+
+    static bool AxisEqual(AxisSensitivity x, AxisSensitivity y, float eps)
+    {
+        return x.curveType == y.curveType
+            && Mathf.Abs(x.deadzone - y.deadzone) < eps
+            && Mathf.Abs(x.curveParam - y.curveParam) < eps
+            && Mathf.Abs(x.scale - y.scale) < eps;
+    }
+
+    static bool PedalEqual(PedalSensitivity x, PedalSensitivity y, float eps)
+    {
+        return x.curveType == y.curveType
+            && Mathf.Abs(x.deadzone - y.deadzone) < eps
+            && Mathf.Abs(x.curveParam - y.curveParam) < eps
+            && Mathf.Abs(x.scale - y.scale) < eps
+            && Mathf.Abs(x.rampUpPerSec - y.rampUpPerSec) < eps;
+    }
+
+    static MotoPreset DeepCopyPreset(MotoPreset src)
+    {
+        return JsonUtility.FromJson<MotoPreset>(JsonUtility.ToJson(src));
     }
 
     static MotoSensitivity DeepCopy(MotoSensitivity src)
