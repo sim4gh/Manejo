@@ -20,7 +20,7 @@ using Gley.UrbanSystem;
 public class ParadaManagerBus : MonoBehaviour
 {
     public List<Pasajero> pasajero;
-    public string NumParada;
+    public int NumParada;
     public SimpleSpeedGauge movimientoCarro;
 
     [Tooltip("Threshold km/h para considerar el bus 'detenido'")]

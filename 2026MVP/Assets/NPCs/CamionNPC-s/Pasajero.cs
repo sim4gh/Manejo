@@ -27,10 +27,12 @@ public class Pasajero : MonoBehaviour
     private List<Transform> puntosInversos = new List<Transform>();
     private int indiceBajada = 0;
     public bool _Activo = false;
-    public string Mi_Parada;
+
+    public int Mi_Parada;
 
     void Start()
     {
+        Mi_Parada = Random.Range(1, 11);
         _BusTransform = GameObject.Find("PasajerosHolder");
         RutaPuntos = GameObject.Find("RutasAsiento").GetComponent<Transform>();
         foreach(Transform puntosRuta in RutaPuntos.transform)
