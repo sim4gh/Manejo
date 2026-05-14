@@ -7,7 +7,7 @@ public class ParadaManager : MonoBehaviour
     public List<Pasajero> pasajero;
     private bool _colaActiva = false;
     private bool _bajadaActiva = false;
-    public string NumParada;
+    public int NumParada;
     public TopSpeedometerWidget movimientoCarro;
     public bool _Estacionado = false;
     public float tiempo = 0;
@@ -19,7 +19,13 @@ public class ParadaManager : MonoBehaviour
         {
             Pasajero pasaje = pasajeros.GetComponent<Pasajero>();
             pasajero.Add(pasaje);
+            if (pasaje.Mi_Parada == NumParada)
+            {
+                pasaje.Mi_Parada = pasaje.Mi_Parada - 1;
+
+            }
         }
+
     }
 
     public void OnTriggerStay(Collider other)
