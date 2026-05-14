@@ -3,7 +3,8 @@ using UnityEngine;
 public class Pasajero : MonoBehaviour
 {
     [Header("Listas de puntos")]
-    public List<Transform> puntos;
+    public List<Transform> puntos = new List<Transform>();
+    public Transform RutaPuntos;
     public List<Asiento> _Asientos;
     [Header("Variables de Asiento y referencias")]
     public string AsientoOrientacion;
@@ -30,6 +31,12 @@ public class Pasajero : MonoBehaviour
 
     void Start()
     {
+        _BusTransform = GameObject.Find("PasajerosHolder");
+        RutaPuntos = GameObject.Find("RutasAsiento").GetComponent<Transform>();
+        foreach(Transform puntosRuta in RutaPuntos.transform)
+        {
+            puntos.Add(puntosRuta);
+        }
         RagDollPasajeroManager = GetComponent<RagDollPasajeroManager>();
         animaciones.Play("Idle");
     }

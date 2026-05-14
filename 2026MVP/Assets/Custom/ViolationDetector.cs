@@ -1,6 +1,7 @@
 using UnityEngine;
 using Gley.TrafficSystem;
-
+using System.Collections.Generic;
+using System.Collections;
 /// <summary>
 /// Detects traffic violations including speeding with dynamic speed limits from Gley waypoints.
 /// Attach to Player vehicle.
@@ -10,7 +11,7 @@ public class ViolationDetector : MonoBehaviour
     [Header("Speed Settings")]
     [Tooltip("Fallback speed limit if no waypoint found")]
     public float defaultSpeedLimit = 40f;
-
+    public bool yapuedo;
     [Tooltip("How often to check for speed limit changes (seconds)")]
     public float speedLimitCheckInterval = 0.5f;
 
@@ -138,6 +139,7 @@ public class ViolationDetector : MonoBehaviour
         // UIInputNew NO es singleton — PlayerCar lo agrega al mismo GameObject
         // en su Start(). Cachearlo aquí evita GetComponent por frame.
         if (playerCar != null) cachedInputNew = playerCar.GetComponent<Gley.UrbanSystem.UIInputNew>();
+        StartCoroutine(Espera());
     }
 
     void TryFindRCCP()
@@ -307,9 +309,16 @@ public class ViolationDetector : MonoBehaviour
 
         return direct.name;
     }
+    public IEnumerator Espera()
+    {
+        yield return new WaitForSeconds(2);
+        yapuedo = true;
+    }
 
     void OnCollisionEnter(Collision collision)
     {
+        if (yapuedo == false)
+            return;
         // Velocidades de ambos lados para clasificación passive/active aguas
         // abajo. NO se usan para el guard sensorial: leer linearVelocity dentro
         // de OnCollisionEnter devuelve el valor post-impulso del solver, que
@@ -344,7 +353,7 @@ public class ViolationDetector : MonoBehaviour
         GameObject direct = collision.gameObject;
         if (!isPedestrian) isPedestrian = direct.CompareTag("Pedestrian") || direct.layer == LayerMask.NameToLayer("Peaton");
         if (!isBicycle) isBicycle = direct.CompareTag("Bicicleta");
-        if (!isVehicle) isVehicle = direct.CompareTag("automovil") || direct.layer == LayerMask.NameToLayer("RCCP_Vehicle");
+        if (!isVehicle) isVehicle = direct.CompareTag("automovil");
         if (!isSign) isSign = direct.CompareTag("Senalamiento");
 
         // Clasificar activa/pasiva SOLO para colisiones vehiculares. Las demás
@@ -402,6 +411,7 @@ public class ViolationDetector : MonoBehaviour
         }
         else if (isVehicle)
         {
+            
             if (isPassive)
             {
                 violationType = "VehiclePassive";
@@ -452,12 +462,12 @@ public class ViolationDetector : MonoBehaviour
             // escena, pero SÍ debe sentir el impacto — el feedback sensorial
             // es esencial para el examen. Log se conserva para ayudar a
             // detectar geometría que merezca tag/layer apropiado.
-            if (layer != LayerMask.NameToLayer("Suelo"))
+            if (layer != LayerMask.NameToLayer("Suelo")&&totalScore!=100)
             {
                 violationType = "Obstacle";
                 Debug.Log($"[ViolationDetector] Colisión sin clasificar (feedback sin penalty): obj='{displayName}' tag='{rootObj.tag}' layer={LayerMask.LayerToName(layer)} speed={speed:F1}km/h");
             }
-            violationType = "Suelo";
+            violationType = null;
         }
 
         // Registrar cooldown del tipo apropiado
