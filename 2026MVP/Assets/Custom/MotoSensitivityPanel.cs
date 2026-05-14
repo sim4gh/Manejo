@@ -254,6 +254,8 @@ public class MotoSensitivityPanel : MonoBehaviour
             GUI.Label(new Rect(10, startY, 660, 20), $"Live procesado: {live:F3}");
             startY += 20;
         }
+        DrawCurvePreview(dst, new Rect(10, startY, 200, 80));
+        startY += 90;
         return startY + 10;
     }
 
@@ -389,5 +391,44 @@ public class MotoSensitivityPanel : MonoBehaviour
     {
         // JsonUtility roundtrip = deep copy gratuito.
         return JsonUtility.FromJson<MotoSensitivity>(JsonUtility.ToJson(src));
+    }
+
+    static Texture2D _curveTex;
+    static Texture2D GetCurveTexture()
+    {
+        if (_curveTex == null)
+        {
+            _curveTex = new Texture2D(1, 1);
+            _curveTex.SetPixel(0, 0, Color.white);
+            _curveTex.Apply();
+        }
+        return _curveTex;
+    }
+
+    void DrawCurvePreview(AxisSensitivity cfg, Rect rect)
+    {
+        GUI.Box(rect, "");
+        // Eje diagonal de referencia (gris).
+        int samples = 32;
+        for (int i = 0; i < samples; i++)
+        {
+            float t = (float)i / (samples - 1);
+            float px = rect.x + t * rect.width;
+            float py = rect.y + (1f - t) * rect.height;
+            GUI.color = new Color(0.5f, 0.5f, 0.5f, 0.5f);
+            GUI.DrawTexture(new Rect(px, py, 2, 2), GetCurveTexture());
+        }
+        // Curva resultante (cyan).
+        GUI.color = Color.cyan;
+        for (int i = 0; i < samples; i++)
+        {
+            float t = (float)i / (samples - 1);  // 0..1
+            float xNorm = t;
+            float y = MotoSensitivityCurves.ApplyAxis(xNorm, cfg);
+            float px = rect.x + t * rect.width;
+            float py = rect.y + (1f - y) * rect.height;
+            GUI.DrawTexture(new Rect(px, py, 2, 2), GetCurveTexture());
+        }
+        GUI.color = Color.white;
     }
 }
