@@ -187,6 +187,11 @@ public class MotoSensitivityPanel : MonoBehaviour
 
         GUI.EndScrollView();
 
+        // Detección de edición → auto-Custom. UNA sola llamada por frame, después
+        // de que TODAS las secciones mutaron `preset`. Llamarlo por-sección causaba
+        // snapshot/restore mid-frame inconsistente (codex review T10).
+        OnEditingChanged();
+
         // Footer.
         if (GUI.Button(new Rect(x + 10, y + h - 40, 200, 30), "Restaurar default del preset"))
             ApplyPresetToEditing(_selectedPreset);
@@ -233,7 +238,6 @@ public class MotoSensitivityPanel : MonoBehaviour
         dst.curveType  = DrawCurveTypeDropdown(dst.curveType, startY); startY += 25;
         dst.curveParam = DrawSlider("Curva (n)",  dst.curveParam, 0.5f, 3f,  startY); startY += 25;
         dst.scale      = DrawSlider("Escala máx", dst.scale,      0.3f, 1f,  startY); startY += 30;
-        OnEditingChanged();
         return startY + 10;
     }
 
@@ -246,7 +250,6 @@ public class MotoSensitivityPanel : MonoBehaviour
         dst.curveParam   = DrawSlider("Curva (n)",      dst.curveParam,   0.5f, 3f,    startY); startY += 25;
         dst.rampUpPerSec = DrawSlider("Ramp (1/s)",     dst.rampUpPerSec, 0.5f, 10f,   startY); startY += 25;
         dst.scale        = DrawSlider("Escala máx",     dst.scale,        0.3f, 1f,    startY); startY += 30;
-        OnEditingChanged();
         return startY + 10;
     }
 
@@ -254,7 +257,6 @@ public class MotoSensitivityPanel : MonoBehaviour
     {
         GUI.Label(new Rect(10, startY, 200, 25), title);
         dst.scale = DrawSlider("Escala", dst.scale, 0.3f, 1f, startY + 25);
-        OnEditingChanged();
         return startY + 65;
     }
 
@@ -265,7 +267,6 @@ public class MotoSensitivityPanel : MonoBehaviour
         dst.blendStartKmh       = DrawSlider("Inicio (km/h)", dst.blendStartKmh, 10f, 80f, startY); startY += 25;
         dst.blendEndKmh         = DrawSlider("Fin (km/h)",    dst.blendEndKmh,   30f, 120f, startY); startY += 25;
         dst.highSpeedLeanWeight = DrawSlider("Peso lean alta vel", dst.highSpeedLeanWeight, 0f, 1f, startY); startY += 30;
-        OnEditingChanged();
         return startY + 10;
     }
 
