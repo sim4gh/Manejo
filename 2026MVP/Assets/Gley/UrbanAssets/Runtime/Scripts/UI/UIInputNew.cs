@@ -1,6 +1,7 @@
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 using TlaxSim.G923Calibration;
 using TlaxSim.MotoCalibration;
+using TlaxSim.MotoSensitivity;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Controls;
@@ -434,6 +435,19 @@ namespace Gley.UrbanSystem
         private Rigidbody _bikeRigidbody;        // null si UIInputNew no está en el Player de la moto
         private float _motoLeanMin = -1f, _motoLeanMax = +1f;
         private float _motoHbarMin = -1f, _motoHbarMax = +1f;
+
+        // Cache del preset Moto Sensitivity activo. null = sistema inactivo
+        // (kill-switch on, JSON corrupto, o no es kiosko de moto).
+        // Re-cacheado en AttachAsMotoSimulator y vía MotoSensitivityProvider.OnReloaded.
+        private MotoPreset _motoSensActive;
+
+        // Para gas ramp (Task 7). Cacheado entre frames.
+        private float _motoGasPrev = 0f;
+
+        // Getters para live values en F11 panel (Task 11).
+        public float MotoLeanProcessed { get; private set; }
+        public float MotoHbarProcessed { get; private set; }
+        public float MotoGasProcessed { get; private set; }
 
         public const string DEFAULT_BIND_STEER_AXIS = "stick/x";
         // En el G923 PS del kiosk de la demo, la posición R del H-shifter
@@ -1903,6 +1917,14 @@ namespace Gley.UrbanSystem
                 + $" gas[{gasPath}]={_gasCtrl != null}"
                 + $" brake[{brakePath}]={_brakeCtrl != null} clutch[{clutchPath}]={_clutchCtrl != null}"
                 + $" | bikeRigidbody={_bikeRigidbody != null}");
+
+            // Cache Moto Sensitivity activo. Si está deshabilitado o no carga, _motoSensActive=null → path legacy.
+            RecacheMotoSensitivity();
+            if (MotoSensitivityProvider.Instance != null)
+            {
+                MotoSensitivityProvider.Instance.OnReloaded -= RecacheMotoSensitivity;
+                MotoSensitivityProvider.Instance.OnReloaded += RecacheMotoSensitivity;
+            }
             return true;
         }
 
@@ -2595,9 +2617,22 @@ namespace Gley.UrbanSystem
             float lean = NormalizeRange(leanRaw, _motoLeanMin, _motoLeanMax);
             float hbar = NormalizeRange(hbarRaw, _motoHbarMin, _motoHbarMax);
 
-            // Deadzone fino (heredado de F9). Filtra micro-ruido del sensor en reposo.
-            if (Mathf.Abs(lean) < _steerDeadzone) lean = 0f;
-            if (Mathf.Abs(hbar) < _steerDeadzone) hbar = 0f;
+            // Aplicar curva de sensibilidad si el sistema está activo. Si no,
+            // path legacy (deadzone global del Adv_*).
+            if (_motoSensActive != null)
+            {
+                lean = MotoSensitivityCurves.ApplyAxis(lean, _motoSensActive.lean);
+                hbar = MotoSensitivityCurves.ApplyAxis(hbar, _motoSensActive.hbar);
+            }
+            else
+            {
+                if (Mathf.Abs(lean) < _steerDeadzone) lean = 0f;
+                if (Mathf.Abs(hbar) < _steerDeadzone) hbar = 0f;
+            }
+
+            // Live values para F11 panel (post-curva, pre-blend).
+            MotoLeanProcessed = lean;
+            MotoHbarProcessed = hbar;
 
             // Speed-blend (Opción C). Si no hay Rigidbody (e.g. moto sin Player asignado)
             // speedKmh queda 0 → blend=0 → steer = handlebar puro. Funcional pero no
@@ -2611,10 +2646,10 @@ namespace Gley.UrbanSystem
                 speedKmh = _bikeRigidbody.velocity.magnitude * 3.6f;
 #endif
             }
-            float blendStart = PlayerPrefs.GetFloat(PREF_MOTO_BLEND_START_KMH, DEFAULT_MOTO_BLEND_START_KMH);
-            float blendEnd   = PlayerPrefs.GetFloat(PREF_MOTO_BLEND_END_KMH,   DEFAULT_MOTO_BLEND_END_KMH);
+            float blendStart = _motoSensActive != null ? _motoSensActive.blendStartKmh : PlayerPrefs.GetFloat(PREF_MOTO_BLEND_START_KMH, DEFAULT_MOTO_BLEND_START_KMH);
+            float blendEnd   = _motoSensActive != null ? _motoSensActive.blendEndKmh   : PlayerPrefs.GetFloat(PREF_MOTO_BLEND_END_KMH,   DEFAULT_MOTO_BLEND_END_KMH);
+            float wHigh      = _motoSensActive != null ? _motoSensActive.highSpeedLeanWeight : PlayerPrefs.GetFloat(PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT, DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT);
             float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(blendStart, blendEnd, speedKmh));
-            float wHigh = PlayerPrefs.GetFloat(PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT, DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT);
             // A alta velocidad: wHigh*lean + (1-wHigh)*hbar. wHigh=0.5 → 50% lean, 50% hbar.
             // Handlebar mantiene un rol residual de estabilidad/corrección fina.
             float steerHigh = wHigh * lean + (1f - wHigh) * hbar;
@@ -2668,6 +2703,29 @@ namespace Gley.UrbanSystem
                     + $" | speedKmh={speedKmh:F1} blend={blend:F2} wHigh={wHigh:F2}"
                     + $" | H={horizontalInput:F3} V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3}");
             }
+        }
+
+        private void RecacheMotoSensitivity()
+        {
+            var prov = MotoSensitivityProvider.Instance;
+            if (prov != null && prov.IsLoaded && !prov.IsKillSwitchOn)
+            {
+                _motoSensActive = prov.Active;
+                Debug.Log($"[UIInputNew/Moto] Sensitivity cacheado: preset={prov.Loaded.activePreset}");
+            }
+            else
+            {
+                _motoSensActive = null;
+                Debug.Log($"[UIInputNew/Moto] Sensitivity desactivado (loaded={prov?.IsLoaded} kill={prov?.IsKillSwitchOn})");
+            }
+            _motoGasPrev = 0f;  // reset ramp prev cuando cambia el preset
+        }
+
+        // Helper para hot-reload manual desde el panel F11.
+        public void ReloadMotoSensitivity()
+        {
+            MotoSensitivityProvider.Instance?.Reload();
+            RecacheMotoSensitivity();
         }
 
         private void OnGUI()
@@ -2738,6 +2796,8 @@ namespace Gley.UrbanSystem
                 InputSystem.onDeviceChange -= _deviceChangeHandler;
                 _deviceChangeHandler = null;
             }
+            if (MotoSensitivityProvider.Instance != null)
+                MotoSensitivityProvider.Instance.OnReloaded -= RecacheMotoSensitivity;
 #endif
         }
     }
