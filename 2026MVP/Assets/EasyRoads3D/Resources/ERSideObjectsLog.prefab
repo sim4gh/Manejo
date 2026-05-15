@@ -1507,8 +1507,8 @@ MonoBehaviour:
     connectionShoulderMarkings: 1
   - roadTypeName: Road Type 3
     id: 1772677358.311958
-    timestamp: 1778621461.4446907
-    roadWidth: 15
+    timestamp: 1778817237.1550362
+    roadWidth: 12
     advancedWidthSettings: 0
     faceDistance: 2
     angleTreshold: 45
@@ -1521,8 +1521,8 @@ MonoBehaviour:
     roadShapeDataActive: 0
     roadShapeData:
       nodes:
-      - {x: -7.5, y: 0}
-      - {x: 7.5, y: 0}
+      - {x: -6, y: 0}
+      - {x: 6, y: 0}
       hardEdge: 0000
       priorityNodeIndexLeft: -1
       priorityNodeIndexRight: -1
@@ -1549,12 +1549,12 @@ MonoBehaviour:
     speedLimit: 50
     speedLimitConnections: 50
     roadShape:
-    - {x: -7.5, y: 0}
-    - {x: 7.5, y: 0}
+    - {x: -6, y: 0}
+    - {x: 6, y: 0}
     roadShapeExt: []
     roadShapeExt2:
-    - {x: -7.5, y: 0}
-    - {x: 7.5, y: 0}
+    - {x: -6, y: 0}
+    - {x: 6, y: 0}
     doConnectionTri: 0101
     doConnectionTriExt: 
     roadShapeUVs:
