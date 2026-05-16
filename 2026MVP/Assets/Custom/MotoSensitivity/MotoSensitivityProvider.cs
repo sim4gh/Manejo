@@ -15,9 +15,16 @@ namespace TlaxSim.MotoSensitivity
     {
         public const string FILE_NAME = "moto_sensitivity.json";
         public const string KILL_SWITCH_PREF = "MotoSens_Disabled";
-        public const int SUPPORTED_SCHEMA_VERSION = 1;
+        public const int SUPPORTED_SCHEMA_VERSION = 2;
 
         static readonly string[] ValidPresets = { "Principiante", "Normal", "Realista", "Custom" };
+
+        // Hook inyectable solo desde tests para simular fallo de save sin
+        // romper permisos de archivo en EditMode. Tests lo asignan en SetUp y
+        // restauran en TearDown. En producción queda null y SaveAtomicToPath
+        // toma el path real. Público (no internal) porque el asmdef del test
+        // es separado y no hay InternalsVisibleTo configurado.
+        public static Func<string, MotoSensitivity, bool> SaveOverride;
 
         public static MotoSensitivityProvider Instance { get; private set; }
 
@@ -182,14 +189,7 @@ namespace TlaxSim.MotoSensitivity
             if (!File.Exists(path))
             {
                 var fresh = MotoSensitivityDefaults.NewWithRealistaActive();
-                try
-                {
-                    SaveAtomicToPath(path, fresh);
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[MotoSensitivity] No se pudo escribir JSON inicial en {path}: {e.Message}. Continuando con defaults en memoria.");
-                }
+                TrySave(path, fresh, "bootstrap inicial");
                 return fresh;
             }
 
@@ -198,11 +198,6 @@ namespace TlaxSim.MotoSensitivity
                 string text = File.ReadAllText(path);
                 var loaded = JsonUtility.FromJson<MotoSensitivity>(text);
                 if (loaded == null) return null;
-                if (loaded.schemaVersion != SUPPORTED_SCHEMA_VERSION)
-                {
-                    Debug.LogWarning($"[MotoSensitivity] schemaVersion={loaded.schemaVersion} no soportado (esperado {SUPPORTED_SCHEMA_VERSION}). Fallback legacy.");
-                    return null;
-                }
                 if (System.Array.IndexOf(ValidPresets, loaded.activePreset) < 0)
                 {
                     Debug.LogWarning($"[MotoSensitivity] activePreset='{loaded.activePreset}' inválido. Fallback legacy.");
@@ -213,6 +208,19 @@ namespace TlaxSim.MotoSensitivity
                     Debug.LogWarning("[MotoSensitivity] presets faltantes. Fallback legacy.");
                     return null;
                 }
+                if (loaded.schemaVersion == 1)
+                {
+                    MigrateV1ToV2(loaded);
+                    NormalizeHighSpeedLeanGains(loaded);
+                    TrySave(path, loaded, "migración v1→v2");
+                    return loaded;
+                }
+                if (loaded.schemaVersion != SUPPORTED_SCHEMA_VERSION)
+                {
+                    Debug.LogWarning($"[MotoSensitivity] schemaVersion={loaded.schemaVersion} no soportado (esperado {SUPPORTED_SCHEMA_VERSION}). Fallback legacy.");
+                    return null;
+                }
+                NormalizeHighSpeedLeanGains(loaded);
                 return loaded;
             }
             catch (Exception e)
@@ -222,13 +230,84 @@ namespace TlaxSim.MotoSensitivity
             }
         }
 
+        // Migración in-memory v1→v2. Rellena presets nulos (v1 podía tener parciales),
+        // sobreescribe highSpeedLeanGain de los nombrados con defaults (no podemos
+        // distinguir "ausente" de "0 explícito" — un técnico que haya editado el
+        // JSON v1 con el campo nuevo manteniendo schemaVersion:1 será pisado),
+        // y rellena custom con 1.0 (conservador, preserva calibración del usuario).
+        public static void MigrateV1ToV2(MotoSensitivity sens)
+        {
+            if (sens.presets == null) sens.presets = new MotoSensitivityPresets();
+            if (sens.presets.Principiante == null) sens.presets.Principiante = MotoSensitivityDefaults.Principiante();
+            if (sens.presets.Normal       == null) sens.presets.Normal       = MotoSensitivityDefaults.Normal();
+            if (sens.presets.Realista     == null) sens.presets.Realista     = MotoSensitivityDefaults.Realista();
+
+            sens.presets.Principiante.highSpeedLeanGain = MotoSensitivityDefaults.DefaultPrincipianteHighSpeedLeanGain;
+            sens.presets.Normal.highSpeedLeanGain       = MotoSensitivityDefaults.DefaultNormalHighSpeedLeanGain;
+            sens.presets.Realista.highSpeedLeanGain     = MotoSensitivityDefaults.DefaultRealistaHighSpeedLeanGain;
+
+            if (sens.custom != null)
+            {
+                sens.custom.highSpeedLeanGain = MotoSensitivityDefaults.DefaultCustomHighSpeedLeanGain;
+            }
+
+            sens.schemaVersion = 2;
+            Debug.Log($"[MotoSensitivity] Migrado v1→v2. highSpeedLeanGain rellenado por preset.");
+        }
+
+        // Normaliza highSpeedLeanGain de cada preset. JsonUtility puede no
+        // respetar el inicializador del campo: cuando una key falta en el JSON,
+        // el campo puede quedar en 0 (default(T)). Tratamos 0/NaN/Inf/<0 como
+        // "ausente" y caemos a fallback per-preset; valores > 1 se capean a 1.
+        public static void NormalizeHighSpeedLeanGains(MotoSensitivity sens)
+        {
+            if (sens?.presets != null)
+            {
+                if (sens.presets.Principiante != null)
+                    sens.presets.Principiante.highSpeedLeanGain = NormalizeHighSpeedLeanGain(sens.presets.Principiante.highSpeedLeanGain, MotoSensitivityDefaults.DefaultPrincipianteHighSpeedLeanGain);
+                if (sens.presets.Normal != null)
+                    sens.presets.Normal.highSpeedLeanGain = NormalizeHighSpeedLeanGain(sens.presets.Normal.highSpeedLeanGain, MotoSensitivityDefaults.DefaultNormalHighSpeedLeanGain);
+                if (sens.presets.Realista != null)
+                    sens.presets.Realista.highSpeedLeanGain = NormalizeHighSpeedLeanGain(sens.presets.Realista.highSpeedLeanGain, MotoSensitivityDefaults.DefaultRealistaHighSpeedLeanGain);
+            }
+            if (sens?.custom != null)
+                sens.custom.highSpeedLeanGain = NormalizeHighSpeedLeanGain(sens.custom.highSpeedLeanGain, MotoSensitivityDefaults.DefaultCustomHighSpeedLeanGain);
+        }
+
+        public static float NormalizeHighSpeedLeanGain(float value, float fallback)
+        {
+            if (float.IsNaN(value) || float.IsInfinity(value)) return fallback;
+            if (value <= 0f) return fallback;
+            return Mathf.Clamp(value, 0f, 1f);
+        }
+
         public static void SaveAtomicToPath(string path, MotoSensitivity sens)
         {
+            if (SaveOverride != null)
+            {
+                if (!SaveOverride(path, sens))
+                    throw new IOException("SaveOverride returned false (test injection)");
+                return;
+            }
             string tmp = path + ".tmp";
             string text = JsonUtility.ToJson(sens, true);
             File.WriteAllText(tmp, text);
             if (File.Exists(path)) File.Delete(path);
             File.Move(tmp, path);
+        }
+
+        // Wrapper best-effort: log + tragar IOException, no propagar. Usado en
+        // bootstrap inicial y al persistir migración v1→v2.
+        static void TrySave(string path, MotoSensitivity sens, string reason)
+        {
+            try
+            {
+                SaveAtomicToPath(path, sens);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[MotoSensitivity] Save fallido ({reason}) en {path}: {e.Message}. Continuando con config en memoria.");
+            }
         }
 
         public static MotoPreset ResolveActive(MotoSensitivity sens)

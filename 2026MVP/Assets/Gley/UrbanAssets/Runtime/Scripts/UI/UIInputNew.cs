@@ -2649,11 +2649,14 @@ namespace Gley.UrbanSystem
             float blendStart = _motoSensActive != null ? _motoSensActive.blendStartKmh : PlayerPrefs.GetFloat(PREF_MOTO_BLEND_START_KMH, DEFAULT_MOTO_BLEND_START_KMH);
             float blendEnd   = _motoSensActive != null ? _motoSensActive.blendEndKmh   : PlayerPrefs.GetFloat(PREF_MOTO_BLEND_END_KMH,   DEFAULT_MOTO_BLEND_END_KMH);
             float wHigh      = _motoSensActive != null ? _motoSensActive.highSpeedLeanWeight : PlayerPrefs.GetFloat(PREF_MOTO_HIGH_SPEED_LEAN_WEIGHT, DEFAULT_MOTO_HIGH_SPEED_LEAN_WEIGHT);
+            // highSpeedLeanGain: 1.0 = sin atenuación (legacy / pre-v2). En v2:
+            // 0.40 Principiante, 0.60 Normal, 0.80 Realista. Reduce ganancia del
+            // lean a alta velocidad para que una inclinación normal no voltee
+            // la moto en curva rápida (feedback de Oscar, 2026-05-15).
+            float highSpeedLeanGain = _motoSensActive != null ? _motoSensActive.highSpeedLeanGain : 1.0f;
             float blend = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(blendStart, blendEnd, speedKmh));
-            // A alta velocidad: wHigh*lean + (1-wHigh)*hbar. wHigh=0.5 → 50% lean, 50% hbar.
-            // Handlebar mantiene un rol residual de estabilidad/corrección fina.
-            float steerHigh = wHigh * lean + (1f - wHigh) * hbar;
-            horizontalInput = Mathf.Clamp(Mathf.Lerp(hbar, steerHigh, blend), -1f, +1f);
+            float leanGain = Mathf.Lerp(1f, highSpeedLeanGain, blend);
+            horizontalInput = MotoSensitivityCurves.ComputeMotoSteering(lean, hbar, wHigh, highSpeedLeanGain, blend);
 
             // Throttle. Si Moto Sensitivity activo, aplicar deadzone + curve + ramp + scale.
             // Si no, legacy: _gasCurveN del F9.
@@ -2713,7 +2716,7 @@ namespace Gley.UrbanSystem
                 Debug.Log($"[UIInputNew/Moto] raw lean={leanRaw:F3} hbar={hbarRaw:F3}"
                     + $" gas={gasRaw:F3} brakeBtn={(brakePressed ? 1 : 0)} clutchBtn={(clutchPressed ? 1 : 0)}"
                     + $" | norm lean={lean:F3} hbar={hbar:F3} gas={gas:F3}"
-                    + $" | speedKmh={speedKmh:F1} blend={blend:F2} wHigh={wHigh:F2}"
+                    + $" | speedKmh={speedKmh:F1} blend={blend:F2} wHigh={wHigh:F2} hsLG={highSpeedLeanGain:F2} leanGain={leanGain:F2}"
                     + $" | H={horizontalInput:F3} V={verticalInput:F3} B={brakeInput:F3} C={clutchInput:F3}");
             }
         }
@@ -2724,7 +2727,7 @@ namespace Gley.UrbanSystem
             if (prov != null && prov.IsLoaded && !prov.IsKillSwitchOn)
             {
                 _motoSensActive = prov.Active;
-                Debug.Log($"[UIInputNew/Moto] Sensitivity cacheado: preset={prov.Loaded.activePreset}");
+                Debug.Log($"[UIInputNew/Moto] Sensitivity cacheado: preset={prov.Loaded.activePreset} highSpeedLeanGain={_motoSensActive.highSpeedLeanGain:F2}");
             }
             else
             {

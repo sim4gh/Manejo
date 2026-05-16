@@ -9,7 +9,7 @@ namespace TlaxSim.MotoSensitivity
     [Serializable]
     public class MotoSensitivity
     {
-        public int schemaVersion = 1;
+        public int schemaVersion = 2;
         public string vehicleType = "motorcycle";
         public string activePreset = "Realista";
         public string lastModifiedAt = "";
@@ -39,6 +39,12 @@ namespace TlaxSim.MotoSensitivity
         public float blendStartKmh = 30f;
         public float blendEndKmh = 60f;
         public float highSpeedLeanWeight = 0.5f;
+
+        // Multiplicador del lean cuando blend=1 (alta velocidad). leanGain en
+        // UIInputNew es Lerp(1, highSpeedLeanGain, blend). 1.0 = sin atenuación
+        // (comportamiento v1). El provider normaliza valores fuera de [0,1] y
+        // trata 0/NaN como "ausente → fallback al default per-preset".
+        public float highSpeedLeanGain = 1.0f;
     }
 
     [Serializable]

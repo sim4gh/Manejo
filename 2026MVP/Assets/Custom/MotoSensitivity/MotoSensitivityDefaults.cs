@@ -6,6 +6,17 @@ namespace TlaxSim.MotoSensitivity
     // Ver docs/superpowers/specs/2026-05-13-moto-sensitivity-design.md sección 4.
     public static class MotoSensitivityDefaults
     {
+        // highSpeedLeanGain per preset (introducido en schema v2):
+        //   Principiante 0.40 — atenuación fuerte: a alta velocidad el lean
+        //                       cuenta 40%, evita volcado del evaluado novato.
+        //   Normal       0.60 — atenuación media.
+        //   Realista     0.80 — casi sin atenuación, preserva feel actual.
+        // Custom heredado de v1 se rellena con 1.0 (conservador, en provider).
+        public const float DefaultPrincipianteHighSpeedLeanGain = 0.40f;
+        public const float DefaultNormalHighSpeedLeanGain       = 0.60f;
+        public const float DefaultRealistaHighSpeedLeanGain     = 0.80f;
+        public const float DefaultCustomHighSpeedLeanGain       = 1.00f;
+
         public static MotoPreset Principiante()
         {
             return new MotoPreset
@@ -15,7 +26,8 @@ namespace TlaxSim.MotoSensitivity
                 gas    = new PedalSensitivity{ deadzone = 0.02f, curveType = "pow",    curveParam = 2.0f, scale = 0.80f, rampUpPerSec = 1.5f },
                 brake  = new ScaleOnly { scale = 0.70f },
                 clutch = new ScaleOnly { scale = 1.0f },
-                blendStartKmh = 35f, blendEndKmh = 70f, highSpeedLeanWeight = 0.35f
+                blendStartKmh = 35f, blendEndKmh = 70f, highSpeedLeanWeight = 0.35f,
+                highSpeedLeanGain = DefaultPrincipianteHighSpeedLeanGain
             };
         }
 
@@ -28,7 +40,8 @@ namespace TlaxSim.MotoSensitivity
                 gas    = new PedalSensitivity{ deadzone = 0.01f, curveType = "pow",    curveParam = 1.4f, scale = 1.0f,  rampUpPerSec = 3.0f },
                 brake  = new ScaleOnly { scale = 1.0f },
                 clutch = new ScaleOnly { scale = 1.0f },
-                blendStartKmh = 30f, blendEndKmh = 60f, highSpeedLeanWeight = 0.50f
+                blendStartKmh = 30f, blendEndKmh = 60f, highSpeedLeanWeight = 0.50f,
+                highSpeedLeanGain = DefaultNormalHighSpeedLeanGain
             };
         }
 
@@ -41,7 +54,8 @@ namespace TlaxSim.MotoSensitivity
                 gas    = new PedalSensitivity{ deadzone = 0.00f, curveType = "linear", curveParam = 1.0f, scale = 1.0f,  rampUpPerSec = 999f },
                 brake  = new ScaleOnly { scale = 1.0f },
                 clutch = new ScaleOnly { scale = 1.0f },
-                blendStartKmh = 30f, blendEndKmh = 60f, highSpeedLeanWeight = 0.50f
+                blendStartKmh = 30f, blendEndKmh = 60f, highSpeedLeanWeight = 0.50f,
+                highSpeedLeanGain = DefaultRealistaHighSpeedLeanGain
             };
         }
 
@@ -49,7 +63,7 @@ namespace TlaxSim.MotoSensitivity
         {
             return new MotoSensitivity
             {
-                schemaVersion = 1,
+                schemaVersion = 2,
                 vehicleType = "motorcycle",
                 activePreset = "Realista",
                 lastModifiedAt = System.DateTime.UtcNow.ToString("o"),

@@ -65,5 +65,27 @@ namespace TlaxSim.MotoSensitivity
             x = ApplyScale(x, cfg.scale);
             return Mathf.Clamp(x, 0f, 1f);
         }
+
+        // Steering compuesto de la moto. Mezcla lean (chasis) + hbar (manubrio)
+        // según la velocidad, atenuando el lean a alta velocidad para que
+        // una inclinación normal no voltee la moto en curva rápida.
+        //
+        // Parámetros:
+        //   lean, hbar             — inputs ya post-curva, ∈ [-1, +1]
+        //   wHigh                  — peso del lean en el mix a alta velocidad
+        //   highSpeedLeanGain      — ganancia del lean cuando blend=1
+        //   blend                  — 0=baja velocidad, 1=alta velocidad
+        //
+        // Propiedades:
+        //   blend=0                 → output = hbar (sin importar lean)
+        //   highSpeedLeanGain=1     → fórmula idéntica a v1 (regresión cero)
+        //   blend=1, hbar=0         → output = wHigh · highSpeedLeanGain · lean
+        public static float ComputeMotoSteering(float lean, float hbar, float wHigh, float highSpeedLeanGain, float blend)
+        {
+            float leanGain = Mathf.Lerp(1f, highSpeedLeanGain, blend);
+            float effectiveLean = lean * leanGain;
+            float steerHigh = wHigh * effectiveLean + (1f - wHigh) * hbar;
+            return Mathf.Clamp(Mathf.Lerp(hbar, steerHigh, blend), -1f, +1f);
+        }
     }
 }
