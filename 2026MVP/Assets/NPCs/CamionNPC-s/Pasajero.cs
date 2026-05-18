@@ -10,6 +10,7 @@ public class Pasajero : MonoBehaviour
     public string AsientoOrientacion;
     public GameObject PuntosRecorrido;
     public Asiento Asiento;
+    public Asiento _MiAsientoDespachador; 
     public bool _ViAsiento = false;
     public int Num_Asiento = 0;
     public GameObject _BusTransform;
@@ -35,7 +36,7 @@ public class Pasajero : MonoBehaviour
         Mi_Parada = Random.Range(1, 11);
         _BusTransform = GameObject.Find("PasajerosHolder");
         RutaPuntos = GameObject.Find("RutasAsiento").GetComponent<Transform>();
-        foreach(Transform puntosRuta in RutaPuntos.transform)
+        foreach (Transform puntosRuta in RutaPuntos.transform)
         {
             puntos.Add(puntosRuta);
         }
@@ -45,7 +46,7 @@ public class Pasajero : MonoBehaviour
 
     void Update()
     {
-        if (!animaciones.enabled) return; 
+        if (!animaciones.enabled) return;
 
         if (!_Activo && !_BajarActivado) return;
 
@@ -128,7 +129,7 @@ public class Pasajero : MonoBehaviour
 
     public void BajarDelBus()
     {
-        if (!_Sentado && !_Bajando) return; 
+        if (!_Sentado && !_Bajando) return;
 
         if (!_Bajando)
         {
@@ -138,13 +139,21 @@ public class Pasajero : MonoBehaviour
             {
                 puntosInversos.Add(puntos[i]);
             }
-            
+
             _Sentado = false;
             _Bajando = true;
             indiceBajada = 0;
             animaciones.Play("Walk");
-            _Asientos[Num_Asiento].lugaresDisponibles++;
-            _Asientos[Num_Asiento].gameObject.SetActive(true);
+
+            if (_MiAsientoDespachador != null)
+            {
+                _MiAsientoDespachador.lugaresDisponibles++;
+                if (Num_Asiento < _MiAsientoDespachador.pasajerosSentados.Count)
+                {
+                    _MiAsientoDespachador.pasajerosSentados[Num_Asiento] = null;
+                }
+                _MiAsientoDespachador.gameObject.SetActive(true);
+            }
         }
 
         if (indiceBajada >= puntosInversos.Count) return;
@@ -179,7 +188,7 @@ public class Pasajero : MonoBehaviour
     }
     private void OnTriggerEnter(Collider other)
     {
-        if (other.CompareTag("puerta")&&  _Activo== false)
+        if (other.CompareTag("puerta") && _Activo == false)
         {
             RagDollPasajeroManager.ActivoRagdoll(true);
         }

@@ -4,33 +4,41 @@ using UnityEngine;
 public class Asiento : MonoBehaviour
 {
     public string tipoAsiento;
+    public List<Pasajero> pasajerosSentados = new List<Pasajero> { null, null };
     public int lugaresDisponibles = 2;
     public List<Asiento> asientosDisponibles;
     public bool _UnoMenos = false;
+
     private void OnTriggerEnter(Collider other)
     {
-        int TeDoyAsiento = 0;
         if (lugaresDisponibles <= 0) return;
-        if (other.GetComponentInParent<Pasajero>())
+        if (_UnoMenos) return;
+
+        Pasajero pasajero = other.GetComponentInParent<Pasajero>();
+        if (pasajero == null) return;
+
+        
+        int indice = -1;
+        for (int i = 0; i < pasajerosSentados.Count; i++)
         {
-            if (lugaresDisponibles == 2)
+            if (pasajerosSentados[i] == null)
             {
-                other.GetComponentInParent<Pasajero>()._Asientos[0] = asientosDisponibles[0];
-                other.GetComponentInParent<Pasajero>().Num_Asiento = TeDoyAsiento;
-            }
-            else
-            {
-                other.GetComponentInParent<Pasajero>()._Asientos[1] = asientosDisponibles[1];
-                other.GetComponentInParent<Pasajero>().Num_Asiento = TeDoyAsiento + 1;
-            }
-            if (!_UnoMenos)
-            {
-                _UnoMenos = true;
-                lugaresDisponibles--;
-                Invoke(nameof(Activarbooleano), 2f);
+                indice = i;
+                break;
             }
         }
+        if (indice == -1) return; 
+
+        pasajero._Asientos[indice] = asientosDisponibles[indice];
+        pasajero.Num_Asiento = indice;
+        pasajero._MiAsientoDespachador = this; //aqui es donde el pasajero recuerda donde se sienta xd
+        pasajerosSentados[indice] = pasajero;
+
+        _UnoMenos = true;
+        lugaresDisponibles--;
+        Invoke(nameof(Activarbooleano), 2f);
     }
+
     private void Activarbooleano()
     {
         _UnoMenos = false;

@@ -15,6 +15,10 @@ public class BusAsientosManager : MonoBehaviour
             {
                 asiento.gameObject.SetActive(false);
             }
+            else if (!asiento.gameObject.activeSelf)
+            {
+                asiento.gameObject.SetActive(true);
+            }
         }
     }
 }
