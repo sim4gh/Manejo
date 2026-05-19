@@ -291,10 +291,11 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.5, y: 1.5, z: 1.5}
-  m_ConstrainProportionsScale: 1
+  m_LocalScale: {x: 1, y: 1.5, z: 1.5}
+  m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 512095309156938479}
+  - {fileID: 3759499706598942913}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &925316966643741490
@@ -1417,8 +1418,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 0.24096923, y: 1, z: 7}
-  m_Center: {x: 0, y: 0, z: 3.5}
+  m_Size: {x: 2.2053995, y: 1, z: 7}
+  m_Center: {x: 0.016621292, y: 0, z: 3.5}
 --- !u!1 &1814078419840263169
 GameObject:
   m_ObjectHideFlags: 0
@@ -1844,6 +1845,81 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!1 &2316535897475532985
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 3759499706598942913}
+  - component: {fileID: 7401118842996713083}
+  - component: {fileID: 3242961595945998071}
+  m_Layer: 9
+  m_Name: AmbulanciaTrigger
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 0
+--- !u!4 &3759499706598942913
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2316535897475532985}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 326106351095460086}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!65 &7401118842996713083
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2316535897475532985}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.7, y: 5, z: 7.37}
+  m_Center: {x: 0, y: 0, z: 6.85}
+--- !u!114 &3242961595945998071
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2316535897475532985}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 43b52584eb6012e4882d745e43971544, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TlaxcalaSim.Emergency.AmbulanceEmergencyTrigger
+  _yieldController: {fileID: 0}
+  detectionSize: {x: 1.7, y: 5, z: 7.37}
+  detectionCenter: {x: 0, y: 0, z: 6.85}
+  sirenActive: 1
+  autoActivateBySpeed: 0
+  autoActivationSpeedKmh: 40
+  toggleKey: 104
+  drawGizmos: 1
+  verboseLogging: 0
 --- !u!1 &2386762545101333458
 GameObject:
   m_ObjectHideFlags: 0
