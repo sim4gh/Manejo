@@ -980,6 +980,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -1028,6 +1029,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -1595,6 +1597,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -1733,6 +1736,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -2138,6 +2142,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -2217,6 +2222,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -2355,6 +2361,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -2631,6 +2638,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -2710,6 +2718,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 4272963789874674657}
@@ -2979,6 +2990,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -3027,6 +3039,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -8032,6 +8045,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 7116793094884821720}
@@ -8451,6 +8467,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -8590,6 +8607,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -8730,6 +8748,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -8935,6 +8954,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ViolationDetector
   defaultSpeedLimit: 40
+  yapuedo: 0
   speedLimitCheckInterval: 0.5
   speedingPenalty: 5
   pedestrianPenalty: 25
@@ -9001,8 +9021,8 @@ BoxCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Size: {x: 2.57376, y: 2.6667724, z: 13.21564}
-  m_Center: {x: 0.41156626, y: 1.9467051, z: -4.5929766}
+  m_Size: {x: 3.348235, y: 2.6667724, z: 13.21564}
+  m_Center: {x: 0.38872743, y: 1.9467051, z: -4.5929766}
 --- !u!82 &5086361408426367280
 AudioSource:
   m_ObjectHideFlags: 0
@@ -9920,6 +9940,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 3322249968811956460}
@@ -10518,6 +10541,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoAtras
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 5206092825635619844}
@@ -10568,6 +10594,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -10648,6 +10675,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -10696,6 +10724,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -11196,6 +11225,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 6519412173743228581}
@@ -11604,7 +11636,7 @@ GameObject:
   - component: {fileID: 3907335009319788627}
   - component: {fileID: 1488846688166684529}
   m_Layer: 12
-  m_Name: Pasajeros
+  m_Name: PasajerosHolder
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -11774,6 +11806,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -12918,6 +12951,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoAtras
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 7597558619596501958}
@@ -13090,6 +13126,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 3267642693411952347}
@@ -13409,6 +13448,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -14255,6 +14295,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -14655,6 +14696,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoAtras
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 6590238763540682403}
@@ -15460,6 +15504,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 5342911842562261452}
@@ -15755,6 +15802,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -15867,6 +15915,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -16006,6 +16055,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -21441,6 +21491,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 2974630589861271814}
@@ -21522,6 +21575,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 8422569912286824412}
@@ -21907,6 +21963,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: MirandoDeFrente
+  pasajerosSentados:
+  - {fileID: 0}
+  - {fileID: 0}
   lugaresDisponibles: 2
   asientosDisponibles:
   - {fileID: 607128593419771365}
@@ -22012,6 +22071,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -22645,6 +22705,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
@@ -22693,6 +22754,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Asiento
   tipoAsiento: 
+  pasajerosSentados: []
   lugaresDisponibles: 2
   asientosDisponibles: []
   _UnoMenos: 0
