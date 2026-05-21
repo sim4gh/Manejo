@@ -29,6 +29,7 @@ public class Pasajero : MonoBehaviour
     private int indiceBajada = 0;
     public bool _Activo = false;
 
+     
     public int Mi_Parada;
 
     void Start()
@@ -46,6 +47,7 @@ public class Pasajero : MonoBehaviour
 
     void Update()
     {
+
         if (!animaciones.enabled) return;
 
         if (!_Activo && !_BajarActivado) return;

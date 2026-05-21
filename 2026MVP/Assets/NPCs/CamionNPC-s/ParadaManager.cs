@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using Unity.VisualScripting;
 using UnityEngine;
 public class ParadaManager : MonoBehaviour
@@ -8,6 +9,7 @@ public class ParadaManager : MonoBehaviour
     private bool _colaActiva = false;
     private bool _bajadaActiva = false;
     public int NumParada;
+    public bool _EsParadaProhibida = false;
     public TopSpeedometerWidget movimientoCarro;
     public bool _Estacionado = false;
     public float tiempo = 0;
@@ -49,6 +51,12 @@ public class ParadaManager : MonoBehaviour
         {
             _Estacionado = true;
         }
+        if (_EsParadaProhibida == true)
+        {
+
+            Debug.Log("NO PUEDES SUBIR PASAJE AQUÍ!");
+            return;
+        }
         if (!_Estacionado) return;
         if (!_colaActiva)
         {
@@ -63,6 +71,8 @@ public class ParadaManager : MonoBehaviour
     {
         if (other.CompareTag("puerta"))
         {
+           
+           
             _colaActiva = false;
             _bajadaActiva = false;
         }
