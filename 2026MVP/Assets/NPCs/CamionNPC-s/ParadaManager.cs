@@ -14,6 +14,10 @@ public class ParadaManager : MonoBehaviour
     public bool _Estacionado = false;
     public float tiempo = 0;
     public bool aumenta = false;
+
+    public Animator BusAnimator;
+    public bool _PuertaSwitch = false;
+    
     public void Start()
     {
 
@@ -33,11 +37,28 @@ public class ParadaManager : MonoBehaviour
     public void OnTriggerStay(Collider other)
     {
         if (!other.CompareTag("puerta")) return;
+
+        if (BusAnimator == null)
+        {
+            BusAnimator = GameObject.Find("PlayerBus").GetComponent<Animator>();
+        }
         if (movimientoCarro == null)
         {
             movimientoCarro = GameObject.Find("Speedometer").GetComponent<TopSpeedometerWidget>();
         }
-        bool carroDetenido = movimientoCarro.CurrentSpeedKmh <= 0.5f;
+
+        if (_PuertaSwitch == true)
+        {
+
+            BusAnimator.Play("Abro");
+        }
+        else
+        {
+            BusAnimator.Play("Cierro");
+        }
+            bool carroDetenido = movimientoCarro.CurrentSpeedKmh <= 0.5f;
+
+
         if (!carroDetenido)
         {
             aumenta = false;
@@ -45,23 +66,41 @@ public class ParadaManager : MonoBehaviour
             _Estacionado = false;
             return;
         }
+
+
         aumenta = true;
         tiempo += Time.deltaTime;
+
+
         if (tiempo >= 2f)
         {
             _Estacionado = true;
         }
+
+
+
         if (_EsParadaProhibida == true)
         {
 
             Debug.Log("NO PUEDES SUBIR PASAJE AQUÍ!");
             return;
         }
+
+
         if (!_Estacionado) return;
+        
+        bool puertaAbierta = AbrirCerrar(_PuertaSwitch);
+     
+        if (puertaAbierta == false)
+        {
+            return;
+        }
+
         if (!_colaActiva)
         {
             StartCoroutine(ColaPasaje());
         }
+
         if (!_bajadaActiva)
         {
             StartCoroutine(ColaBajada());
@@ -99,6 +138,19 @@ public class ParadaManager : MonoBehaviour
                 yield return new WaitForSeconds(3);
                 abordo[i]._BajarActivado = true;
             }
+        }
+    }
+
+
+    public bool AbrirCerrar(bool estado)
+    {
+        if (estado)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
 }
