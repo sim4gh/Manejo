@@ -173,10 +173,10 @@ GameObject:
   - component: {fileID: 7055216554572640870}
   - component: {fileID: 4740687121455986546}
   - component: {fileID: 8193780449339750773}
-  - component: {fileID: 4576915493366603044}
+  - component: {fileID: 1109602236786083225}
   m_Layer: 13
   m_Name: Shagy
-  m_TagString: Untagged
+  m_TagString: PlayerTrigger
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -267,18 +267,27 @@ MonoBehaviour:
   _maxWalkSpeed: 0.6
   _type: 0
   _triggerLength: 2
---- !u!114 &4576915493366603044
-MonoBehaviour:
+--- !u!65 &1109602236786083225
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 8618971948799721921}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1fe17c0c39f578348b0ef39dc0a93557, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusKiller
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.3658773, y: 2.4578776, z: 2.6583877}
+  m_Center: {x: 0.009674847, y: 0.7289393, z: -0.044947863}
 --- !u!1 &8795939976796438518
 GameObject:
   m_ObjectHideFlags: 0

@@ -1070,7 +1070,7 @@ GameObject:
   - component: {fileID: 7404540193046448763}
   - component: {fileID: 3960119681021009886}
   - component: {fileID: 3481154462837599978}
-  - component: {fileID: 2451956393102935656}
+  - component: {fileID: 8941269179952628845}
   m_Layer: 13
   m_Name: mujeriana
   m_TagString: Untagged
@@ -1166,18 +1166,27 @@ MonoBehaviour:
   _maxWalkSpeed: 0.6
   _type: 0
   _triggerLength: 2
---- !u!114 &2451956393102935656
-MonoBehaviour:
+--- !u!65 &8941269179952628845
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5031625074712970589}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1fe17c0c39f578348b0ef39dc0a93557, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusKiller
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 2.0362277, y: 2.3786502, z: 3.604695}
+  m_Center: {x: 0.21736073, y: 0.68932486, z: -0.32327712}
 --- !u!1 &5084000315639198081
 GameObject:
   m_ObjectHideFlags: 0

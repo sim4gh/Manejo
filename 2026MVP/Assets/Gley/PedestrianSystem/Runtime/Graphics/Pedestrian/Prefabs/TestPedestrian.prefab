@@ -395,10 +395,10 @@ GameObject:
   - component: {fileID: 5176288083196491840}
   - component: {fileID: 2238990700008191666}
   - component: {fileID: 7237475820254153928}
-  - component: {fileID: 1931535933651958076}
+  - component: {fileID: 2019553633044209209}
   m_Layer: 13
   m_Name: TestPedestrian
-  m_TagString: Untagged
+  m_TagString: PlayerTrigger
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -494,18 +494,27 @@ MonoBehaviour:
   _maxWalkSpeed: 0.6
   _type: 0
   _triggerLength: 2
---- !u!114 &1931535933651958076
-MonoBehaviour:
+--- !u!65 &2019553633044209209
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1909001698619046016}
-  m_Enabled: 0
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1fe17c0c39f578348b0ef39dc0a93557, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BusKiller
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 2.215249, z: 2.681964}
+  m_Center: {x: 0, y: 0.60762465, z: -0.27027535}
 --- !u!1 &1969761074849151133
 GameObject:
   m_ObjectHideFlags: 0
