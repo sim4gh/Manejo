@@ -285,6 +285,10 @@ namespace Gley.TrafficSystem
             {
                 NewColliderHit(other);
             }
+            else if (other.isTrigger && other.gameObject.CompareTag("PlayerTrigger"))
+            {
+                NewColliderHit(other);
+            }
         }
 
 
