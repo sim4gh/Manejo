@@ -335,6 +335,20 @@ public class ViolationDetector : MonoBehaviour
         float relativeSpeedKmh = collision.relativeVelocity.magnitude * 3.6f;
         if (relativeSpeedKmh < MIN_FEEDBACK_SPEED_KMH) return;
 
+        // Bus y Camión de Carga: dimensiones grandes hacen que rozar la banqueta
+        // sea casi inevitable. La banqueta vive en layer "Suelo" (parte del mesh
+        // monolítico de roads en el set Gley, no hay tag dedicado). Suprimir
+        // penalty + feedback visual/háptico para estos vehículos cuando el root
+        // está en Suelo evita el crakeo de parabrisas a cada roce.
+        {
+            string practiceVehicle = GameManager.Instance != null ? GameManager.Instance.PracticeVehicleType : null;
+            if (practiceVehicle == "BusPasajeros" || practiceVehicle == "CamionDCarga")
+            {
+                int sueloLayer = LayerMask.NameToLayer("Suelo");
+                if (sueloLayer != -1 && collision.transform.root.gameObject.layer == sueloLayer) return;
+            }
+        }
+
         // Deduplicar por objeto raíz (ragdoll: Shin.R, Arm.L, Hips → mismo peatón)
         Transform root = collision.transform.root;
         int rootId = root.GetInstanceID();
@@ -442,7 +456,7 @@ public class ViolationDetector : MonoBehaviour
             NotificationManager.Instance?.ShowNotification(
                 $"-{signCollisionPenalty} ¡COLISIÓN CON SEÑALAMIENTO!", Color.yellow);
             TelemetryLogger.Instance?.LogEvent(
-                "COLISION_SENALAMIENTO", $"Colisión con señalamiento ({displayName})",
+                "COLISION_SENALAMIENTO", "Colisión con señalamiento",
                 -signCollisionPenalty, speed);
         }
         else if (layer != LayerMask.NameToLayer("Default"))
