@@ -253,7 +253,11 @@ namespace Gley.TrafficSystem
         /// <param name="other"></param>
         protected virtual void OnTriggerExit(Collider other)
         {
-            if (!other.isTrigger)
+            // TLAX PATCH: espejo de OnTriggerEnter. Antes solo procesaba !isTrigger, así
+            // que los triggers "PlayerTrigger" (moto del jugador, burbuja del peatón) que
+            // OnTriggerEnter SÍ agrega a _obstacleList nunca se removían → el carro quedaba
+            // frenado para siempre. Re-aplicar tras cualquier reimport de Gley.
+            if (ShouldTrackObstacle(other.isTrigger, other.gameObject.CompareTag("PlayerTrigger")))
             {
                 //TODO this should only trigger if objects of interest are doing trigger exit
                 if (other.gameObject.layer == gameObject.layer ||
@@ -261,7 +265,7 @@ namespace Gley.TrafficSystem
                     (_obstacleLayers == (_obstacleLayers | (1 << other.gameObject.layer))) ||
                     (_playerLayers == (_playerLayers | (1 << other.gameObject.layer))))
                 {
-                    for (int i = 0; i < _obstacleList.Count; i++)
+                    for (int i = _obstacleList.Count - 1; i >= 0; i--)
                     {
                         if (_obstacleList[i].Collider == other)
                         {
@@ -281,14 +285,24 @@ namespace Gley.TrafficSystem
         /// <param name="other"></param>
         protected virtual void OnTriggerEnter(Collider other)
         {
-            if (!other.isTrigger)
+            // TLAX PATCH: además de colliders sólidos, trata los triggers con tag
+            // "PlayerTrigger" como obstáculos (moto del jugador / burbuja de rango
+            // extendido del peatón). El removal correspondiente vive en OnTriggerExit.
+            if (ShouldTrackObstacle(other.isTrigger, other.gameObject.CompareTag("PlayerTrigger")))
             {
                 NewColliderHit(other);
             }
-            else if (other.isTrigger && other.gameObject.CompareTag("PlayerTrigger"))
-            {
-                NewColliderHit(other);
-            }
+        }
+
+        /// <summary>
+        /// TLAX PATCH: predicado puro y testeable que decide si un collider debe entrar/salir
+        /// de _obstacleList. Un collider cuenta si es sólido (no-trigger) o si es un trigger
+        /// etiquetado "PlayerTrigger". Enter y Exit DEBEN usar el mismo predicado (simetría)
+        /// para que el carro reanude cuando el obstáculo se retira.
+        /// </summary>
+        public static bool ShouldTrackObstacle(bool isTrigger, bool isPlayerTrigger)
+        {
+            return !isTrigger || isPlayerTrigger;
         }
 
 
